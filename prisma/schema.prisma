@@ -1,0 +1,17 @@
+// 轻问卷 · 数据模型
+//
+// 约定：
+// 1. 数据库为 PostgreSQL（Neon）。不写任何 SQLite 专用语法。
+// 2. 连接串不在这里配置 —— Prisma 7 起，url / directUrl 移到根目录 prisma.config.ts。
+// 3. 迁移只增不改：已应用的迁移文件永不编辑，修正靠新增迁移。
+// 4. 字段与枚举值用英文（大写下划线给枚举）；中文文案统一放 src/config/constants.ts。
+// 5. 业务模型自 M1 起逐步补齐，模型清单与字段说明见 docs/PLAN.md §5。
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

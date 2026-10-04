@@ -1,0 +1,160 @@
+@import 'tailwindcss';
+
+/* ============================================================================
+ * 轻问卷 · 设计 token（Tailwind CSS v4 · CSS-first @theme）
+ *
+ * 唯一来源：d:/code/design/01-设计系统与页面映射.html §02–§06
+ * 设计稿用的是 Tailwind v3 的 tailwind.config.js，此处等价转换为 v4 的 @theme，
+ * 类名保持不变 —— 所以设计稿的 HTML 可以近乎逐行翻译成 JSX。
+ *
+ * 注意：v4 的 --shadow-* / --radius-* 会覆盖内置默认值，改动前先看设计系统 §04。
+ * ========================================================================== */
+@theme {
+  /* ---- 品牌色阶：500 为品牌指定主色 ---- */
+  --color-brand-50: #f4f6fc;
+  --color-brand-100: #e7eaf7;
+  --color-brand-200: #c8cfea;
+  --color-brand-300: #9faad8;
+  --color-brand-400: #6c7dc1;
+  --color-brand-500: #31438c;
+  --color-brand-600: #293a78;
+  --color-brand-700: #212f62;
+  --color-brand-800: #19244b;
+  --color-brand-900: #111a36;
+
+  /* ---- 中性色阶：文字与背景 ---- */
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+
+  /* ---- 图表色序列：前三级同色系用于单题多选项，后三级用于跨题对比。最多 6 色 ---- */
+  --color-chart-1: #31438c;
+  --color-chart-2: #6c7dc1;
+  --color-chart-3: #9faad8;
+  --color-chart-4: #14b8a6;
+  --color-chart-5: #f59e0b;
+  --color-chart-6: #f43f5e;
+
+  /* ---- 字体：英文与数字走 Inter，中文走系统字体栈（避免额外字体加载） ---- */
+  --font-sans:
+    Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+
+  /* ---- 圆角 ---- */
+  --radius-btn: 10px;
+  --radius-card: 12px;
+  --radius-modal: 16px;
+
+  /* ---- 阴影：只有三级 + FAB 例外，色值一律中性灰 ----
+   * sm   输入框聚焦 / 开关滑块 / 分段控件选中块
+   * card 卡片默认
+   * pop  弹层 / 下拉 / 抽屉 / 模态
+   * fab  仅移动端悬浮操作按钮
+   * 按钮一律不加投影。 */
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.05);
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px rgb(15 23 42 / 0.06);
+  --shadow-pop: 0 8px 32px rgb(15 23 42 / 0.12);
+  --shadow-fab: 0 2px 8px rgb(49 67 140 / 0.2);
+
+  /* ---- 排版：全站只用 400 / 500 / 600 三个字重 ---- */
+  --text-display: 32px;
+  --text-display--line-height: 40px;
+  --text-title-l: 24px;
+  --text-title-l--line-height: 32px;
+  --text-title-m: 18px;
+  --text-title-m--line-height: 28px;
+  --text-body: 14px;
+  --text-body--line-height: 22px;
+  --text-body-s: 13px;
+  --text-body-s--line-height: 20px;
+  --text-label: 12px;
+  --text-label--line-height: 18px;
+  --text-caption: 11px;
+  --text-caption--line-height: 16px;
+
+  /* ---- 动效（设计系统 §09）----
+   * 微交互 150ms ease 由组件的 transition-colors duration-150 承担，不在这里。
+   * 这里只放三类：弹层出现 / 抽屉与面板展开 / 遮罩淡入。
+   * 只动 transform 与 opacity，保证 60fps；位移类不做超过 8px 的「入场动画」。 */
+  --animate-pop-in: pop-in 200ms ease-out;
+  --animate-slide-in-right: slide-in-right 250ms ease-out;
+  --animate-slide-in-up: slide-in-up 250ms ease-out;
+  --animate-fade-in: fade-in 200ms ease-out;
+
+  /* 刻意用独立的 `scale` / `translate` 属性，而不是 `transform`：
+   * Radix 的 Popper 会给弹层内容写内联 `transform: translate3d(...)` 做定位，
+   * 用 `transform` 做动画会在动画期间把它覆盖掉，弹层会飞到左上角。
+   * 独立的 scale/translate 与定位互不干扰，所以同一套动画既能用于居中弹窗，
+   * 也能用于下拉与气泡。 */
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      scale: 0.96;
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+
+  @keyframes slide-in-right {
+    from {
+      translate: 100% 0;
+    }
+    to {
+      translate: 0 0;
+    }
+  }
+
+  @keyframes slide-in-up {
+    from {
+      translate: 0 100%;
+    }
+    to {
+      translate: 0 0;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+@layer base {
+  /* 焦点环始终可见：2px 品牌色 + 2px 留白。
+   * 禁止裸用 outline: none —— 组件要改就用 focus-visible:outline-none
+   * 并同时给出自己的焦点样式。 */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+
+  /* 尊重系统设置：动效可关闭（设计系统 §09） */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* 表格与指标卡里的数字：等宽数字保证纵向对齐 */
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
