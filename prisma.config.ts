@@ -25,7 +25,10 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
-    seed: 'tsx prisma/seed.ts',
+    // 两个开关都是必须的：
+    // - --conditions=react-server：种子脚本会 import @/lib/db，那里首行是 `import 'server-only'`
+    // - --env-file-if-exists=.env：纯 Node 不会自动读 .env（那是 Next.js 的行为）
+    seed: 'node --env-file-if-exists=.env --import tsx --conditions=react-server prisma/seed.ts',
   },
   datasource: {
     url: migrationUrl,

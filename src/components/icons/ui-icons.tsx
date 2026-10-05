@@ -36,6 +36,15 @@ export function ChevronDownIcon(props: IconProps) {
   );
 }
 
+/** 上下双箭头。工作区切换器的触发按钮用它 */
+export function ChevronUpDownIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2.2} {...props}>
+      <path d="M7 15l5 5 5-5M7 9l5-5 5 5" />
+    </Icon>
+  );
+}
+
 export function ChevronLeftIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -56,6 +65,70 @@ export function ArrowLeftIcon(props: IconProps) {
   return (
     <Icon strokeWidth={2.2} {...props}>
       <path d="M19 12H5M12 19l-7-7 7-7" />
+    </Icon>
+  );
+}
+
+/** 用户。账号菜单「个人信息」用 */
+export function UserIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </Icon>
+  );
+}
+
+/** 盾牌。账号菜单「账号与安全」用 */
+export function ShieldIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </Icon>
+  );
+}
+
+/** 挂锁。账号与安全里的「登录密码」行用 */
+export function LockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="11" width="18" height="11" rx="2.5" />
+      <path d="M7 11V7a5 5 0 0110 0v4" />
+    </Icon>
+  );
+}
+
+/** 信封。账号与安全里的「绑定邮箱」行用 */
+export function MailIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+      <path d="M3 7.5l9 6 9-6" />
+    </Icon>
+  );
+}
+
+export function LogoutIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+      <path d="M16 17l5-5-5-5M21 12H9" />
+    </Icon>
+  );
+}
+
+export function ChevronUpIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2.2} {...props}>
+      <path d="M18 15l-6-6-6 6" />
+    </Icon>
+  );
+}
+
+export function MenuIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="M3 6h18M3 12h18M3 18h18" />
     </Icon>
   );
 }
@@ -159,6 +232,25 @@ export function EyeIcon(props: IconProps) {
     <Icon {...props}>
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
       <circle cx="12" cy="12" r="3" />
+    </Icon>
+  );
+}
+
+/** 文档图标。用于空状态「还没有问卷」等场景（取自设计系统 §06 空状态） */
+export function FileTextIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.8} {...props}>
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <path d="M14 2v6h6M9 13h6M9 17h4" />
+    </Icon>
+  );
+}
+
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M17.94 17.94A10.4 10.4 0 0112 20c-7 0-11-8-11-8a19 19 0 015.06-6.06M9.9 4.24A9.1 9.1 0 0112 4c7 0 11 8 11 8a18.9 18.9 0 01-2.16 3.19M14.12 14.12a3 3 0 11-4.24-4.24" />
+      <path d="M1 1l22 22" />
     </Icon>
   );
 }

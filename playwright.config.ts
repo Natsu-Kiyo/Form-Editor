@@ -19,13 +19,34 @@ import { defineConfig, devices } from '@playwright/test';
 const e2ePort = Number(process.env.E2E_PORT || 3100);
 const baseURL = `http://localhost:${e2ePort}`;
 
+/**
+ * 默认跑 `next dev`（改代码即生效，日常用）。
+ * 设 `E2E_USE_BUILD=1` 则跑构建产物（`next start`）—— 它**不受项目级锁影响**，
+ * 也不会因为 dev server 的模块图过期而出现假失败，适合在「本机已开着别的 dev server」
+ * 或需要在干净产物上验证时使用。前提是先 `pnpm build`。
+ */
+const useBuildOutput = process.env.E2E_USE_BUILD === '1';
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  /**
+   * 并发刻意压到 2。
+   *
+   * webServer 跑的是 `next dev`（按需编译）：默认的「一个测试文件一个 worker」
+   * 会让多个 worker 同时触发首屏编译，互相排队，实测出现过 30s 超时的假失败。
+   * 用例量很小，压到 2 反而更稳。
+   */
+  workers: process.env.CI ? 1 : 2,
   reporter: process.env.CI ? 'github' : 'html',
+  /**
+   * 断言超时放到 15s（默认 5s 太紧）：数据库在 Neon 的新加坡区，
+   * 一次登录会连带查出工作区、会话数、通知等好几次往返，
+   * 默认 5s 会把「只是慢」误判成「坏了」——这正是我们踩过的坑。
+   */
+  expect: { timeout: 15_000 },
   use: {
     baseURL,
     trace: 'on-first-retry',
@@ -48,7 +69,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `pnpm exec next dev --port ${e2ePort}`,
+    command: useBuildOutput
+      ? `pnpm exec next start --port ${e2ePort}`
+      : `pnpm exec next dev --port ${e2ePort}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

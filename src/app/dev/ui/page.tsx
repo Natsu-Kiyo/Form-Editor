@@ -171,7 +171,7 @@ export default function DesignTokensPage() {
     <main className="mx-auto w-full max-w-[1180px] px-8 py-14">
       <header className="border-ink-200 mb-10 border-b pb-8">
         <div className="mb-4 flex items-center gap-3">
-          <div className="bg-brand-500 flex size-9 items-center justify-center rounded-[10px]">
+          <div className="bg-brand-500 flex size-9 items-center justify-center rounded-[10px] text-white">
             <Logo className="size-5" />
           </div>
           <span className="text-title-m text-ink-900 font-semibold tracking-tight">轻问卷</span>

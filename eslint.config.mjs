@@ -11,6 +11,7 @@ import checkFile from 'eslint-plugin-check-file';
  */
 const FEATURES = [
   'auth',
+  'account',
   'workspace',
   'questionnaire',
   'editor',

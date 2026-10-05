@@ -11,8 +11,6 @@ export const env = createEnv({
     DATABASE_URL: z.string().min(1),
     /** 迁移专用直连串；仅在执行 prisma migrate 时需要 */
     DIRECT_URL: z.string().min(1).optional(),
-    /** 会话与令牌签名密钥 */
-    AUTH_SECRET: z.string().min(32),
   },
   client: {
     /** 应用对外地址（短链与二维码内容依赖它） */
@@ -21,7 +19,6 @@ export const env = createEnv({
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
     DIRECT_URL: process.env.DIRECT_URL,
-    AUTH_SECRET: process.env.AUTH_SECRET,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
   emptyStringAsUndefined: true,

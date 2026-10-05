@@ -85,6 +85,7 @@
    * 只动 transform 与 opacity，保证 60fps；位移类不做超过 8px 的「入场动画」。 */
   --animate-pop-in: pop-in 200ms ease-out;
   --animate-slide-in-right: slide-in-right 250ms ease-out;
+  --animate-slide-in-left: slide-in-left 250ms ease-out;
   --animate-slide-in-up: slide-in-up 250ms ease-out;
   --animate-fade-in: fade-in 200ms ease-out;
 
@@ -107,6 +108,15 @@
   @keyframes slide-in-right {
     from {
       translate: 100% 0;
+    }
+    to {
+      translate: 0 0;
+    }
+  }
+
+  @keyframes slide-in-left {
+    from {
+      translate: -100% 0;
     }
     to {
       translate: 0 0;

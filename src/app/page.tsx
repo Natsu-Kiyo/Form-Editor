@@ -10,7 +10,7 @@ import { Logo } from '@/components/icons/logo';
 export default function HomePage() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-24">
-      <div className="bg-brand-500 flex size-11 items-center justify-center rounded-xl">
+      <div className="bg-brand-500 flex size-11 items-center justify-center rounded-xl text-white">
         <Logo className="size-5" />
       </div>
 

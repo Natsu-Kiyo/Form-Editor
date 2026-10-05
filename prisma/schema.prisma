@@ -5,7 +5,7 @@
 // 2. 连接串不在这里配置 —— Prisma 7 起，url / directUrl 移到根目录 prisma.config.ts。
 // 3. 迁移只增不改：已应用的迁移文件永不编辑，修正靠新增迁移。
 // 4. 字段与枚举值用英文（大写下划线给枚举）；中文文案统一放 src/config/constants.ts。
-// 5. 业务模型自 M1 起逐步补齐，模型清单与字段说明见 docs/PLAN.md §5。
+// 5. 模型清单与字段说明见 docs/PLAN.md §5。
 
 generator client {
   provider = "prisma-client"
@@ -14,4 +14,105 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ============================================================
+// M1 · 账号、会话与工作区
+// ============================================================
+
+/// 工作区角色，权限由深到浅：所有者 > 管理员 > 编辑者 > 查看者
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  /// 上次修改密码的时间。账号与安全里要如实展示（设计稿 W11 的「上次修改 x」）
+  passwordUpdatedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions       Session[]
+  memberships    Membership[]
+  ownedWorkspaces Workspace[]          @relation("WorkspaceOwner")
+  notifications  Notification[]
+  feedbacks      Feedback[]
+}
+
+/// 服务端会话。Cookie 里只放原始 token，库里存它的 sha256 —— 库泄露也无法直接冒用
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner       User         @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  memberships Membership[]
+
+  @@index([ownerId])
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        Role
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+/// 站内通知。类型用字符串而非枚举 —— 类型会随里程碑增长，文案在 constants.ts 映射
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String?
+  linkUrl   String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+/// 帮助与反馈弹层里提交的内容
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String?
+  category  String
+  content   String
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
 }

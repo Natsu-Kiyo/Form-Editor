@@ -1,0 +1,63 @@
+import { FileTextIcon } from '@/components/icons/ui-icons';
+import { AppShell } from '@/components/layout/app-shell';
+import { SidebarNav, type SidebarNavItem } from '@/components/layout/sidebar-nav';
+import { SidebarShell } from '@/components/layout/sidebar-shell';
+import { ROLE_LABEL } from '@/config/constants';
+import { AccountMenu } from '@/features/account/components/account-menu';
+import { countActiveSessions } from '@/features/account/api/sessions';
+import { getWorkspacesForUser } from '@/features/workspace/api/workspaces';
+import { WorkspaceSwitcher } from '@/features/workspace/components/workspace-switcher';
+import { resolveActiveWorkspace } from '@/features/workspace/lib/active-workspace';
+import { requireUser } from '@/lib/auth/dal';
+import { getAccountSecurityInfo } from '@/lib/auth/users';
+import { formatDisplayDate } from '@/utils/format';
+
+/**
+ * 侧栏导航项。
+ *
+ * 「模板中心 / 成员与权限 / 操作日志」在 M8–M10 交付对应页面时再加进来 ——
+ * 在那之前画出来就是「点了 404」的假入口，宁可先少几项。
+ */
+const NAV_ITEMS: SidebarNavItem[] = [{ href: '/app', label: '问卷列表', icon: <FileTextIcon /> }];
+
+/**
+ * 管理台外壳：侧栏 + 窄屏抽屉。
+ *
+ * ⚠️ 这里的 `requireUser` **不是安全边界**。Next 16 文档明确指出 layout 在导航时
+ * 不会重渲染、也不阻止子段渲染，所以「layout 里 return null / redirect」拦不住任何人。
+ * 它只是让未登录用户顺畅地跳去登录页；真正的访问控制在每个页面的数据函数内部
+ * （页面自己也会调 `requireUser` / `requireMembership`）。
+ */
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const user = await requireUser();
+
+  // 四处都是独立读取，并行发起；DB 在别的区域时，串行 await 会白白叠加往返时间
+  const workspaces = await getWorkspacesForUser(user.id);
+  const [activeWorkspace, security, activeSessionCount] = await Promise.all([
+    resolveActiveWorkspace(workspaces),
+    getAccountSecurityInfo(user.id),
+    countActiveSessions(user.id),
+  ]);
+
+  const sidebar = (
+    <SidebarShell
+      workspaceSwitcher={
+        <WorkspaceSwitcher workspaces={workspaces} activeId={activeWorkspace?.id ?? null} />
+      }
+      nav={<SidebarNav items={NAV_ITEMS} />}
+      account={
+        <AccountMenu
+          userName={user.name}
+          userEmail={user.email}
+          roleLabel={activeWorkspace ? ROLE_LABEL[activeWorkspace.role] : '—'}
+          passwordUpdatedAtLabel={
+            security?.passwordUpdatedAt ? formatDisplayDate(security.passwordUpdatedAt) : null
+          }
+          activeSessionCount={activeSessionCount}
+        />
+      }
+    />
+  );
+
+  return <AppShell sidebar={sidebar}>{children}</AppShell>;
+}

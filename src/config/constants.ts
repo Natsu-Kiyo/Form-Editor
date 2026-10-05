@@ -58,6 +58,23 @@ export const IDENTITY_MODE_LABEL: Record<IdentityMode, { title: string; descript
   PASSWORD: { title: '口令访问', description: '需要输入口令才能进入作答页' },
 };
 
+/**
+ * 演示账号。
+ *
+ * 邮箱与密码来自设计稿 W01 的「演示账号」提示框（lin.yu@example.com / demo1234）——
+ * 设计稿是唯一出处，所以不另造一套。
+ *
+ * 密码写在前端可见的常量里是**刻意**的：这是公开的演示账号，
+ * 登录页会把它直接印在页面上。真实用户密码当然是用户自己设的。
+ */
+export const DEMO_ACCOUNTS = {
+  owner: { name: '林予', role: 'OWNER', email: 'lin.yu@example.com', password: 'demo1234' },
+  viewer: { name: '陈默', role: 'VIEWER', email: 'chen.mo@example.com', password: 'demo1234' },
+} as const;
+
+/** 供 E2E 与 seed 复用的主演示账号 */
+export const PRIMARY_DEMO_ACCOUNT = DEMO_ACCOUNTS.owner;
+
 /** 1.1 / 2.0 规划功能的灰显角标文案 */
 export const UPCOMING_BADGE = {
   V11: '1.1',

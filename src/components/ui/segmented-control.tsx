@@ -17,6 +17,8 @@ export type SegmentedControlProps<TValue extends string> = {
   /** 三段及以上的视图切换建议给，读屏会念出来 */
   'aria-label'?: string;
   size?: 'sm' | 'md';
+  /** 占满容器宽度、每段等宽（弹层里的两个 Tab 用它） */
+  stretch?: boolean;
   className?: string;
 };
 
@@ -34,6 +36,7 @@ export function SegmentedControl<TValue extends string>({
   onValueChange,
   options,
   size = 'md',
+  stretch = false,
   className,
   'aria-label': ariaLabel,
 }: SegmentedControlProps<TValue>) {
@@ -43,7 +46,12 @@ export function SegmentedControl<TValue extends string>({
       onValueChange={(next) => onValueChange(next as TValue)}
       orientation="horizontal"
       aria-label={ariaLabel}
-      className={cn('bg-ink-100 inline-flex items-center gap-0.5 rounded-[10px] p-0.5', className)}
+      className={cn(
+        'bg-ink-100 items-center gap-0.5 rounded-[10px] p-0.5',
+        // 弹层里的两个 Tab 要等宽占满，视图切换器则按内容自适应
+        stretch ? 'flex w-full' : 'inline-flex',
+        className,
+      )}
     >
       {options.map((option) => (
         <RadioGroupPrimitive.Item
@@ -52,6 +60,7 @@ export function SegmentedControl<TValue extends string>({
           disabled={option.disabled}
           className={cn(
             'inline-flex items-center justify-center rounded-lg px-3 font-medium',
+            stretch && 'flex-1',
             'text-ink-500 hover:text-ink-800 transition-colors duration-150',
             size === 'sm' ? 'text-caption h-6' : 'text-label h-7',
             'data-[state=checked]:text-ink-900 data-[state=checked]:bg-white data-[state=checked]:shadow-sm',

@@ -1,7 +1,8 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // @node-rs/argon2 带平台原生二进制，不能让打包器把它打进 bundle
+  serverExternalPackages: ['@node-rs/argon2'],
 };
 
 export default nextConfig;

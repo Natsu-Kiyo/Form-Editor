@@ -15,12 +15,14 @@ export type DrawerContentProps = React.ComponentProps<typeof DialogPrimitive.Con
   description?: string;
   /** 抽屉宽度。历史版本列表 / 答卷详情都用默认 420 */
   widthClassName?: string;
+  /** 从哪一侧滑入。导航抽屉用 left，内容类抽屉用默认的 right */
+  side?: 'right' | 'left';
   footer?: React.ReactNode;
 };
 
 /**
- * 右侧抽屉。用于「历史版本」「单份答卷详情」这类需要保留背后上下文的场景。
- * 从右侧滑入 250ms ease-out（设计系统 §09「面板展开 / 抽屉」）。
+ * 侧向抽屉。用于「历史版本」「单份答卷详情」这类需要保留背后上下文的场景，
+ * 窄屏下也用它承载导航。从侧边滑入 250ms ease-out（设计系统 §09「面板展开 / 抽屉」）。
  */
 export function DrawerContent({
   className,
@@ -28,6 +30,7 @@ export function DrawerContent({
   title,
   description,
   widthClassName = 'max-w-[420px]',
+  side = 'right',
   footer,
   ...props
 }: DrawerContentProps) {
@@ -36,9 +39,11 @@ export function DrawerContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         className={cn(
-          'fixed inset-y-0 right-0 z-50 flex w-full flex-col',
-          'border-ink-200 shadow-pop border-l bg-white',
-          'data-[state=open]:animate-slide-in-right',
+          'fixed inset-y-0 z-50 flex w-full flex-col',
+          'border-ink-200 shadow-pop bg-white',
+          side === 'right'
+            ? 'data-[state=open]:animate-slide-in-right right-0 border-l'
+            : 'data-[state=open]:animate-slide-in-left left-0 border-r',
           widthClassName,
           className,
         )}
