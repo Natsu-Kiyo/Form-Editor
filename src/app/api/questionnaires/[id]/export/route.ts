@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 
 import { getQuestionnairePayload } from '@/features/questionnaire/api/questionnaires';
-import { requireQuestionnaireAccess } from '@/features/questionnaire/lib/access';
-import { payloadFileName } from '@/features/questionnaire/lib/payload';
+import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
+import { payloadFileName } from '@/lib/questionnaire-structure';
 
 /**
  * 导出问卷结构 JSON。

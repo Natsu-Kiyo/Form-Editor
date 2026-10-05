@@ -64,6 +64,18 @@ test('全链路：新建 → 复制 → 归档 → 恢复 → 删除', async ({ 
 
   await signIn(page);
 
+  // ---- 先清掉可能存在的残留 ----
+  // 空白创建的标题一律是「未命名问卷」，上一次失败留下的卡片会让后面的断言
+  // 命中两个同名元素。与其让用例变得「一失败就再也跑不过」，不如自己收拾干净。
+  const leftoverMenu = page.getByRole('button', { name: '「未命名问卷」更多操作' });
+
+  for (let remaining = await leftoverMenu.count(); remaining > 0; remaining -= 1) {
+    await leftoverMenu.first().click();
+    await page.getByRole('menuitem', { name: '删除问卷' }).click();
+    await page.getByRole('button', { name: '确认删除' }).click();
+    await expect(leftoverMenu).toHaveCount(remaining - 1);
+  }
+
   // ---- 新建（空白创建） ----
   await page.getByRole('button', { name: '新建问卷' }).first().click();
   await page.getByRole('button', { name: '创建', exact: true }).click();

@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 import { QUESTION_TYPE_LABEL, type QuestionType } from '@/config/constants';
-import type { Prisma } from '@/generated/prisma/client';
 
 /**
  * 问卷结构快照。
@@ -74,16 +73,4 @@ export function payloadFileName(title: string) {
 /** 题型的中文名，导出文件里也带上，方便人直接读 */
 export function describeQuestionType(type: QuestionType) {
   return QUESTION_TYPE_LABEL[type];
-}
-
-/**
- * 写 JSON 列的入口。
- *
- * Prisma 的 Json 列只接受它自己的 `InputJsonValue`，而校验过的 payload 是
- * `Record<string, unknown>` —— 转换收敛到这一处，而不是在每个写库的地方各写一个 cast。
- */
-export function toJsonColumn<T>(value: T): Prisma.InputJsonValue;
-export function toJsonColumn<T>(value: T | null | undefined): Prisma.InputJsonValue | undefined;
-export function toJsonColumn<T>(value: T | null | undefined) {
-  return value === null || value === undefined ? undefined : (value as Prisma.InputJsonValue);
 }

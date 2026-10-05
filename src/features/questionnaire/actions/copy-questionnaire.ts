@@ -6,7 +6,7 @@ import { requireMembership } from '@/lib/auth/permissions';
 import { prisma } from '@/lib/db';
 
 import { createQuestionnaireWithPayload, getQuestionnairePayload } from '../api/questionnaires';
-import type { QuestionnairePayload } from '../lib/payload';
+import type { QuestionnairePayload } from '@/lib/questionnaire-structure';
 
 /** 副本标题的规则：加后缀而不是「副本 2 / 副本 3」，避免同一份问卷反复复制后成为一串数字 */
 const COPY_SUFFIX = '（副本）';

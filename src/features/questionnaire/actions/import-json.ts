@@ -5,8 +5,8 @@ import { revalidatePath } from 'next/cache';
 import type { FormState } from '@/types/form-state';
 
 import { replaceQuestionnaireStructure } from '../api/questionnaires';
-import { requireQuestionnaireAccess } from '../lib/access';
-import { questionnairePayloadSchema } from '../lib/payload';
+import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
+import { questionnairePayloadSchema } from '@/lib/questionnaire-structure';
 
 /** 上传文件的体积上限。结构 JSON 几十 KB 足够，超过这个数多半是传错了文件 */
 const MAX_FILE_BYTES = 512 * 1024;

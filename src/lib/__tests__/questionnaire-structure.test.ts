@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { payloadFileName, questionnairePayloadSchema } from '@/features/questionnaire/lib/payload';
+import { payloadFileName, questionnairePayloadSchema } from '@/lib/questionnaire-structure';
 
 /**
  * 这套 schema 同时守着三条通路：模板 payload、导出 JSON、导入 JSON。

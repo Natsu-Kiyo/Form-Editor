@@ -29,17 +29,15 @@ const useBuildOutput = process.env.E2E_USE_BUILD === '1';
 
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: true,
+  /**
+   * 串行跑：所有用例共用**同一个演示数据库**，而且多条用例都会「新建 → 改名 → 删除」问卷。
+   * 并行时后建的那张卡会被另一条用例的 `.first()` 抢走（空白创建的标题都是「未命名问卷」），
+   * 表现为「A 用例的问卷里凭空多出一道题」这类极难定位的偶发失败。
+   * 代价是跑得慢一些 —— 这笔账划得来：E2E 是里程碑收尾才跑的东西，不是每次提交都跑。
+   */
+  fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  /**
-   * 并发刻意压到 2。
-   *
-   * webServer 跑的是 `next dev`（按需编译）：默认的「一个测试文件一个 worker」
-   * 会让多个 worker 同时触发首屏编译，互相排队，实测出现过 30s 超时的假失败。
-   * 用例量很小，压到 2 反而更稳。
-   */
-  workers: process.env.CI ? 1 : 2,
   reporter: process.env.CI ? 'github' : 'html',
   /**
    * 断言超时放到 15s（默认 5s 太紧）：数据库在 Neon 的新加坡区，
@@ -47,6 +45,7 @@ export default defineConfig({
    * 默认 5s 会把「只是慢」误判成「坏了」——这正是我们踩过的坑。
    */
   expect: { timeout: 15_000 },
+  workers: 1,
   use: {
     baseURL,
     trace: 'on-first-retry',

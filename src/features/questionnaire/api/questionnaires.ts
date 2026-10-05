@@ -4,8 +4,9 @@ import { randomBytes } from 'node:crypto';
 
 import type { QuestionnaireStatus } from '@/config/constants';
 import { prisma } from '@/lib/db';
+import { toJsonColumn } from '@/lib/json';
 
-import { toJsonColumn, type QuestionnairePayload } from '../lib/payload';
+import type { QuestionnairePayload } from '@/lib/questionnaire-structure';
 
 /** 列表筛选：`ALL` 刻意**不含已归档** —— 归档的语义就是「从列表折叠起来」 */
 export type QuestionnaireFilter = QuestionnaireStatus | 'ALL';

@@ -1,12 +1,12 @@
 import 'server-only';
 
 import { prisma } from '@/lib/db';
+import { toJsonColumn } from '@/lib/json';
 
 import {
   questionnairePayloadSchema,
-  toJsonColumn,
   type QuestionnairePayload,
-} from '../lib/payload';
+} from '@/lib/questionnaire-structure';
 
 export type TemplateSummary = {
   id: string;

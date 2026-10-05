@@ -7,7 +7,7 @@ import { toFieldErrors } from '@/utils/zod-errors';
 
 import { getQuestionnairePayload } from '../api/questionnaires';
 import { createTemplate, findWorkspaceTemplateByTitle } from '../api/templates';
-import { requireQuestionnaireAccess } from '../lib/access';
+import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { saveAsTemplateSchema } from '../schemas';
 
 /** 自建模板的分类。官方模板用具体分类，自建的统一归到这一类（M9 的模板中心再细分） */

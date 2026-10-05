@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { setQuestionnaireStatus } from '../api/questionnaires';
-import { requireQuestionnaireAccess } from '../lib/access';
+import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 
 /** 归档：从列表折叠起来，数据只读保留 */
 export async function archiveQuestionnaireAction(questionnaireId: string) {

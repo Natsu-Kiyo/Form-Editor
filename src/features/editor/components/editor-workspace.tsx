@@ -1,0 +1,144 @@
+'use client';
+
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCorners,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { useState } from 'react';
+
+import { FileTextIcon, PlusIcon } from '@/components/icons/ui-icons';
+import { EmptyState } from '@/components/ui/empty-state';
+
+import { useEditorDraft } from './editor-draft';
+import { EditorLeftPanel } from './editor-left-panel';
+import { PropertyPanel } from './property-panel';
+import { QuestionCard } from './question-card';
+
+/**
+ * 编辑器三栏工作区：题型面板 / 画布 / 属性面板。
+ *
+ * 「当前正在编辑哪道题」是**纯客户端状态**，不进 URL 也不进数据库：
+ * 它是视线焦点而不是文档状态，刷新后回到第一题完全可以接受，
+ * 而放进 URL 会让每次点选都产生一条历史记录、把后退键毁掉。
+ */
+export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
+  const { questions, addQuestion, reorderQuestions } = useEditorDraft();
+  const [selectedKey, setSelectedKey] = useState<string | null>(questions[0]?.key ?? null);
+
+  const sensors = useSensors(
+    // distance 约束：手柄上的一次「点击」不该被当成拖拽
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const order = questions.map((question) => question.key);
+    const from = order.indexOf(String(active.id));
+    const to = order.indexOf(String(over.id));
+    if (from === -1 || to === -1) return;
+
+    const next = [...order];
+    next.splice(to, 0, ...next.splice(from, 1));
+    reorderQuestions(next);
+  };
+
+  const selected = questions.find((question) => question.key === selectedKey) ?? null;
+
+  return (
+    <div className="flex min-h-0 flex-1">
+      <EditorLeftPanel
+        questions={questions}
+        selectedKey={selectedKey}
+        onSelect={setSelectedKey}
+        readOnly={readOnly}
+      />
+
+      <div className="min-w-0 flex-1 overflow-y-auto p-7">
+        <div className="mx-auto max-w-[620px] space-y-3">
+          {questions.length === 0 ? (
+            <EmptyState
+              icon={<FileTextIcon />}
+              title="还没有题目"
+              description="从左侧「题型」里点一个，就能添加第一道题"
+            />
+          ) : (
+            <DndContext
+              id="questions"
+              sensors={sensors}
+              // closestCorners 而不是 closestCenter：题目卡很高，用「中心点最近」判断时，
+              // 拖起来的卡片中心往往还离自己更近，落点会被判成自己（表现为「拖了没反应」）
+              collisionDetection={closestCorners}
+              modifiers={[restrictToVerticalAxis]}
+              onDragEnd={onDragEnd}
+            >
+              <SortableContext
+                items={questions.map((question) => question.key)}
+                strategy={verticalListSortingStrategy}
+              >
+                {questions.map((question, index) => {
+                  const next = questions[index + 1];
+                  const pageEnds = next != null && next.pageIndex !== question.pageIndex;
+
+                  return (
+                    <div key={question.key} className="space-y-3">
+                      <QuestionCard
+                        question={question}
+                        index={index}
+                        selected={question.key === selectedKey}
+                        readOnly={readOnly}
+                        onSelect={() => setSelectedKey(question.key)}
+                      />
+
+                      {pageEnds ? <PageBreak pageIndex={question.pageIndex} /> : null}
+                    </div>
+                  );
+                })}
+              </SortableContext>
+            </DndContext>
+          )}
+
+          {questions.length > 0 && !readOnly ? (
+            <button
+              type="button"
+              title="添加一道单选题（其它题型请用左侧「题型」面板）"
+              onClick={() => setSelectedKey(addQuestion('SINGLE'))}
+              className="border-ink-300 text-ink-500 hover:border-brand-400 hover:text-brand-500 hover:bg-brand-50 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed text-[13px] transition-all duration-150"
+            >
+              <PlusIcon className="size-4" />
+              添加题目
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <PropertyPanel key={selected?.key ?? 'empty'} question={selected} readOnly={readOnly} />
+    </div>
+  );
+}
+
+/** 分页符（设计稿 W03 画布里的「第 N 页结束 · 分页符」） */
+function PageBreak({ pageIndex }: { pageIndex: number }) {
+  return (
+    <div className="flex items-center gap-3 py-1">
+      <div className="bg-ink-200 h-px flex-1" />
+      <span className="text-ink-400 border-ink-200 rounded-full border bg-white px-2 py-0.5 text-[11px]">
+        第 {pageIndex + 1} 页结束 · 分页符
+      </span>
+      <div className="bg-ink-200 h-px flex-1" />
+    </div>
+  );
+}

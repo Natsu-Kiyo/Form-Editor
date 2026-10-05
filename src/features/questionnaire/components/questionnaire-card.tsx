@@ -4,6 +4,7 @@ import { cn } from '@/utils/cn';
 
 import type { QuestionnaireCard as QuestionnaireCardData } from '../api/questionnaires';
 import { CardActions } from './card-actions';
+import { CardEditLink } from './card-edit-link';
 import { RestoreButton } from './restore-button';
 
 /**
@@ -74,7 +75,9 @@ export function QuestionnaireCardItem({ questionnaire }: { questionnaire: Questi
         <div className="border-ink-100 flex items-center gap-1 border-t pt-3.5">
           <RestoreButton questionnaireId={questionnaire.id} title={questionnaire.title} />
         </div>
-      ) : null}
+      ) : (
+        <CardEditLink questionnaireId={questionnaire.id} title={questionnaire.title} />
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { prisma } from '@/lib/db';
 
-import { requireQuestionnaireAccess } from '../lib/access';
+import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 
 /**
  * 删除问卷。

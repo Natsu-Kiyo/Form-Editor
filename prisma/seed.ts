@@ -12,9 +12,9 @@
  * 这两个开关已写在 prisma.config.ts 的 `migrations.seed` 里。
  */
 import { DEMO_ACCOUNTS, type QuestionnaireStatus } from '@/config/constants';
-import { toJsonColumn } from '@/features/questionnaire/lib/payload';
 import { hashPassword } from '@/lib/auth/password';
 import { prisma } from '@/lib/db';
+import { toJsonColumn } from '@/lib/json';
 
 const WORKSPACE_SLUG = 'qingwj-demo';
 
