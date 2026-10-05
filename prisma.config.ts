@@ -2,6 +2,10 @@ import 'dotenv/config';
 
 import { defineConfig } from 'prisma/config';
 
+// 用相对路径而不是 `@/...`：prisma.config.ts 由 Prisma CLI 自己加载，
+// 是否走 tsconfig 的 paths 不在我们掌控之内，别赌。
+import { withVerifiedTls } from './src/lib/database-url';
+
 /**
  * Prisma CLI 配置（Prisma 7 起，连接串从 schema.prisma 移到这里）。
  *
@@ -12,6 +16,9 @@ import { defineConfig } from 'prisma/config';
  * - 应用运行时的连接在 src/lib/db.ts 里由 driver adapter 建立，用的是 DATABASE_URL。
  *
  * 只配了 DATABASE_URL（例如本地单实例 Postgres）时，自动回落到它。
+ *
+ * 与运行时同样过一道 `withVerifiedTls`：迁移走的是直连串，
+ * 但 TLS 强度不该因为「换了个入口」就变松。
  */
 const migrationUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
 
@@ -31,6 +38,6 @@ export default defineConfig({
     seed: 'node --env-file-if-exists=.env --import tsx --conditions=react-server prisma/seed.ts',
   },
   datasource: {
-    url: migrationUrl,
+    url: withVerifiedTls(migrationUrl),
   },
 });

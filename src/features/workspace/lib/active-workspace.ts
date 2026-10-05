@@ -2,21 +2,22 @@ import 'server-only';
 
 import { cookies } from 'next/headers';
 
+import { ACTIVE_WORKSPACE_COOKIE } from '@/lib/auth/active-workspace';
+
 import type { WorkspaceSummary } from '../api/workspaces';
 
-export const ACTIVE_WORKSPACE_COOKIE = 'qw_workspace';
-
-const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
-
 /**
- * 解析「当前工作区」。
+ * 从「已经是我的工作区列表」里挑出当前这一个。
  *
  * Cookie 里只存工作区 id；**不能只信 Cookie** ——
  * 用户可能已经被移出那个工作区，而旧 Cookie 还留在浏览器里。
  * 所以一律拿它去自己的成员关系里核对，核对不上就回落到第一个。
  *
- * 刻意接收「已查好的工作区列表」而不是自己去查：调用方（layout）本来就要这份列表，
+ * 刻意接收「已查好的列表」而不是自己去查：调用方（layout）本来就要这份列表，
  * 再查一次就是白白多一次数据库往返 —— 而数据库可能远在另一个区域，一次往返就是几百毫秒。
+ *
+ * 断言权限的版本是 `requireActiveWorkspace`（在 `@/lib/auth/active-workspace`），
+ * 那个给 Server Action 用；这个只负责「列表 + 当前项」的展示口径。
  */
 export async function resolveActiveWorkspace(
   workspaces: WorkspaceSummary[],
@@ -27,17 +28,4 @@ export async function resolveActiveWorkspace(
   const requestedId = cookieStore.get(ACTIVE_WORKSPACE_COOKIE)?.value;
 
   return workspaces.find((workspace) => workspace.id === requestedId) ?? workspaces[0];
-}
-
-export async function setActiveWorkspace(workspaceId: string) {
-  const cookieStore = await cookies();
-
-  cookieStore.set(ACTIVE_WORKSPACE_COOKIE, workspaceId, {
-    // 只有服务端需要读它，前端没有用途，所以保持 httpOnly
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: ONE_YEAR_SECONDS,
-  });
 }

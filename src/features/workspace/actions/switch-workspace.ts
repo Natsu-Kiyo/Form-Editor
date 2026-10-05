@@ -2,9 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { setActiveWorkspace } from '@/lib/auth/active-workspace';
 import { requireMembership } from '@/lib/auth/permissions';
-
-import { setActiveWorkspace } from '../lib/active-workspace';
 
 /**
  * 切换当前工作区。

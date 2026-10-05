@@ -283,6 +283,37 @@ export function CalendarIcon(props: IconProps) {
   );
 }
 
+/** 四宫格。模板中心与「从模板创建」用它 */
+export function GridIcon(props: IconProps) {
+  return (
+    <Icon strokeLinejoin="round" {...props}>
+      <rect x="3" y="3" width="7.5" height="7.5" rx="2" />
+      <rect x="13.5" y="3" width="7.5" height="7.5" rx="2" />
+      <rect x="3" y="13.5" width="7.5" height="7.5" rx="2" />
+      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" />
+    </Icon>
+  );
+}
+
+/** 归档。问卷列表「⋯」菜单里的归档项用 */
+export function ArchiveIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="4" rx="1.5" />
+      <path d="M5 8v11a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" />
+    </Icon>
+  );
+}
+
+/** 上传。「导入 JSON」用它；下载图标已有 DownloadIcon */
+export function UploadIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 16V3M7.5 7.5L12 3l4.5 4.5" />
+    </Icon>
+  );
+}
+
 export function TrashIcon(props: IconProps) {
   return (
     <Icon {...props}>

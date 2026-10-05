@@ -2,12 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { setActiveWorkspace } from '@/lib/auth/active-workspace';
 import { requireUser } from '@/lib/auth/dal';
 import type { FormState } from '@/types/form-state';
 import { toFieldErrors } from '@/utils/zod-errors';
 
 import { createWorkspace } from '../api/workspaces';
-import { setActiveWorkspace } from '../lib/active-workspace';
 import { createWorkspaceSchema } from '../schemas';
 
 export async function createWorkspaceAction(

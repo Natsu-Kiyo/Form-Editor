@@ -43,6 +43,10 @@ model User {
   ownedWorkspaces Workspace[]          @relation("WorkspaceOwner")
   notifications  Notification[]
   feedbacks      Feedback[]
+  questionnaires Questionnaire[]       @relation("QuestionnaireOwner")
+  templates      Template[]            @relation("TemplateOwner")
+  responses      Response[]            @relation("ResponseRespondent")
+  invalidatedResponses Response[]      @relation("ResponseInvalidator")
 }
 
 /// 服务端会话。Cookie 里只放原始 token，库里存它的 sha256 —— 库泄露也无法直接冒用
@@ -70,6 +74,8 @@ model Workspace {
 
   owner       User         @relation("WorkspaceOwner", fields: [ownerId], references: [id])
   memberships Membership[]
+  questionnaires Questionnaire[]
+  templates   Template[]
 
   @@index([ownerId])
 }
@@ -115,4 +121,184 @@ model Feedback {
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
+}
+
+// ============================================================
+// M2 · 问卷、题目结构与模板
+// ============================================================
+
+/// 问卷状态机：草稿 → 回收中 ⇄ 已暂停 → 已截止，随时可归档
+enum QuestionnaireStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  CLOSED
+  ARCHIVED
+}
+
+/// 作答者身份要求（发布设置里选，M4）
+enum IdentityMode {
+  ANONYMOUS
+  LOGIN_REQUIRED
+  PASSWORD
+}
+
+/// 关闭原因。列表与详情据此给出不同提示，「手动恢复」只对 MANUAL 有意义
+enum CloseReason {
+  MANUAL
+  SCHEDULED
+  LIMIT_REACHED
+  ADMIN
+}
+
+/// 题型。矩阵题是 1.1 的灰显项，不在此列
+enum QuestionType {
+  SINGLE
+  MULTI
+  SHORT_TEXT
+  LONG_TEXT
+  RATING
+  DROPDOWN
+  DATE
+}
+
+model Questionnaire {
+  id            String              @id @default(cuid())
+  workspaceId   String
+  ownerId       String
+  title         String
+  intro         String?
+  status        QuestionnaireStatus @default(DRAFT)
+  /// 公开作答链接里的短标识
+  slug          String              @unique
+  startsAt      DateTime?
+  endsAt        DateTime?
+  /// 回收上限。列表卡片的「128 / 200」用它的分母
+  responseLimit Int?
+  identityMode  IdentityMode        @default(ANONYMOUS)
+  accessPasswordHash String?
+  closeReason   CloseReason?
+  publishedAt   DateTime?
+  closedAt      DateTime?
+  archivedAt    DateTime?
+  /// 题目结构版本号。发布时 +1，M3 的版本历史用它
+  version       Int                 @default(1)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  workspace  Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner      User          @relation("QuestionnaireOwner", fields: [ownerId], references: [id])
+  questions  Question[]
+  responses  Response[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, updatedAt])
+  @@index([ownerId])
+}
+
+model Question {
+  id              String       @id @default(cuid())
+  questionnaireId String
+  type            QuestionType
+  title           String
+  description     String?
+  required        Boolean      @default(false)
+  shuffleOptions  Boolean      @default(false)
+  /// 题内顺序（0 起）。**不加唯一约束** —— 拖拽重排时中间态必然出现重复序号，
+  /// 加了唯一约束就得把重排写成「先挪到哨兵值再回填」，得不偿失
+  order           Int
+  /// 所在页号（0 起）。M3 的「添加分页」用它
+  pageIndex       Int          @default(0)
+  /// 题型差异项：评分范围、文本长度上限等
+  config          Json?
+
+  questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  options       Option[]
+  answers       Answer[]
+
+  @@index([questionnaireId, order])
+}
+
+model Option {
+  id         String @id @default(cuid())
+  questionId String
+  label      String
+  order      Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId, order])
+}
+
+/// 答卷是否计入统计。作废不删除 —— 数据要能解释「为什么少了 3 份」
+enum ResponseStatus {
+  VALID
+  INVALID
+}
+
+/// 一份答卷。
+///
+/// M2 只建表并让列表卡片的「回收进度」与汇总卡的「累计答卷」有真实来源；
+/// 作答流程在 M5、统计在 M6、作废在 M7。`channelId` 到 M4 引入 `Channel` 时再补外键。
+model Response {
+  id              String         @id @default(cuid())
+  questionnaireId String
+  channelId       String?
+  /// 登录作答时记录；匿名作答为空
+  respondentId    String?
+  /// 匿名作答的浏览器指纹，用于「同一浏览器重复提交」判定
+  fingerprint     String?
+  status          ResponseStatus @default(VALID)
+  invalidReason   String?
+  invalidatedById String?
+  invalidatedAt   DateTime?
+  submittedAt     DateTime       @default(now())
+  userAgent       String?
+
+  questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  respondent    User?         @relation("ResponseRespondent", fields: [respondentId], references: [id], onDelete: SetNull)
+  invalidatedBy User?         @relation("ResponseInvalidator", fields: [invalidatedById], references: [id], onDelete: SetNull)
+  answers       Answer[]
+
+  @@unique([questionnaireId, respondentId])
+  @@unique([questionnaireId, fingerprint])
+  @@index([questionnaireId, status])
+  @@index([questionnaireId, submittedAt])
+}
+
+/// 单题作答值。`value` 用 Json 承载多态：字符串 / 数字 / 字符串数组
+model Answer {
+  id         String @id @default(cuid())
+  responseId String
+  questionId String
+  value      Json
+
+  response Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([responseId, questionId])
+  @@index([questionId])
+}
+
+/// 模板。官方模板由 seed 写入（`isOfficial = true`，`workspaceId` 为空）
+model Template {
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  category      String
+  questionCount Int
+  /// 题目结构快照，与「导出 JSON」是同一套结构
+  payload       Json
+  isOfficial    Boolean  @default(false)
+  workspaceId   String?
+  ownerId       String?
+  usageCount    Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner     User?      @relation("TemplateOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([isOfficial, category])
+  @@index([workspaceId])
 }
