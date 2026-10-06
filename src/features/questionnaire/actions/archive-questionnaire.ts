@@ -2,19 +2,31 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { OPERATION_TYPE } from '@/config/constants';
 import { setQuestionnaireStatus } from '../api/questionnaires';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
+import { writeOperationLog } from '@/lib/operation-log';
 
 /** 归档：从列表折叠起来，数据只读保留 */
 export async function archiveQuestionnaireAction(questionnaireId: string) {
-  await requireQuestionnaireAccess(questionnaireId, 'EDITOR');
+  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'ADMIN');
 
   await setQuestionnaireStatus(questionnaireId, {
     status: 'ARCHIVED',
     archivedAt: new Date(),
   });
 
+  await writeOperationLog({
+    workspaceId: questionnaire.workspaceId,
+    actorId: user.id,
+    type: OPERATION_TYPE.ARCHIVE,
+    targetType: 'QUESTIONNAIRE',
+    targetId: questionnaireId,
+    targetName: questionnaire.title,
+  });
+
   revalidatePath('/app');
+  revalidatePath('/app/logs');
 }
 
 /**
@@ -25,12 +37,23 @@ export async function archiveQuestionnaireAction(questionnaireId: string) {
  * 从未发布过的回到草稿。
  */
 export async function restoreQuestionnaireAction(questionnaireId: string) {
-  const { questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'EDITOR');
+  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'ADMIN');
 
   await setQuestionnaireStatus(questionnaireId, {
     status: questionnaire.publishedAt ? 'CLOSED' : 'DRAFT',
     archivedAt: null,
   });
 
+  await writeOperationLog({
+    workspaceId: questionnaire.workspaceId,
+    actorId: user.id,
+    type: OPERATION_TYPE.RESTORE,
+    targetType: 'QUESTIONNAIRE',
+    targetId: questionnaireId,
+    targetName: questionnaire.title,
+    detail: { status: questionnaire.publishedAt ? '已截止' : '草稿' },
+  });
+
   revalidatePath('/app');
+  revalidatePath('/app/logs');
 }

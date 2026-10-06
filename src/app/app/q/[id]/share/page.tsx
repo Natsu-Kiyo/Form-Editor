@@ -29,7 +29,8 @@ export default async function ShareQuestionnairePage({
   if (!data) notFound();
 
   // 查看者能看链接与二维码（分享不是敏感操作），但不能改回收状态
-  const canEdit = hasAtLeastRole(role, 'EDITOR') && data.status !== 'ARCHIVED';
+  // 发布 / 暂停 / 截止 / 回收开关都属权限矩阵里的「状态变更」= 管理员
+  const canEdit = hasAtLeastRole(role, 'ADMIN') && data.status !== 'ARCHIVED';
 
   return <SharePanel data={data} canEdit={canEdit} />;
 }

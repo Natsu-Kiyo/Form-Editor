@@ -146,6 +146,15 @@ export function parseDisplayDate(value: string): Date | null {
   return new Date(guess - zoneOffsetMinutes(asUtc) * 60_000);
 }
 
+/** 形如 `13:42`。操作日志的每条只显示时间（日期由「今天 / 昨天 · …」分组给出） */
+export function formatTimeOfDay(date: Date): string {
+  const parts = dateTimePartsFormatter.formatToParts(date);
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '00';
+
+  return `${pick('hour')}:${pick('minute')}`;
+}
+
 /** 形如 `10-04 13:42`。答卷明细的「提交时间」用时区换算，不带年份（表格里年份是噪音） */
 export function formatShortDateTime(date: Date): string {
   const parts = dateTimePartsFormatter.formatToParts(date);

@@ -47,7 +47,17 @@ const TONE = {
   },
 } as const;
 
-export function CardPrimaryActions({ questionnaire }: { questionnaire: QuestionnaireCard }) {
+export function CardPrimaryActions({
+  questionnaire,
+  canEdit,
+  canManage,
+}: {
+  questionnaire: QuestionnaireCard;
+  /** 能改内容（「复制为新问卷」= 创建）：权限矩阵里的编辑者 */
+  canEdit: boolean;
+  /** 能改状态（「恢复」归档）：矩阵里的管理员 */
+  canManage: boolean;
+}) {
   const isDesktop = useIsDesktop();
   const [pending, startTransition] = useTransition();
 
@@ -66,13 +76,18 @@ export function CardPrimaryActions({ questionnaire }: { questionnaire: Questionn
       )}
     >
       {archived ? (
-        <RestoreButton
-          questionnaireId={questionnaire.id}
-          title={questionnaire.title}
-          className={cn(isDesktop ? BAR_ITEM : PILL_ITEM, TONE[shape].brand)}
-        />
-      ) : isDesktop ? (
-        closed ? (
+        // 「恢复」改状态，是管理员的事
+        canManage ? (
+          <RestoreButton
+            questionnaireId={questionnaire.id}
+            title={questionnaire.title}
+            className={cn(isDesktop ? BAR_ITEM : PILL_ITEM, TONE[shape].brand)}
+          />
+        ) : null
+      ) : !isDesktop ? null : closed ? (
+        // 已截止：结构冻结，第一个位置换成「复制」（冻结问卷唯一的出路）。
+        // 复制等于新建一份，所以要编辑者；查看者连这个按钮都不出现
+        canEdit ? (
           <button
             type="button"
             aria-label={`复制「${questionnaire.title}」`}
@@ -86,16 +101,16 @@ export function CardPrimaryActions({ questionnaire }: { questionnaire: Questionn
           >
             {pending ? '复制中…' : '复制'}
           </button>
-        ) : (
-          <Link
-            href={`/app/q/${questionnaire.id}/edit`}
-            aria-label={`编辑「${questionnaire.title}」`}
-            className={item}
-          >
-            编辑
-          </Link>
-        )
-      ) : null}
+        ) : null
+      ) : (
+        <Link
+          href={`/app/q/${questionnaire.id}/edit`}
+          aria-label={`编辑「${questionnaire.title}」`}
+          className={item}
+        >
+          编辑
+        </Link>
+      )}
 
       {/* 「数据」每个状态都有：归档了也还能看历史数据（设计稿的归档卡同样保留它） */}
       <Link

@@ -12,7 +12,17 @@ import { CardPrimaryActions } from './card-primary-actions';
  * 底部的主操作在 `card-primary-actions.tsx`：它随状态换内容（已截止换成「复制」、
  * 已归档只剩「恢复 + 数据」），窄屏还换一套形状。
  */
-export function QuestionnaireCardItem({ questionnaire }: { questionnaire: QuestionnaireCardData }) {
+export function QuestionnaireCardItem({
+  questionnaire,
+  canEdit,
+  canManage,
+}: {
+  questionnaire: QuestionnaireCardData;
+  /** 能改内容（复制 / 导入导出 / 另存为模板）：权限矩阵里的「编辑者」 */
+  canEdit: boolean;
+  /** 能改状态（归档 / 删除 / 发布）：矩阵里的「管理员」 */
+  canManage: boolean;
+}) {
   const archived = questionnaire.status === 'ARCHIVED';
   const limit = questionnaire.responseLimit;
 
@@ -25,7 +35,7 @@ export function QuestionnaireCardItem({ questionnaire }: { questionnaire: Questi
     >
       <div className="mb-3 flex items-start justify-between gap-2">
         <StatusBadge status={questionnaire.status} />
-        <CardActions questionnaire={questionnaire} />
+        <CardActions questionnaire={questionnaire} canEdit={canEdit} canManage={canManage} />
       </div>
 
       <h3
@@ -68,7 +78,7 @@ export function QuestionnaireCardItem({ questionnaire }: { questionnaire: Questi
         </div>
       )}
 
-      <CardPrimaryActions questionnaire={questionnaire} />
+      <CardPrimaryActions questionnaire={questionnaire} canEdit={canEdit} canManage={canManage} />
     </div>
   );
 }

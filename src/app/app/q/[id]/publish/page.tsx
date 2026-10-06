@@ -29,7 +29,8 @@ export default async function PublishQuestionnairePage({
   if (!data) notFound();
 
   // 归档是终点：要改设置先恢复，所以这里直接当只读处理，而不是给一堆点了报错的按钮
-  const canEdit = hasAtLeastRole(role, 'EDITOR') && data.status !== 'ARCHIVED';
+  // 发布 / 暂停 / 截止 / 回收开关都属权限矩阵里的「状态变更」= 管理员
+  const canEdit = hasAtLeastRole(role, 'ADMIN') && data.status !== 'ARCHIVED';
 
   return <PublishSettings data={data} canEdit={canEdit} />;
 }

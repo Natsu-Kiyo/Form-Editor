@@ -42,13 +42,27 @@ type OpenDialog = 'delete' | 'template' | 'import' | null;
  * - 「导出 JSON」直接跳下载地址，而不是走 Server Action —— 下载需要
  *   `Content-Disposition`，而 action 的返回值只能是给 React 的数据。
  */
-export function CardActions({ questionnaire }: { questionnaire: QuestionnaireCard }) {
+export function CardActions({
+  questionnaire,
+  canEdit,
+  canManage,
+}: {
+  questionnaire: QuestionnaireCard;
+  /** 能改内容（复制 / 导入导出 / 另存为模板）：设计稿权限矩阵里的「编辑者」 */
+  canEdit: boolean;
+  /** 能改状态（归档 / 删除）：矩阵里的「管理员」 */
+  canManage: boolean;
+}) {
   const isDesktop = useIsDesktop();
   const [menuOpen, setMenuOpen] = useState(false);
   const [dialog, setDialog] = useState<OpenDialog>(null);
   const [pending, startTransition] = useTransition();
 
   const archived = questionnaire.status === 'ARCHIVED';
+
+  // 这个菜单里全是写操作（复制 / 归档 / 删除…）。查看者一项也点不了，
+  // 那就**整个菜单都不渲染** —— 留一个只有灰项的「⋯」比没有更糟
+  if (!canEdit && !canManage) return null;
 
   const open = (next: OpenDialog) => {
     setMenuOpen(false);
@@ -72,7 +86,7 @@ export function CardActions({ questionnaire }: { questionnaire: QuestionnaireCar
           <DropdownMenuLabel>{questionnaire.title}</DropdownMenuLabel>
           <DropdownMenuSeparator />
 
-          {isDesktop ? (
+          {isDesktop && canEdit ? (
             <DropdownMenuItem
               icon={<CopyIcon />}
               disabled={pending}
@@ -87,11 +101,13 @@ export function CardActions({ questionnaire }: { questionnaire: QuestionnaireCar
             </DropdownMenuItem>
           ) : null}
 
-          <DropdownMenuItem icon={<GridIcon />} onSelect={() => open('template')}>
-            另存为模板
-          </DropdownMenuItem>
+          {canEdit ? (
+            <DropdownMenuItem icon={<GridIcon />} onSelect={() => open('template')}>
+              另存为模板
+            </DropdownMenuItem>
+          ) : null}
 
-          {isDesktop ? (
+          {isDesktop && canEdit ? (
             <>
               <DropdownMenuItem
                 icon={<DownloadIcon />}
@@ -115,18 +131,20 @@ export function CardActions({ questionnaire }: { questionnaire: QuestionnaireCar
 
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem
-            icon={<ArchiveIcon />}
-            disabled={pending || archived}
-            onSelect={() => {
-              setMenuOpen(false);
-              startTransition(async () => {
-                await archiveQuestionnaireAction(questionnaire.id);
-              });
-            }}
-          >
-            归档
-          </DropdownMenuItem>
+          {canManage ? (
+            <DropdownMenuItem
+              icon={<ArchiveIcon />}
+              disabled={pending || archived}
+              onSelect={() => {
+                setMenuOpen(false);
+                startTransition(async () => {
+                  await archiveQuestionnaireAction(questionnaire.id);
+                });
+              }}
+            >
+              归档
+            </DropdownMenuItem>
+          ) : null}
 
           <DropdownMenuItem
             icon={<UsersIcon />}
@@ -137,11 +155,15 @@ export function CardActions({ questionnaire }: { questionnaire: QuestionnaireCar
             问卷移交
           </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
+          {canManage ? (
+            <>
+              <DropdownMenuSeparator />
 
-          <DropdownMenuItem tone="danger" icon={<TrashIcon />} onSelect={() => open('delete')}>
-            删除问卷
-          </DropdownMenuItem>
+              <DropdownMenuItem tone="danger" icon={<TrashIcon />} onSelect={() => open('delete')}>
+                删除问卷
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 

@@ -91,7 +91,7 @@ export async function savePublishSettingsAction(
   questionnaireId: string,
   input: unknown,
 ): Promise<PublishActionResult> {
-  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'EDITOR');
+  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'ADMIN');
 
   if (questionnaire.status === 'ARCHIVED') {
     return { ok: false, message: '已归档的问卷不能改发布设置，请先恢复它' };
@@ -150,7 +150,7 @@ export async function publishQuestionnaireAction(
   questionnaireId: string,
   input: unknown,
 ): Promise<PublishActionResult> {
-  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'EDITOR');
+  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'ADMIN');
 
   if (questionnaire.status !== 'DRAFT') {
     return {

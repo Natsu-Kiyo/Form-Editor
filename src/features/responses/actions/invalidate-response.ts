@@ -2,8 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { OPERATION_TYPE } from '@/config/constants';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
+import { writeOperationLog } from '@/lib/operation-log';
+import { responseSerial } from '@/lib/response-serial';
 
 /**
  * 标记为无效 / 恢复有效。
@@ -27,7 +30,7 @@ export async function setResponseValidityAction(input: {
 }) {
   const response = await prisma.response.findUnique({
     where: { id: input.responseId },
-    select: { id: true, questionnaireId: true, status: true },
+    select: { id: true, questionnaireId: true, status: true, submittedAt: true },
   });
 
   if (!response) throw new Error('NOT_FOUND');
@@ -48,7 +51,27 @@ export async function setResponseValidityAction(input: {
       : { status: 'VALID', invalidatedAt: null, invalidatedById: null, invalidReason: null },
   });
 
+  // 记进操作日志：它会改变已发布问卷的统计结果，属于「必须能查出是谁改的」那一类
+  const questionnaire = await prisma.questionnaire.findUnique({
+    where: { id: response.questionnaireId },
+    select: { workspaceId: true, title: true },
+  });
+
+  if (questionnaire) {
+    await writeOperationLog({
+      workspaceId: questionnaire.workspaceId,
+      actorId: user.id,
+      type: input.invalid ? OPERATION_TYPE.RESPONSE_INVALIDATE : OPERATION_TYPE.RESPONSE_RESTORE,
+      targetType: 'QUESTIONNAIRE',
+      targetId: response.questionnaireId,
+      targetName: questionnaire.title,
+      // 编号是给人交流用的（「你看 #126 那份」），日志里也得带上
+      detail: { serial: await responseSerial(response.questionnaireId, response.submittedAt) },
+    });
+  }
+
   revalidatePath(`/app/q/${response.questionnaireId}/responses`);
+  revalidatePath('/app/logs');
   // 统计页必须立刻反映：标无效 = 从图表里排除，这是 M6 验收里明确写着的一条
   revalidatePath(`/app/q/${response.questionnaireId}/stats`);
 }

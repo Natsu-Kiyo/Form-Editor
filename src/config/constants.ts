@@ -286,6 +286,14 @@ export const OPERATION_TYPE_GROUP_OF: Record<OperationType, OperationTypeGroup> 
   EXPORT: OPERATION_TYPE_GROUP.DATA,
 };
 
+/**
+ * 操作日志的时间范围选项（天）。
+ *
+ * 放在 `constants.ts` 而不是 `features/logs/api/`：后者有 `import 'server-only'`，
+ * 而筛选下拉是客户端组件 —— 它需要这份选项，却不该也不能把 Prisma 拉进浏览器包。
+ */
+export const LOG_RANGE_DAYS = [7, 30, 180] as const;
+
 /** 邀请链接的有效期（天）。设计稿 W09 原话：「邀请链接 7 天后失效」 */
 export const INVITATION_EXPIRES_DAYS = 7;
 

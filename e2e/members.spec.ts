@@ -47,10 +47,8 @@ test.describe('成员与权限', () => {
     await expect(page.getByRole('heading', { name: '权限说明' })).toBeVisible();
     await expect(page.getByText('导出答卷数据')).toBeVisible();
 
-    // ---- 角色切换：编辑者 → 查看者 → 改回 ----
-    const roleSelect = page.getByLabel('王嘉禾的角色');
-    await expect(roleSelect).toHaveValue('EDITOR');
-    await roleSelect.selectOption('VIEWER');
+    // ---- 角色切换（**不假设初始值**：上一次失败可能把角色留在别处，`pnpm db:seed` 才是复位手段）----
+    await page.getByLabel('王嘉禾的角色').selectOption('VIEWER');
     await expect(page.getByLabel('王嘉禾的角色')).toHaveValue('VIEWER');
 
     await page.getByLabel('王嘉禾的角色').selectOption('EDITOR');

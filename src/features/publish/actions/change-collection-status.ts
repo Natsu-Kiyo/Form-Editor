@@ -36,7 +36,7 @@ export async function changeCollectionStatusAction(
   questionnaireId: string,
   action: CollectionAction,
 ): Promise<CollectionActionResult> {
-  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'EDITOR');
+  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'ADMIN');
 
   const row = await prisma.questionnaire.findUnique({
     where: { id: questionnaireId },

@@ -19,6 +19,7 @@ import { QuestionnaireCardItem } from '@/features/questionnaire/components/quest
 import { SearchField } from '@/components/ui/search-field';
 import { SummaryCards } from '@/features/questionnaire/components/summary-cards';
 import { requireActiveWorkspace } from '@/lib/auth/active-workspace';
+import { hasAtLeastRole } from '@/lib/auth/permissions';
 
 export const metadata: Metadata = { title: '问卷列表' };
 
@@ -71,6 +72,14 @@ export default async function DashboardHomePage({
   const sort = parseSort(params.sort);
   const keyword = typeof params.q === 'string' ? params.q : '';
 
+  /*
+   * 权限按**权限矩阵**分两档传给卡片（`features/members/lib/permissions-matrix.ts`）：
+   * 编辑者能改内容（复制 / 导入导出 / 另存为模板），管理员才能改状态（归档 / 删除）与发布。
+   * 界面只是不给入口，真正的拦截在每个 action 里 —— 少了任何一边都算漏。
+   */
+  const canEdit = hasAtLeastRole(workspace.role, 'EDITOR');
+  const canManage = hasAtLeastRole(workspace.role, 'ADMIN');
+
   const [summary, list, templates, notifications, unreadCount] = await Promise.all([
     getQuestionnaireSummary(workspace.id),
     listQuestionnaires({ workspaceId: workspace.id, filter, keyword, sort }),
@@ -102,7 +111,8 @@ export default async function DashboardHomePage({
                 label="搜索问卷名称"
               />
             </div>
-            <CreateQuestionnaireDialog templates={templates} />
+            {/* 「新建问卷」是写入口：查看者不该看到它（矩阵里「创建问卷」= 编辑者） */}
+            {canEdit ? <CreateQuestionnaireDialog templates={templates} /> : null}
           </div>
         }
       />
@@ -121,7 +131,12 @@ export default async function DashboardHomePage({
         {list.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {list.map((questionnaire) => (
-              <QuestionnaireCardItem key={questionnaire.id} questionnaire={questionnaire} />
+              <QuestionnaireCardItem
+                key={questionnaire.id}
+                questionnaire={questionnaire}
+                canEdit={canEdit}
+                canManage={canManage}
+              />
             ))}
           </div>
         ) : searching ? (
@@ -147,7 +162,11 @@ export default async function DashboardHomePage({
             icon={<FileTextIcon />}
             title="还没有问卷"
             description="从空白创建，或挑一个模板开始"
-            action={<CreateQuestionnaireDialog templates={templates} variant="empty" />}
+            action={
+              canEdit ? (
+                <CreateQuestionnaireDialog templates={templates} variant="empty" />
+              ) : undefined
+            }
           />
         )}
       </main>

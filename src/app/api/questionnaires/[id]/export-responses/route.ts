@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 
 import { getResponsesForExport } from '@/features/analytics/api/analytics';
 import { parseAnalyticsFilter } from '@/features/analytics/lib/filter';
+import { OPERATION_TYPE } from '@/config/constants';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
+import { writeOperationLog } from '@/lib/operation-log';
 import { formatDateTimeLocal } from '@/utils/format';
 
 /**
@@ -19,7 +21,7 @@ import { formatDateTimeLocal } from '@/utils/format';
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  await requireQuestionnaireAccess(id, 'EDITOR');
+  const { user, questionnaire: access } = await requireQuestionnaireAccess(id, 'EDITOR');
 
   const search = new URL(request.url).searchParams;
   // 与统计页共用同一套解析：参数名、白名单、区间边界（含结束日当天）都只有一处实现
@@ -36,6 +38,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const rows = includeInvalid
     ? responses
     : responses.filter((response) => response.status === 'VALID');
+
+  /*
+   * 记一条日志：导出会带走全部原始回答，属关键动作。
+   * 放在「取完数据之后、拼 CSV 之前」—— 这样记下的份数是**这次真正导出的份数**。
+   */
+  await writeOperationLog({
+    workspaceId: access.workspaceId,
+    actorId: user.id,
+    type: OPERATION_TYPE.EXPORT,
+    targetType: 'QUESTIONNAIRE',
+    targetId: id,
+    targetName: questionnaire.title,
+    detail: { rows: rows.length, invalid: includeInvalid },
+  });
 
   const header = [
     '提交时间',

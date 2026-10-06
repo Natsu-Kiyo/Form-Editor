@@ -69,7 +69,7 @@ export async function createChannelAction(
   await writeOperationLog({
     workspaceId: questionnaire.workspaceId,
     actorId: user.id,
-    type: OPERATION_TYPE.SETTINGS,
+    type: OPERATION_TYPE.CHANNEL_CREATE,
     targetType: 'QUESTIONNAIRE',
     targetId: questionnaireId,
     targetName: questionnaire.title,
