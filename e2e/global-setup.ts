@@ -10,9 +10,21 @@ import { request, type FullConfig } from '@playwright/test';
  *
  * 这是**环境的固有开销**，不是产品行为，所以在这里一次性付掉，
  * 而不是把断言超时一路放大到掩盖真实问题。
+ *
+ * 另外报一行**延迟基线**（`/api/health` 里那次 `SELECT 1` 的服务端耗时）。
+ * 理由：本会话已经四次出现「全量跑得越久、越有一条用例被数据库超时打掉」，
+ * 而事后判断「这轮是不是环境退化」只能翻 stdout 找 `[db] 连接类错误`。
+ * 基线放在第一行，退化与否一眼可见 —— 配合 `global-teardown.ts` 的收尾复测。
  */
 const WARMUP_BUDGET_MS = 120_000;
 const RETRY_INTERVAL_MS = 2_000;
+
+/**
+ * 基线阈值。实测稳态往返是 223ms（R14 记录的基准），这里放宽到 1.5s：
+ * 超过它不是「坏了」，而是「这轮不适合跑全量」——值得先说一声，
+ * 否则等一下的失败又会被当成用例问题。
+ */
+const SLOW_BASELINE_MS = 1_500;
 
 export default async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0]?.use?.baseURL ?? 'http://localhost:3100';
@@ -30,7 +42,18 @@ export default async function globalSetup(config: FullConfig) {
       const body = (await response.json()) as { ok?: boolean; elapsedMs?: number };
 
       if (response.ok() && body.ok) {
-        console.log(`[e2e] 数据库已就绪（第 ${attempt} 次尝试，服务端 ${body.elapsedMs}ms）`);
+        const elapsed = body.elapsedMs ?? -1;
+        console.log(
+          `[e2e] 数据库已就绪（第 ${attempt} 次尝试，服务端 SELECT 1 耗时 ${elapsed}ms）`,
+        );
+
+        if (elapsed > SLOW_BASELINE_MS) {
+          console.log(
+            `[e2e] ⚠️ 环境偏慢（>${SLOW_BASELINE_MS}ms）：这一轮全量里有较大概率出现` +
+              '「某条用例被数据库超时打掉」。若真出现，先单跑那一条确认，别当成用例的问题。',
+          );
+        }
+
         await context.dispose();
         return;
       }

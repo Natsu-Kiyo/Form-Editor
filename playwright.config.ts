@@ -59,8 +59,10 @@ export default defineConfig({
    */
   timeout: 120_000,
 
-  // 跑用例前先把数据库叫醒（Neon 冷启动是环境的固有开销，见该文件顶部说明）
+  // 跑用例前先把数据库叫醒（Neon 冷启动是环境的固有开销，见该文件顶部说明），
+  // 跑完再复测一次 —— 这一头一尾两行日志是判断「这轮失败是不是环境」的依据
   globalSetup: './e2e/global-setup.ts',
+  globalTeardown: './e2e/global-teardown.ts',
   workers: 1,
   use: {
     baseURL,
