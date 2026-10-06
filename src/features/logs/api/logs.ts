@@ -2,6 +2,7 @@ import 'server-only';
 
 import {
   LOG_RANGE_DAYS,
+  LOG_RETENTION_DAYS,
   OPERATION_TYPE_GROUP,
   OPERATION_TYPE_GROUP_OF,
   type OperationType,
@@ -54,6 +55,25 @@ export type LogsQuery = {
   /** 导出时放宽上限（页面上只显示最近 200 条） */
   limit?: number;
 };
+
+/**
+ * 清理过期操作日志（G4）。
+ *
+ * 背景：「保留 180 天」原先**只是筛选口径** —— 页面上看不到更早的，但数据一直在库里长。
+ * 这条是真删，按 `LOG_RETENTION_DAYS` 算截止点；入口是 `pnpm db:prune-logs`
+ * （部署时挂定时任务即可，脚本本身不做排程）。
+ *
+ * 它**不写自己的日志**：清理动作进日志会被下一次清理再删一遍，绕圈没有意义。
+ * 删除条数由调用方打印。
+ */
+export async function pruneOperationLogs(
+  retentionDays: number = LOG_RETENTION_DAYS,
+): Promise<{ deleted: number; cutoff: Date }> {
+  const cutoff = new Date(Date.now() - retentionDays * DAY_MS);
+  const result = await prisma.operationLog.deleteMany({ where: { createdAt: { lt: cutoff } } });
+
+  return { deleted: result.count, cutoff };
+}
 
 export async function getOperationLogs(
   workspaceId: string,

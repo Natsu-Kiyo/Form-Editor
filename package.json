@@ -13,6 +13,7 @@
     "format:check": "prettier --check .",
     "typecheck": "next typegen && tsc --noEmit",
     "db:check": "node --env-file-if-exists=.env --import tsx --conditions=react-server scripts/check-db.ts",
+    "db:prune-logs": "node --env-file-if-exists=.env --import tsx --conditions=react-server scripts/prune-logs.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",

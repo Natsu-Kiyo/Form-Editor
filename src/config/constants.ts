@@ -305,6 +305,14 @@ export const OPERATION_TYPE_GROUP_OF: Record<OperationType, OperationTypeGroup> 
  */
 export const LOG_RANGE_DAYS = [7, 30, 180] as const;
 
+/**
+ * 操作日志的**保留期**（天）。
+ *
+ * 它同时是筛选上限，但**筛选不等于清理** —— 更早的数据以前一直躺在库里（页面上看不见而已）。
+ * `pnpm db:prune-logs` 按这个值真删（见 `features/logs/api/logs.ts` 的 `pruneOperationLogs`）。
+ */
+export const LOG_RETENTION_DAYS = 180;
+
 /** 邀请链接的有效期（天）。设计稿 W09 原话：「邀请链接 7 天后失效」 */
 export const INVITATION_EXPIRES_DAYS = 7;
 
