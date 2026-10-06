@@ -405,4 +405,9 @@ model Template {
 
   @@index([isOfficial, category])
   @@index([workspaceId])
+  /// 同一工作区不允许同名模板。**用约束而不是只靠 action 里那次检查**：
+  /// 「检查—写入」之间有窗口，慢环境下同一个提交重试两次就能写进两行
+  /// （E2E 实测撞上过：同名两行相差 13 秒）。官方模板的 workspaceId 为 null，
+  /// Postgres 认为 NULL 彼此不同，所以 8 张官方模板不受这条约束影响。
+  @@unique([workspaceId, title])
 }

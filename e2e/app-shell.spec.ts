@@ -3,11 +3,12 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { DEMO_ACCOUNTS } from '@/config/constants';
 
 /**
- * M1 验收：管理台外壳。
+ * M1 验收：管理台外壳（**桌面形态**）。
  *
- * 桌面与窄屏的**形态不同**：桌面侧栏常驻（`complementary`），窄屏收进左侧抽屉。
- * 所以定位时必须先按 project 找对容器 —— 窄屏下侧栏的那份 DOM 仍在（只是 display:none），
- * 直接 `getByRole` 会命中那份看不见的、然后一直等到超时。
+ * 这三条说的是「侧栏」，而侧栏是桌面端的东西：窄屏下 M10 把 `/app` 换成了
+ * P04 移动工作台（顶栏三个入口 + 底部三格），那里**没有汉堡、也没有侧栏** ——
+ * 导航在底部条里、账号在 P09「我的」里、工作区切换在顶栏。
+ * 所以它们只跑 desktop，窄屏的等价覆盖在 `mobile-shell.spec.ts`。
  */
 
 async function signIn(page: Page) {
@@ -18,31 +19,28 @@ async function signIn(page: Page) {
   await expect(page).toHaveURL(/\/app$/);
 }
 
-/** 返回「当前可见的那份侧栏」：桌面是常驻 aside，窄屏要先把抽屉打开 */
-async function visibleSidebar(page: Page, projectName: string): Promise<Locator> {
-  if (projectName === 'mobile') {
-    await page.getByRole('button', { name: '打开导航' }).click();
-    return page.getByRole('dialog');
-  }
-
+/** 常驻侧栏。窄屏下这份 DOM 仍在但 `display:none`，所以这个 helper 只在 desktop 用 */
+function sidebar(page: Page): Locator {
   return page.getByRole('complementary');
 }
 
 test('侧栏展示当前工作区、主导航与我的角色', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', '侧栏是桌面形态，窄屏见 mobile-shell.spec.ts');
   await signIn(page);
-  const sidebar = await visibleSidebar(page, testInfo.project.name);
 
   // 当前工作区来自 seed
-  await expect(sidebar.getByRole('button', { name: /轻问卷演示团队/ })).toBeVisible();
-  await expect(sidebar.getByRole('link', { name: '问卷列表' })).toBeVisible();
-  await expect(sidebar.getByText('所有者')).toBeVisible();
+  await expect(sidebar(page).getByRole('button', { name: /轻问卷演示团队/ })).toBeVisible();
+  await expect(sidebar(page).getByRole('link', { name: '问卷列表' })).toBeVisible();
+  await expect(sidebar(page).getByText('所有者')).toBeVisible();
 });
 
 test('工作区切换器可以打开并列出新建入口', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', '侧栏是桌面形态，窄屏见 mobile-shell.spec.ts');
   await signIn(page);
-  const sidebar = await visibleSidebar(page, testInfo.project.name);
 
-  await sidebar.getByRole('button', { name: /轻问卷演示团队/ }).click();
+  await sidebar(page)
+    .getByRole('button', { name: /轻问卷演示团队/ })
+    .click();
 
   await expect(page.getByText('切换工作区')).toBeVisible();
   await expect(page.getByRole('button', { name: '新建工作区' })).toBeVisible();
@@ -58,10 +56,10 @@ test('通知面板可以打开并列出通知', async ({ page }) => {
 });
 
 test('账号菜单可以打开账号设置与帮助与反馈', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', '账号行在侧栏底部；窄屏在 P09「我的」里');
   await signIn(page);
-  const sidebar = await visibleSidebar(page, testInfo.project.name);
 
-  await sidebar.getByRole('button', { name: '账号菜单' }).click();
+  await sidebar(page).getByRole('button', { name: '账号菜单' }).click();
   await expect(page.getByRole('menuitem', { name: '个人信息' })).toBeVisible();
 
   await page.getByRole('menuitem', { name: '帮助与反馈' }).click();

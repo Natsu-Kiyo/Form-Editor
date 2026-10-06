@@ -28,11 +28,14 @@ export function EditorLeftPanel({
   selectedKey,
   onSelect,
   readOnly,
+  onAfterAdd,
 }: {
   questions: DraftQuestion[];
   selectedKey: string | null;
   onSelect: (key: string) => void;
   readOnly: boolean;
+  /** 添加完题目之后做什么。窄屏用它关掉题型弹层；桌面不需要（面板常驻） */
+  onAfterAdd?: () => void;
 }) {
   const { addQuestion, insertPageBreakAfter, removePageBreakAt } = useEditorDraft();
 
@@ -67,6 +70,8 @@ export function EditorLeftPanel({
               onClick={() => {
                 // 加完立刻选中：用户接着就要改题目文本，不该还要自己去找
                 onSelect(addQuestion(type as Exclude<QuestionType, 'MATRIX'>));
+                // 窄屏这块面板是弹层里的，加完就该收起来把画布还回去
+                onAfterAdd?.();
               }}
               className={cn(
                 'group relative flex h-[62px] flex-col items-center justify-center gap-1.5 rounded-[10px] border transition-all duration-150',

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { Modal, ModalContent } from '@/components/ui/modal';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 
 import type { ShareChannel } from '../api/share';
@@ -49,12 +49,22 @@ export function ChannelsCard({
           <span className="text-ink-300 shrink-0">›</span>
         </button>
 
-        <Modal open={open} onOpenChange={setOpen}>
-          <ModalContent title="渠道链接" description="为不同分发渠道生成专属链接" width="md">
-            <ChannelList channels={channels} untaggedCount={untaggedCount} />
-            <div className="pt-3">{createButton}</div>
-          </ModalContent>
-        </Modal>
+        {/*
+          底部 Sheet 而不是居中弹层（设计稿 P06-b）：渠道数量会随用户新建而增长，
+          列表长了就自己内部滚动，且限高 70vh —— 375px 下把二维码挤下去是不行的。
+        */}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent
+            title="渠道链接"
+            description="为不同分发渠道生成专属链接，统计各渠道回收量。点任意一行即复制该渠道链接。"
+            className="max-h-[70vh]"
+          >
+            <div className="border-ink-200 -mx-5 overflow-hidden border-t">
+              <ChannelList channels={channels} untaggedCount={untaggedCount} />
+            </div>
+            <div className="pt-4">{createButton}</div>
+          </SheetContent>
+        </Sheet>
       </>
     );
   }

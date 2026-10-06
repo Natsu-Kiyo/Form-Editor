@@ -29,7 +29,9 @@ test('演示账号可以登录并进入管理台', async ({ page }) => {
   await page.getByRole('button', { name: '登录' }).click();
 
   await expect(page).toHaveURL(/\/app$/);
-  await expect(page.getByRole('heading', { name: '问卷列表' })).toBeVisible();
+  // 不写「问卷列表」这个标题：它是**桌面顶栏**上的东西，窄屏（P04 移动工作台）没有标题，
+  // 用一张 seed 里的问卷卡判断「真的进来了」——这句话在两端都成立
+  await expect(page.getByText('2026 秋季社团招新报名').first()).toBeVisible();
 });
 
 test('注册时两次密码不一致会给出字段级提示，且不清空表单', async ({ page }) => {

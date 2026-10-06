@@ -40,8 +40,13 @@ export function TemplateCard({
 
   return (
     <div className="group border-ink-200 hover:border-brand-300 hover:shadow-card relative flex flex-col overflow-hidden rounded-xl border bg-white transition-all duration-150">
+      {/*
+        「⋯」是**桌面专属**：设计稿 P07 写明移动端这个 Tab 只做「查看 + 使用」，
+        「另存为模板」留在桌面端（它与复制 / 导出 JSON / 问卷移交同属卡片「更多」菜单，
+        为它单独在手机上造一套菜单不划算）。
+      */}
       {mine && canManage ? (
-        <div className="absolute top-2.5 right-2.5 z-10">
+        <div className="absolute top-2.5 right-2.5 z-10 hidden lg:block">
           <TemplateActionsMenu templateId={template.id} title={template.title} />
         </div>
       ) : null}
@@ -57,11 +62,17 @@ export function TemplateCard({
           <span className="font-mono">{template.usageCount} 次使用</span>
         </div>
 
-        {/* 官方卡悬浮才显示按钮；我的模板常显（那是它能被操作的地方） */}
+        {/*
+          按钮何时出现：
+          - 桌面：官方卡**悬浮才出现**（设计稿 W08，网格保持干净），「我的」卡常显
+            （那是它唯一能被操作的地方）
+          - 窄屏：一律常显 —— 设计稿 P07 的移动卡片就是两枚常驻按钮（没有 hover 可言）
+        */}
         <div
           className={cn(
             'mt-3 flex gap-2 transition-opacity duration-150',
-            mine ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
+            !mine &&
+              'max-lg:opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100',
           )}
         >
           <Button

@@ -4,11 +4,13 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { MobileTabBar } from '@/components/layout/mobile-tab-bar';
 import { Topbar } from '@/components/layout/topbar';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SearchField } from '@/components/ui/search-field';
 import { TEMPLATE_CATEGORIES } from '@/config/constants';
+import { useIsDesktop } from '@/hooks/use-is-desktop';
 import { cn } from '@/utils/cn';
 
 import { createFromTemplateAction } from '../actions/create-questionnaire';
@@ -50,7 +52,16 @@ export function TemplateGallery({
   const searchParams = useSearchParams();
   const [usingId, setUsingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  // 断点显式写 1024：`useIsDesktop` 默认是 768，而这一页的底部导航/布局用的是 Tailwind 的
+  // `lg`（1024）—— 两者不一致时，768~1023px 会出现「桌面顶栏 + 移动底栏」同时在场
+  const isDesktop = useIsDesktop('(min-width: 1024px)');
   const basePath = '/app/templates';
+
+  /** 搜索框要保留的其它参数（两个 Tab 与分类），两端共用同一份 */
+  const preservedQuery = {
+    ...(scope === 'MINE' ? { tab: 'mine' } : {}),
+    ...(category ? { category } : {}),
+  };
 
   const push = (patch: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -77,28 +88,50 @@ export function TemplateGallery({
 
   return (
     <>
-      <Topbar
-        title="模板中心"
-        actions={
-          <div className="flex items-center gap-3">
-            <div className="hidden md:block">
+      {/*
+        两端各一套顶栏 —— 用 `useIsDesktop` **只渲染其中一套**，而不是 CSS `hidden`
+        （与 `ChannelsCard` 同一条理由：CSS 隐藏的元素还在 DOM 里，仍然会被
+        读屏软件与自动化匹配到；搜索框是交互控件，不属于「纯版式」）。
+
+        窄屏是 P07 的形态：标题 + **通栏搜索框**（桌面放在顶栏右侧），
+        而且**没有「新建问卷」** —— 手机上建问卷从底部「问卷」那格的悬浮「＋」走，
+        这一页只负责「挑一个现成的」（卡片上的「使用此模板」）。
+      */}
+      {isDesktop ? (
+        <Topbar
+          title="模板中心"
+          actions={
+            <div className="flex items-center gap-3">
               <SearchField
                 basePath={basePath}
                 initialKeyword={keyword}
-                preserveQuery={{
-                  ...(scope === 'MINE' ? { tab: 'mine' } : {}),
-                  ...(category ? { category } : {}),
-                }}
+                preserveQuery={preservedQuery}
                 placeholder="搜索模板…"
                 label="搜索模板"
               />
+              {canCreate ? <CreateQuestionnaireDialog templates={templates} /> : null}
             </div>
-            {canCreate ? <CreateQuestionnaireDialog templates={templates} /> : null}
-          </div>
-        }
-      />
+          }
+        />
+      ) : (
+        <>
+          <header className="px-5 pt-4 pb-3">
+            <h1 className="text-ink-900 text-[17px] font-semibold">模板中心</h1>
+          </header>
 
-      <main className="flex-1 overflow-y-auto p-6 sm:p-7">
+          <div className="px-5 pb-3">
+            <SearchField
+              basePath={basePath}
+              initialKeyword={keyword}
+              preserveQuery={preservedQuery}
+              placeholder="搜索模板…"
+              label="搜索模板"
+            />
+          </div>
+        </>
+      )}
+
+      <main className="flex-1 overflow-y-auto p-6 pt-6 pb-28 sm:p-7 lg:pb-7">
         <div className="mx-auto max-w-[1180px]">
           {/* ---- 两个 Tab ---- */}
           <div className="border-ink-200 mb-5 flex items-center gap-6 border-b">
@@ -116,8 +149,8 @@ export function TemplateGallery({
             </TabButton>
           </div>
 
-          {/* ---- 分类胶囊 ---- */}
-          <div className="mb-5 flex flex-wrap items-center gap-2">
+          {/* ---- 分类胶囊（窄屏横滑，桌面换行）---- */}
+          <div className="mb-5 flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible lg:pb-0">
             <CategoryPill active={category === null} onClick={() => push({ category: null })}>
               全部
             </CategoryPill>
@@ -169,6 +202,8 @@ export function TemplateGallery({
           )}
         </div>
       </main>
+
+      <MobileTabBar />
     </>
   );
 }

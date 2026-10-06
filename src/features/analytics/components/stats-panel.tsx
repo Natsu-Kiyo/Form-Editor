@@ -15,6 +15,7 @@ import {
   TREND_GRANULARITY_LABEL,
   UPCOMING_BADGE,
 } from '@/config/constants';
+import { cn } from '@/utils/cn';
 import { formatDurationMs } from '@/utils/format';
 
 import type { AnalyticsData, AnalyticsQuestion } from '../api/analytics';
@@ -31,6 +32,30 @@ import { DateRangeFilter } from './date-range-filter';
  * 而**趋势粒度不再是筛选条件** —— 它由服务端按区间跨度自动定（见 `lib/stats.ts`），
  * 这里只把结果标出来，让人知道每个点是多久。
  */
+/**
+ * 「分享报告」（生成只读外链）属 2.0。
+ *
+ * **灰显而不是不给**：它在计划里、用户会问，所以入口留着并明确标注版本 ——
+ * 给一个能点但什么都不发生的按钮才是假入口。
+ * 抽成组件是因为它有两个落点（桌面顶栏 / 窄屏底部条），样式各差一点、文案必须一致。
+ */
+function ShareReportButton({ className }: { className?: string }) {
+  return (
+    <button
+      type="button"
+      disabled
+      title={`分享报告属 ${UPCOMING_BADGE.V20} 规划，本版本不开放`}
+      className={cn(
+        'bg-brand-500/45 flex shrink-0 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg font-medium text-white',
+        className,
+      )}
+    >
+      分享报告
+      <span className="rounded bg-white/25 px-1 text-[10px]">{UPCOMING_BADGE.V20}</span>
+    </button>
+  );
+}
+
 export function StatsPanel({
   data,
   channelId,
@@ -49,6 +74,8 @@ export function StatsPanel({
   const searchParams = useSearchParams();
   const [exportOpen, setExportOpen] = useState(false);
   const [openQuestion, setOpenQuestion] = useState<AnalyticsQuestion | null>(null);
+  /** 窄屏横滑到第几张单题卡（只用来点亮底部圆点） */
+  const [activeQuestion, setActiveQuestion] = useState(0);
 
   const push = (patch: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -69,29 +96,23 @@ export function StatsPanel({
           <h1 className="text-ink-900 truncate text-[15px] font-semibold">{data.title}</h1>
         }
       >
-        {canExport ? (
-          <Button variant="outline" size="sm" onClick={() => setExportOpen(true)}>
-            <DownloadIcon className="size-3.5" />
-            导出
-          </Button>
-        ) : null}
-
-        {/* 分享报告属 2.0：灰显而不是不给，因为它在计划里、用户会问 */}
-        <button
-          type="button"
-          disabled
-          title={`分享报告属 ${UPCOMING_BADGE.V20} 规划，本版本不开放`}
-          className="bg-brand-500/45 flex h-8 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-lg px-3.5 text-[13px] font-medium text-white"
-        >
-          分享报告
-          <span className="rounded bg-white/25 px-1 text-[10px]">{UPCOMING_BADGE.V20}</span>
-        </button>
+        {/* 桌面把这两个动作放在顶栏；窄屏挪到页面底部（P05），这里就不重复渲染 */}
+        <div className="hidden items-center gap-3 lg:flex">
+          {canExport ? (
+            <Button variant="outline" size="sm" onClick={() => setExportOpen(true)}>
+              <DownloadIcon className="size-3.5" />
+              导出
+            </Button>
+          ) : null}
+          <ShareReportButton className="h-8 px-3.5 text-[13px]" />
+        </div>
       </QuestionnaireTopbar>
 
-      <main className="flex-1 overflow-y-auto p-6 sm:p-7">
+      {/* 窄屏底部有固定的「导出 / 分享报告」条，内容要留出它的高度 */}
+      <main className="flex-1 overflow-y-auto p-6 pb-32 sm:p-7 lg:pb-7">
         <div className="mx-auto max-w-[1020px] space-y-5">
-          {/* ---- 指标卡 ---- */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {/* ---- 指标卡（窄屏 2×2：四张竖排会把趋势挤到第二屏之外）---- */}
+          <div className="grid grid-cols-2 gap-3 lg:gap-4 xl:grid-cols-4">
             <MetricCard
               label="回收份数"
               value={String(summary.received)}
@@ -132,6 +153,20 @@ export function StatsPanel({
                   : `中位数 ${formatDurationMs(summary.medianDurationMs)}`
               }
             />
+          </div>
+
+          {/*
+            窄屏用**一条统一口径说明**代替逐卡那个「?」——
+            375px 下四张卡各挂一个问号，会把数字本身挤掉（设计稿 P05 的原话）。
+            桌面保留逐卡说明：那里有空间，就近解释更省事。
+          */}
+          <div className="bg-brand-50 border-brand-100 flex items-start gap-2.5 rounded-xl border p-3 lg:hidden">
+            <InfoIcon className="text-brand-500 mt-0.5 size-3.5 shrink-0" />
+            <p className="text-brand-700 text-[11px] leading-4">
+              口径：完成率 = 提交份数 / 打开链接数
+              {summary.invalid > 0 ? `；有效答卷已剔除标记无效的 ${summary.invalid} 份` : ''}
+              。多选题各项占比之和会大于 100%，分母为作答人数。
+            </p>
           </div>
 
           {/* ---- 筛选栏 ---- */}
@@ -187,15 +222,53 @@ export function StatsPanel({
             <TrendChart points={data.trend.points} />
           </div>
 
-          {/* ---- 单题图表 ---- */}
-          {data.questions.map((question) => (
-            <QuestionChartCard
-              key={question.id}
-              question={question}
-              validCount={data.filteredValidCount}
-              onShowAll={() => setOpenQuestion(question)}
-            />
-          ))}
+          {/*
+            ---- 单题图表 ----
+            窄屏**横向滑动**（一次一张卡）：375px 下把四张图竖着排，人会滑到忘记
+            第一张长什么样。桌面照旧纵向堆叠 —— 那里一屏能看两张，横滑反而更难比对。
+          */}
+          <div
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              if (el.children.length < 2) return;
+              // 按「滑过了几个卡片宽度」算，不依赖具体像素
+              const step = el.scrollWidth / el.children.length;
+              setActiveQuestion(
+                Math.min(el.children.length - 1, Math.max(0, Math.round(el.scrollLeft / step))),
+              );
+            }}
+            className="-mx-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-1 lg:mx-0 lg:block lg:space-y-5 lg:overflow-visible lg:px-0 lg:pb-0"
+          >
+            {data.questions.map((question) => (
+              <div key={question.id} className="w-[86%] shrink-0 snap-center lg:w-auto">
+                <QuestionChartCard
+                  question={question}
+                  validCount={data.filteredValidCount}
+                  onShowAll={() => setOpenQuestion(question)}
+                />
+              </div>
+            ))}
+          </div>
+
+          {data.questions.length > 1 ? (
+            <div className="flex items-center justify-between lg:hidden">
+              <span className="text-ink-400 text-[11px]">
+                左右滑动查看全部 {data.questions.length} 题
+              </span>
+              <div className="flex items-center gap-1">
+                {data.questions.map((question, index) => (
+                  <span
+                    key={question.id}
+                    className={
+                      index === activeQuestion
+                        ? 'bg-brand-500 h-1 w-4 rounded-full'
+                        : 'bg-ink-200 h-1 w-1 rounded-full'
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {data.questions.length === 0 ? (
             <div className="border-ink-200 text-ink-400 rounded-xl border border-dashed bg-white px-6 py-10 text-center text-[12.5px]">
@@ -204,6 +277,21 @@ export function StatsPanel({
           ) : null}
         </div>
       </main>
+
+      {/* 窄屏：P05 的底部两个按钮（桌面这两个动作在顶栏里，见上） */}
+      <div className="border-ink-100 fixed inset-x-0 bottom-0 z-30 flex gap-2.5 border-t bg-white px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
+        {canExport ? (
+          <Button
+            variant="outline"
+            className="h-[46px] flex-1 rounded-[14px]"
+            onClick={() => setExportOpen(true)}
+          >
+            <DownloadIcon className="size-4" />
+            导出
+          </Button>
+        ) : null}
+        <ShareReportButton className="h-[46px] flex-1 rounded-[14px] text-[13.5px]" />
+      </div>
 
       <AnswersDialog question={openQuestion} onClose={() => setOpenQuestion(null)} />
 

@@ -50,14 +50,31 @@ export async function saveAsTemplateAction(
     };
   }
 
-  await createTemplate({
-    workspaceId: questionnaire.workspaceId,
-    ownerId: user.id,
-    title: parsed.data.title,
-    description: parsed.data.description?.trim() || '自建模板',
-    category: CUSTOM_CATEGORY,
-    payload: data.payload,
-  });
+  try {
+    await createTemplate({
+      workspaceId: questionnaire.workspaceId,
+      ownerId: user.id,
+      title: parsed.data.title,
+      description: parsed.data.description?.trim() || '自建模板',
+      category: CUSTOM_CATEGORY,
+      payload: data.payload,
+    });
+  } catch (error) {
+    /*
+     * 上面那次「查同名」只是为了让用户早点看到提示，**它挡不住并发**：
+     * 同一个提交在慢环境下被重试两次，两次检查都可能看不到对方尚未写入的行。
+     * 真正兜底的是库上的唯一索引（`@@unique([workspaceId, title])`），
+     * 这里把它的报错翻译回同一句话 —— 用户不该看到 P2002。
+     */
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      return {
+        fieldErrors: { title: ['已存在同名模板，换个名字或先删除旧的'] },
+        values: { title: parsed.data.title, description: parsed.data.description ?? '' },
+      };
+    }
+
+    throw error;
+  }
 
   revalidatePath('/app');
   return { success: `已存为模板「${parsed.data.title}」` };

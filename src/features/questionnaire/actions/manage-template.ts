@@ -42,7 +42,22 @@ export async function renameTemplateAction(
   const template = await findEditableTemplate(parsed.data.templateId, workspace.id);
   if (!template) return { message: '这个模板不在当前工作区里，或它是官方模板' };
 
-  await prisma.template.update({ where: { id: template.id }, data: { title: parsed.data.title } });
+  try {
+    await prisma.template.update({
+      where: { id: template.id },
+      data: { title: parsed.data.title },
+    });
+  } catch (error) {
+    // 同一工作区不允许同名（库上有唯一索引），撞上时给一句人话而不是 P2002
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      return {
+        fieldErrors: { title: ['已存在同名模板，换个名字'] },
+        values: { title: parsed.data.title },
+      };
+    }
+
+    throw error;
+  }
 
   revalidatePath('/app/templates');
 

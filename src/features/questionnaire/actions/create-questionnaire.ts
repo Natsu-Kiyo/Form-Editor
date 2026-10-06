@@ -81,6 +81,23 @@ export async function createFromTemplateAction(templateId: string) {
   redirect(`/app/q/${created.id}/edit`);
 }
 
+/**
+ * 移动工作台那个悬浮「＋」。
+ *
+ * 与弹层里的「空白创建」是同一条路径（同一个 `createBlank`），只是**没有中间层**：
+ * 设计稿写得明确 —— ＋ 直接开一份空白问卷进编辑器，把「空白还是从模板」这个选择
+ * 留在编辑器里（想从模板开始时，底部导航的「模板」那一格就是入口）。
+ */
+export async function createBlankQuestionnaireAction() {
+  const { user, workspace } = await requireActiveWorkspace('EDITOR');
+
+  const created = await createBlank({ workspaceId: workspace.id, ownerId: user.id });
+  if (!created.ok) throw new Error(created.message);
+
+  revalidatePath('/app');
+  redirect(`/app/q/${created.id}/edit`);
+}
+
 async function createFromTemplate(input: {
   templateId: string;
   workspaceId: string;

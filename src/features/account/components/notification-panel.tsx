@@ -19,12 +19,44 @@ export type NotificationPanelProps = {
 };
 
 /**
- * 通知面板（入口：顶栏铃铛）。
+ * 通知面板（入口：桌面顶栏铃铛 / 移动工作台顶栏铃铛）。
  *
  * 未读与已读**不只靠颜色**：未读有品牌色圆点 + 更深的文字色，已读两项都没有，
  * 而且已读项渲染成不可点的 div —— 点了没有任何效果的按钮本身就是假入口。
+ *
+ * 红点只看**真实未读数**：没有未读就不画点 —— 不为了「看起来在工作」点一个假红点。
  */
 export function NotificationPanel({ notifications, unreadCount }: NotificationPanelProps) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={unreadCount > 0 ? `通知，${unreadCount} 条未读` : '通知'}
+          className="text-ink-500 hover:bg-ink-100 relative flex size-9 items-center justify-center rounded-[10px] transition-colors duration-150"
+        >
+          <BellIcon className="size-[18px]" />
+          {unreadCount > 0 ? (
+            <span className="absolute top-2 right-2 size-1.5 rounded-full bg-rose-500 ring-2 ring-white" />
+          ) : null}
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent align="end" className="w-[360px] p-0">
+        <NotificationList notifications={notifications} unreadCount={unreadCount} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * 通知列表本体。
+ *
+ * 单独抽出来是因为它有**两个入口**：桌面/移动顶栏的铃铛（弹层），
+ * 以及 P09「我的」里的「消息通知」行。两处必须是同一份渲染 ——
+ * 各写一遍就会出现「同一个通知在两处长得不一样」。
+ */
+export function NotificationList({ notifications, unreadCount }: NotificationPanelProps) {
   const [pending, startTransition] = useTransition();
 
   const markRead = (id: string) => {
@@ -62,73 +94,60 @@ export function NotificationPanel({ notifications, unreadCount }: NotificationPa
   const rowClassName = 'flex w-full gap-3 px-5 py-3.5 text-left';
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={unreadCount > 0 ? `通知，${unreadCount} 条未读` : '通知'}
-          className="text-ink-500 hover:bg-ink-100 relative flex size-9 items-center justify-center rounded-[10px] transition-colors duration-150"
-        >
-          <BellIcon className="size-[18px]" />
-          {unreadCount > 0 ? (
-            <span className="absolute top-2 right-2 size-1.5 rounded-full bg-rose-500 ring-2 ring-white" />
-          ) : null}
-        </button>
-      </PopoverTrigger>
+    <>
+      <div className="border-ink-100 flex items-center justify-between border-b px-5 py-3.5">
+        <span className="text-ink-900 text-[13.5px] font-semibold">通知</span>
+        {unreadCount > 0 ? (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                await markAllNotificationsReadAction();
+              })
+            }
+            className="text-brand-500 hover:text-brand-600 text-[11.5px] font-medium transition-colors duration-150"
+          >
+            全部已读
+          </button>
+        ) : null}
+      </div>
 
-      <PopoverContent align="end" className="w-[360px] p-0">
-        <div className="border-ink-100 flex items-center justify-between border-b px-5 py-3.5">
-          <span className="text-ink-900 text-[13.5px] font-semibold">通知</span>
-          {unreadCount > 0 ? (
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                startTransition(async () => {
-                  await markAllNotificationsReadAction();
-                })
-              }
-              className="text-brand-500 hover:text-brand-600 text-[11.5px] font-medium transition-colors duration-150"
-            >
-              全部已读
-            </button>
-          ) : null}
+      {notifications.length === 0 ? (
+        <p className="text-ink-400 px-5 py-8 text-center text-[12px] leading-5">
+          暂时没有通知。
+          <br />
+          成员加入、问卷回收达标这类事件会出现在这里。
+        </p>
+      ) : (
+        <div className="divide-ink-100 max-h-[380px] divide-y overflow-y-auto">
+          {notifications.map((item) =>
+            item.read ? (
+              <div key={item.id} className={cn(rowClassName, 'hover:bg-ink-50/60')}>
+                {itemBody(item)}
+              </div>
+            ) : item.linkUrl ? (
+              <Link
+                key={item.id}
+                href={item.linkUrl}
+                onClick={() => markRead(item.id)}
+                className={cn(rowClassName, 'hover:bg-ink-50/60 transition-colors duration-150')}
+              >
+                {itemBody(item)}
+              </Link>
+            ) : (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => markRead(item.id)}
+                className={cn(rowClassName, 'hover:bg-ink-50/60 transition-colors duration-150')}
+              >
+                {itemBody(item)}
+              </button>
+            ),
+          )}
         </div>
-
-        {notifications.length === 0 ? (
-          <p className="text-ink-400 px-5 py-8 text-center text-[12px]">
-            暂时没有通知。问卷回收达标、成员加入时会出现在这里。
-          </p>
-        ) : (
-          <div className="divide-ink-100 max-h-[380px] divide-y overflow-y-auto">
-            {notifications.map((item) =>
-              item.read ? (
-                <div key={item.id} className={cn(rowClassName, 'hover:bg-ink-50/60')}>
-                  {itemBody(item)}
-                </div>
-              ) : item.linkUrl ? (
-                <Link
-                  key={item.id}
-                  href={item.linkUrl}
-                  onClick={() => markRead(item.id)}
-                  className={cn(rowClassName, 'hover:bg-ink-50/60 transition-colors duration-150')}
-                >
-                  {itemBody(item)}
-                </Link>
-              ) : (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => markRead(item.id)}
-                  className={cn(rowClassName, 'hover:bg-ink-50/60 transition-colors duration-150')}
-                >
-                  {itemBody(item)}
-                </button>
-              ),
-            )}
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+      )}
+    </>
   );
 }
