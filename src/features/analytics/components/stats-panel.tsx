@@ -9,6 +9,8 @@ import { ExportResponsesDialog } from '@/components/questionnaire/export-respons
 import { Button } from '@/components/ui/button';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { Modal, ModalContent } from '@/components/ui/modal';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useIsDesktop } from '@/hooks/use-is-desktop';
 import {
   METRIC_HINT,
   QUESTION_TYPE_LABEL,
@@ -74,6 +76,8 @@ export function StatsPanel({
   const searchParams = useSearchParams();
   const [exportOpen, setExportOpen] = useState(false);
   const [openQuestion, setOpenQuestion] = useState<AnalyticsQuestion | null>(null);
+  /** 断点写 1024：与 Tailwind 的 `lg` 对齐（`useIsDesktop` 默认 768 会让中间那一档错位） */
+  const isDesktop = useIsDesktop('(min-width: 1024px)');
   /** 窄屏横滑到第几张单题卡（只用来点亮底部圆点） */
   const [activeQuestion, setActiveQuestion] = useState(0);
 
@@ -88,6 +92,51 @@ export function StatsPanel({
 
   const { summary } = data;
   const filterActive = Boolean(channelId || from || to);
+  /** 窄屏「筛选」那一行上的角标（几项条件生效中） */
+  const filterCount = [channelId, from, to].filter(Boolean).length;
+
+  /**
+   * 筛选控件本体。桌面放进常驻筛选栏、窄屏放进「筛选」弹层 ——
+   * **同一份 JSX**，所以两端的可筛条件是同一组（不会出现「桌面上能按渠道筛、手机上不能」）。
+   */
+  const filterControls = (
+    <>
+      <FilterSelect
+        label="渠道"
+        value={channelId ?? ''}
+        onChange={(value) => push({ channel: value || null })}
+        options={[
+          { value: '', label: '全部渠道' },
+          ...data.channels.map((channel) => ({
+            value: channel.id,
+            label: `${channel.name}（${channel.count}）`,
+          })),
+        ]}
+      />
+
+      <DateRangeFilter
+        from={from}
+        to={to}
+        onChange={(next) => push({ from: next.from, to: next.to })}
+      />
+
+      <button
+        type="button"
+        disabled
+        title={`交叉分析属 ${UPCOMING_BADGE.V11} 规划，本版本不开放`}
+        className="border-ink-300 text-ink-400 flex h-8 cursor-not-allowed items-center gap-1.5 rounded-lg border border-dashed px-3 text-[12.5px]"
+      >
+        交叉分析
+        <span className="bg-ink-100 text-ink-400 rounded px-1 text-[10px]">
+          {UPCOMING_BADGE.V11}
+        </span>
+      </button>
+
+      <span className="text-ink-400 text-[11.5px] lg:ml-auto">
+        数据更新于 {data.updatedAtLabel}
+      </span>
+    </>
+  );
 
   return (
     <>
@@ -169,45 +218,41 @@ export function StatsPanel({
             </p>
           </div>
 
-          {/* ---- 筛选栏 ---- */}
-          <div className="border-ink-200 flex flex-wrap items-center gap-2 rounded-xl border bg-white px-4 py-3">
-            <span className="text-ink-500 shrink-0 text-[12px]">筛选</span>
-
-            <FilterSelect
-              label="渠道"
-              value={channelId ?? ''}
-              onChange={(value) => push({ channel: value || null })}
-              options={[
-                { value: '', label: '全部渠道' },
-                ...data.channels.map((channel) => ({
-                  value: channel.id,
-                  label: `${channel.name}（${channel.count}）`,
-                })),
-              ]}
-            />
-
-            <DateRangeFilter
-              from={from}
-              to={to}
-              onChange={(next) => push({ from: next.from, to: next.to })}
-            />
-
-            <button
-              type="button"
-              disabled
-              title={`交叉分析属 ${UPCOMING_BADGE.V11} 规划，本版本不开放`}
-              className="border-ink-300 text-ink-400 flex h-8 cursor-not-allowed items-center gap-1.5 rounded-lg border border-dashed px-3 text-[12.5px]"
-            >
-              交叉分析
-              <span className="bg-ink-100 text-ink-400 rounded px-1 text-[10px]">
-                {UPCOMING_BADGE.V11}
-              </span>
-            </button>
-
-            <span className="text-ink-400 ml-auto text-[11.5px]">
-              数据更新于 {data.updatedAtLabel}
-            </span>
-          </div>
+          {/*
+            ---- 筛选 ----
+            桌面是一整条常驻筛选栏；窄屏收进「筛选」弹层 —— 375px 上把渠道下拉、
+            日期区间、交叉分析、更新时间全摊开，会把趋势图挤到第二屏之外。
+            用 `isDesktop` 而不是 CSS 隐藏：隐藏的控件仍在 DOM 里，仍会被 Tab 聚焦、
+            仍会被自动化匹配到（这两条都在本项目踩过）。
+          */}
+          {isDesktop ? (
+            <div className="border-ink-200 flex flex-wrap items-center gap-2 rounded-xl border bg-white px-4 py-3">
+              <span className="text-ink-500 shrink-0 text-[12px]">筛选</span>
+              {filterControls}
+            </div>
+          ) : (
+            <Sheet>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className="border-ink-200 flex w-full items-center gap-2 rounded-xl border bg-white px-4 py-3 text-left"
+                >
+                  <span className="text-ink-500 text-[12px]">筛选</span>
+                  {filterCount > 0 ? (
+                    <span className="bg-brand-50 text-brand-600 rounded-full px-2 py-0.5 text-[11px] font-medium">
+                      {filterCount} 项
+                    </span>
+                  ) : (
+                    <span className="text-ink-400 text-[12px]">全部时间 · 全部渠道</span>
+                  )}
+                  <span className="text-ink-300 ml-auto text-[13px]">›</span>
+                </button>
+              </SheetTrigger>
+              <SheetContent title="筛选" description="与桌面端是同一组条件">
+                <div className="space-y-4">{filterControls}</div>
+              </SheetContent>
+            </Sheet>
+          )}
 
           {/* ---- 回收趋势 ---- */}
           <div className="border-ink-200 rounded-xl border bg-white p-6">

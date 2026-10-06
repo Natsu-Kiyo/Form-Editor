@@ -16,13 +16,15 @@ import { cn } from '@/utils/cn';
 
 import type { EditorReadOnlyReason } from '../api/questionnaires';
 import { useEditorDraft } from './editor-draft';
+import { EditorPreviewDialog } from './editor-preview-dialog';
 
 /**
  * 编辑器顶栏（设计稿 W03 上半段）：返回、标题即输入框、保存按钮与保存状态，
- * 以及右侧的「历史版本」与「发布」。
+ * 以及右侧的「预览」「历史版本」与「发布」。
  *
- * 「预览 / 协作」仍**不渲染**：预览要等 M5 的作答端（做一个仿的预览等于写一份注定要扔的代码），
- * 协作属 2.0。画一个点了没反应的按钮比少一个按钮糟得多。
+ * 「预览」现在**是真的**：M5 之后已有作答端的渲染，预览复用它（只读），
+ * 预览的是**当前草稿**（含未保存的改动）—— 用户点它就是想确认「刚改的看起来对不对」。
+ * 只剩「协作」仍不渲染（属 2.0）：画一个点了没反应的按钮比少一个按钮糟得多。
  */
 export function EditorChrome({
   readOnlyReason,
@@ -36,6 +38,7 @@ export function EditorChrome({
     useEditorDraft();
   const { isLeaving, isBackNavigation, cancelLeave, leave } = useUnsavedGuard(dirty);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const readOnly = readOnlyReason !== null;
 
@@ -67,6 +70,11 @@ export function EditorChrome({
         </>
       ) : null}
 
+      {/* 预览：只读示意，两端都有（连只读状态也能看 —— 它本来就不改任何东西） */}
+      <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
+        预览
+      </Button>
+
       {/* 版本历史按 1.0 的范围只在桌面端出现（计划书 §3 的 C 级清单）：
           窄屏用 useIsDesktop **真不渲染**，不是 CSS 藏起来 */}
       {isDesktop ? (
@@ -80,6 +88,8 @@ export function EditorChrome({
       >
         {readOnlyReason === 'FROZEN' ? '发布设置' : '发布'}
       </Link>
+
+      <EditorPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} />
 
       <UnsavedChangesDialog
         open={isLeaving}

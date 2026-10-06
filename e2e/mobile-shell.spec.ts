@@ -90,6 +90,17 @@ test.describe('移动外壳', () => {
     await page.getByRole('button', { name: /帮助与反馈/ }).click();
     await expect(page.getByText('常见问题')).toBeVisible();
     await page.keyboard.press('Escape');
+
+    // 成员与角色权限 → **只读**列表（设计稿：手机上只读查看，避免误操作）
+    await page.getByRole('button', { name: /成员与角色权限/ }).click();
+    const members = page.getByRole('dialog');
+    await expect(members.getByText('林予')).toBeVisible();
+    await expect(members.getByText('陈默')).toBeVisible();
+    // 一个能改的东西都不给：没有邀请、没有改角色、没有移除
+    for (const action of ['邀请成员', '移除', '改角色']) {
+      await expect(members.getByRole('button', { name: action })).toHaveCount(0);
+    }
+    await page.keyboard.press('Escape');
   });
 
   test('隐藏项复核：版本历史 / JSON 导入导出 / 答卷明细在 375px 都不出现', async ({
@@ -140,6 +151,16 @@ test.describe('移动外壳', () => {
     // 顶栏那两个动作在窄屏挪到了底部：导出可点、分享报告是灰显 2.0
     await expect(page.getByRole('button', { name: /导出/ }).last()).toBeVisible();
     await expect(page.getByRole('button', { name: /分享报告/ })).toBeDisabled();
+
+    // 筛选收进弹层（375px 上把条件全摊开会把趋势图挤走）
+    // 断言用「可点的控件」而不是标签文字：`FilterSelect` 里那个 native select 是给读屏用的，看不见
+    await page.getByRole('button', { name: /^筛选/ }).click();
+    const filters = page.getByRole('dialog');
+    await expect(filters.getByRole('heading', { name: '筛选' })).toBeVisible();
+    // 断在真控件上：日期区间是按钮，交叉分析是灰显按钮
+    // （渠道那一项是原生 select，按 role 找它得用 combobox，这里不纠缠）
+    await expect(filters.getByRole('button', { name: '开始时间 - 结束时间' })).toBeVisible();
+    await expect(filters.getByRole('button', { name: /交叉分析/ })).toBeDisabled();
   });
 
   test('P06 分享页：大字二维码 + 渠道链接进底部 Sheet', async ({ page }, testInfo) => {
@@ -187,6 +208,12 @@ test.describe('移动外壳', () => {
     await expect(propertySheet.getByRole('heading', { name: /第 1 题属性/ })).toBeVisible();
     await expect(propertySheet.getByText('题目类型')).toBeVisible();
     await expect(propertySheet.getByText('题目', { exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // ---- 预览：真的能看（不是灰显按钮），且预览的是**当前草稿** ----
+    await page.getByRole('button', { name: '预览', exact: true }).click();
+    const preview = page.getByRole('dialog');
+    await expect(preview.getByText(/按当前草稿渲染/)).toBeVisible();
   });
 
   test('P07 模板页：卡片按钮常显，「⋯」不在窄屏', async ({ page }, testInfo) => {

@@ -39,7 +39,10 @@ export function MePanel({
   memberCount,
   notifications,
   unreadCount,
+  membersSlot,
 }: {
+  /** 成员只读列表（由页面注入：members 是另一个 feature，这一层不跨域引用） */
+  membersSlot?: React.ReactNode;
   userName: string;
   userEmail: string;
   /** 当前工作区里的角色（`RoleBadge` 自己把枚举翻成「所有者」这类文案） */
@@ -91,6 +94,15 @@ export function MePanel({
           {questionnaireCount} 份问卷 · {memberCount} 位成员
         </p>
       </div>
+
+      {/* 成员是**工作区**这一栏的事，所以挨着「当前工作区」放，不混进下面的账号设置组 */}
+      {membersSlot ? (
+        <div className="px-5 pb-4">
+          <div className="divide-ink-100 border-ink-200 divide-y overflow-hidden rounded-[14px] border bg-white">
+            {membersSlot}
+          </div>
+        </div>
+      ) : null}
 
       <div className="px-5">
         <div className="divide-ink-100 border-ink-200 divide-y overflow-hidden rounded-[14px] border bg-white">

@@ -5,6 +5,8 @@ import { countWorkspaceQuestionnaires } from '@/features/account/api/me';
 import { getNotifications, getUnreadNotificationCount } from '@/features/account/api/notifications';
 import { countActiveSessions } from '@/features/account/api/sessions';
 import { MePanel } from '@/features/account/components/me-panel';
+import { getMembersPageData } from '@/features/members/api/members';
+import { ReadOnlyMembers } from '@/features/members/components/read-only-members';
 import { getWorkspacesForUser } from '@/features/workspace/api/workspaces';
 import { resolveActiveWorkspace } from '@/features/workspace/lib/active-workspace';
 import { requireUser } from '@/lib/auth/dal';
@@ -29,13 +31,15 @@ export default async function MePage() {
   const workspaces = await getWorkspacesForUser(user.id);
   const active = await resolveActiveWorkspace(workspaces);
 
-  const [security, activeSessionCount, notifications, unreadCount, questionnaireCount] =
+  const [security, activeSessionCount, notifications, unreadCount, questionnaireCount, members] =
     await Promise.all([
       getAccountSecurityInfo(user.id),
       countActiveSessions(user.id),
       getNotifications(user.id),
       getUnreadNotificationCount(user.id),
       active ? countWorkspaceQuestionnaires(active.id) : Promise.resolve(0),
+      // 「成员与角色权限」的只读版（P09）：手机上只看不改，邀请与改角色留在桌面端
+      active ? getMembersPageData(active.id) : Promise.resolve(null),
     ]);
 
   const current = workspaces.find((workspace) => workspace.id === active?.id) ?? null;
@@ -60,6 +64,14 @@ export default async function MePage() {
           memberCount={current?.memberCount ?? 0}
           notifications={notifications}
           unreadCount={unreadCount}
+          membersSlot={
+            /*
+             * 成员列表由**页面**注入：`ReadOnlyMembers` 属于 members 那个 feature，
+             * 而 account 这一层不该跨 feature 引用（两个 feature 直接互相 import，
+             * 迟早绕成一个解不开的环）。页面本来就是组合点。
+             */
+            active ? <ReadOnlyMembers members={members?.members ?? []} /> : null
+          }
         />
       </main>
 
