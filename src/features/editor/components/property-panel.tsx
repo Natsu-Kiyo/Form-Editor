@@ -15,7 +15,13 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { QUESTION_TYPE_LABEL, UPCOMING_BADGE, type QuestionType } from '@/config/constants';
+import {
+  QUESTION_TYPE_LABEL,
+  RATING_SCALE,
+  UPCOMING_BADGE,
+  ratingBounds,
+  type QuestionType,
+} from '@/config/constants';
 
 import type { DraftQuestion, EditableQuestionType } from './editor-draft';
 import { useEditorDraft } from './editor-draft';
@@ -187,8 +193,7 @@ function QuestionTitleField({
 
 function ScoreRangeField({ question, readOnly }: { question: DraftQuestion; readOnly: boolean }) {
   const { updateQuestion } = useEditorDraft();
-  const min = question.config.min ?? 1;
-  const max = question.config.max ?? 5;
+  const { min, max } = ratingBounds(question.config);
 
   return (
     <div>
@@ -200,7 +205,7 @@ function ScoreRangeField({ question, readOnly }: { question: DraftQuestion; read
           value={min}
           disabled={readOnly}
           onCommit={(next) => {
-            if (next >= max) return false;
+            if (next < RATING_SCALE.MIN || next >= max) return false;
             updateQuestion(question.key, { config: { ...question.config, min: next } });
             return true;
           }}
@@ -211,13 +216,17 @@ function ScoreRangeField({ question, readOnly }: { question: DraftQuestion; read
           value={max}
           disabled={readOnly}
           onCommit={(next) => {
-            if (next <= min) return false;
+            // 超出上限的值直接不接受（NumberBox 会把输入框恢复成原值），
+            // 否则画布上就会出现一排压扁的窄框
+            if (next <= min || next > RATING_SCALE.MAX) return false;
             updateQuestion(question.key, { config: { ...question.config, max: next } });
             return true;
           }}
         />
       </div>
-      <p className="text-caption text-ink-400 mt-1.5">最大值要大于最小值</p>
+      <p className="text-caption text-ink-400 mt-1.5">
+        最大值要大于最小值，且不超过 {RATING_SCALE.MAX}
+      </p>
     </div>
   );
 }

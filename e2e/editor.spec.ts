@@ -61,12 +61,9 @@ test.describe('编辑器', () => {
     await signIn(page);
     await clearLeftovers(page, THROWAWAY_TITLE);
 
-    // ---- 造一份空白问卷当试验田 ----
+    // ---- 造一份空白问卷当试验田（创建成功后直接进编辑器，不用回列表找）----
     await page.getByRole('button', { name: '新建问卷' }).first().click();
     await page.getByRole('button', { name: '创建', exact: true }).click();
-    // first() 取的是列表里最新的那张（列表按「最近更新」倒序），
-    // 所以即使有人留下同名的残留卡片，也一定命中刚建出来的这份
-    await page.getByRole('link', { name: '编辑「未命名问卷」' }).first().click();
     await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
 
     // ---- 先改成唯一标题 ----
@@ -129,7 +126,8 @@ test.describe('编辑器', () => {
     // ---- 造一块试验田，并改成唯一标题 ----
     await page.getByRole('button', { name: '新建问卷' }).first().click();
     await page.getByRole('button', { name: '创建', exact: true }).click();
-    await page.getByRole('link', { name: '编辑「未命名问卷」' }).first().click();
+    // 创建成功后 action 直接 redirect 到编辑器，不需要再从列表点进来
+    await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
 
     const titleInput = page.getByLabel('问卷标题');
     await titleInput.fill(M3B_TITLE);
@@ -237,7 +235,8 @@ test.describe('编辑器', () => {
 
     await page.getByRole('button', { name: '新建问卷' }).first().click();
     await page.getByRole('button', { name: '创建', exact: true }).click();
-    await page.getByRole('link', { name: '编辑「未命名问卷」' }).first().click();
+    // 创建成功后 action 直接 redirect 到编辑器，不需要再从列表点进来
+    await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
 
     for (const position of [1, 2] as const) {
       await page.getByRole('button', { name: '单选', exact: true }).click();

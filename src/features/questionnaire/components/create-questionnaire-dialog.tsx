@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useState } from 'react';
 
 import { GridIcon, PlusIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
@@ -69,9 +69,8 @@ function CreateQuestionnaireForm({
   const [state, formAction, pending] = useActionState(createQuestionnaireAction, EMPTY_FORM_STATE);
   const [mode, setMode] = useState<CreateMode>(CREATE_MODE.BLANK);
 
-  useEffect(() => {
-    if (state.success) onDone();
-  }, [state.success, onDone]);
+  // 没有「成功后关闭弹层」这一步：创建成功时 action 会直接 `redirect` 到编辑器，
+  // 整个页面会跟着换掉，弹层自然消失（挂个 effect 反而会变成永不触发的死代码）
 
   return (
     <form action={formAction} className="space-y-3" noValidate>

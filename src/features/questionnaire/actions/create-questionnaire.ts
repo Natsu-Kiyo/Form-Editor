@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 import { requireActiveWorkspace } from '@/lib/auth/active-workspace';
 import type { FormState } from '@/types/form-state';
@@ -27,30 +28,64 @@ export async function createQuestionnaireAction(
     return { message: '新建参数不正确，请重新选择' };
   }
 
-  if (parsed.data.mode === CREATE_MODE.TEMPLATE) {
-    if (!parsed.data.templateId) {
-      return { message: '请先选择一个模板' };
-    }
+  // 先把「用哪个模板」这件事定下来，再决定走哪条创建路径 ——
+  // 否则「选了模板却没选具体哪一个」这种半成品状态要判两次
+  const target =
+    parsed.data.mode === CREATE_MODE.TEMPLATE
+      ? parsed.data.templateId
+        ? ({ kind: 'TEMPLATE', templateId: parsed.data.templateId } as const)
+        : null
+      : ({ kind: 'BLANK' } as const);
 
-    const payload = await getTemplatePayload(parsed.data.templateId);
-    if (!payload) {
-      return { message: '这个模板的结构已损坏，换一个试试' };
-    }
+  if (!target) return { message: '请先选择一个模板' };
 
-    await createQuestionnaireWithPayload({
-      workspaceId: workspace.id,
-      ownerId: user.id,
-      payload,
-      templateId: parsed.data.templateId,
-    });
-  } else {
-    await createQuestionnaireWithPayload({
-      workspaceId: workspace.id,
-      ownerId: user.id,
-      payload: { formatVersion: 1, title: UNTITLED, intro: null, questions: [] },
-    });
-  }
+  const created =
+    target.kind === 'TEMPLATE'
+      ? await createFromTemplate({
+          templateId: target.templateId,
+          workspaceId: workspace.id,
+          ownerId: user.id,
+        })
+      : await createBlank({ workspaceId: workspace.id, ownerId: user.id });
+
+  if (!created.ok) return { message: created.message };
 
   revalidatePath('/app');
-  return { success: '问卷已创建' };
+
+  // 建完**直接进编辑器**：用户的下一步一定是加题，让他再从列表里找一遍自己刚建的问卷
+  // 是纯粹的白跑一趟（弹层里没有标题输入，此时列表里这一行也叫「未命名问卷」，
+  // 一排同名卡片里挑错是很自然的事）。
+  // 注意：`redirect()` 靠抛错来跳转，所以它必须在任何 try/catch **之外**调用。
+  redirect(`/app/q/${created.id}/edit`);
+}
+
+async function createFromTemplate(input: {
+  templateId: string;
+  workspaceId: string;
+  ownerId: string;
+}): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
+  const payload = await getTemplatePayload(input.templateId);
+  if (!payload) return { ok: false, message: '这个模板的结构已损坏，换一个试试' };
+
+  const questionnaire = await createQuestionnaireWithPayload({
+    workspaceId: input.workspaceId,
+    ownerId: input.ownerId,
+    payload,
+    templateId: input.templateId,
+  });
+
+  return { ok: true, id: questionnaire.id };
+}
+
+async function createBlank(input: {
+  workspaceId: string;
+  ownerId: string;
+}): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
+  const questionnaire = await createQuestionnaireWithPayload({
+    workspaceId: input.workspaceId,
+    ownerId: input.ownerId,
+    payload: { formatVersion: 1, title: UNTITLED, intro: null, questions: [] },
+  });
+
+  return { ok: true, id: questionnaire.id };
 }

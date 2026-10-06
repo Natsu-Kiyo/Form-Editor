@@ -47,6 +47,8 @@ model User {
   templates      Template[]            @relation("TemplateOwner")
   responses      Response[]            @relation("ResponseRespondent")
   invalidatedResponses Response[]      @relation("ResponseInvalidator")
+  versions       QuestionnaireVersion[] @relation("VersionAuthor")
+  operationLogs  OperationLog[]         @relation("OperationActor")
 }
 
 /// 服务端会话。Cookie 里只放原始 token，库里存它的 sha256 —— 库泄露也无法直接冒用
@@ -76,6 +78,7 @@ model Workspace {
   memberships Membership[]
   questionnaires Questionnaire[]
   templates   Template[]
+  operationLogs OperationLog[]
 
   @@index([ownerId])
 }
@@ -190,6 +193,8 @@ model Questionnaire {
   owner      User          @relation("QuestionnaireOwner", fields: [ownerId], references: [id])
   questions  Question[]
   responses  Response[]
+  channels   Channel[]
+  versions   QuestionnaireVersion[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, updatedAt])
@@ -239,7 +244,7 @@ enum ResponseStatus {
 /// 一份答卷。
 ///
 /// M2 只建表并让列表卡片的「回收进度」与汇总卡的「累计答卷」有真实来源；
-/// 作答流程在 M5、统计在 M6、作废在 M7。`channelId` 到 M4 引入 `Channel` 时再补外键。
+/// 作答流程在 M5、统计在 M6、作废在 M7。
 model Response {
   id              String         @id @default(cuid())
   questionnaireId String
@@ -256,6 +261,7 @@ model Response {
   userAgent       String?
 
   questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  channel       Channel?      @relation(fields: [channelId], references: [id], onDelete: SetNull)
   respondent    User?         @relation("ResponseRespondent", fields: [respondentId], references: [id], onDelete: SetNull)
   invalidatedBy User?         @relation("ResponseInvalidator", fields: [invalidatedById], references: [id], onDelete: SetNull)
   answers       Answer[]
@@ -278,6 +284,62 @@ model Answer {
 
   @@unique([responseId, questionId])
   @@index([questionId])
+}
+
+/// 分发渠道。分享页的渠道表由它驱动，`?src=` 参数按 `srcToken` 归属到渠道。
+model Channel {
+  id              String   @id @default(cuid())
+  questionnaireId String
+  name            String
+  /// 链接参数里的渠道标识（`?src=wechat`）
+  srcToken        String   @unique
+  createdAt       DateTime @default(now())
+
+  questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  responses     Response[]
+
+  @@index([questionnaireId])
+}
+
+/// 题目结构的版本快照。
+///
+/// 每次**发布**写一条，**回滚**也写一条（回滚不删除任何历史版本 —— 设计稿 W11 的原文）。
+/// `snapshot` 与「导出 JSON」是同一套 schema，所以回滚可以直接复用结构替换的逻辑。
+model QuestionnaireVersion {
+  id              String   @id @default(cuid())
+  questionnaireId String
+  version         Int
+  snapshot        Json
+  /// 这个版本是怎么来的：「发布」「回滚自 v2」
+  label           String
+  createdById     String?
+  createdAt       DateTime @default(now())
+
+  questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  createdBy     User?         @relation("VersionAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([questionnaireId, version])
+  @@index([questionnaireId, version])
+}
+
+/// 操作日志。版本历史抽屉与 M10 的操作日志页都读它。
+/// `type` 用字符串而非枚举：类型会随里程碑增长，文案在 constants.ts 映射。
+model OperationLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorId     String?
+  type        String
+  targetType  String
+  targetId    String
+  targetName  String
+  detail      Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?     @relation("OperationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([targetType, targetId])
 }
 
 /// 模板。官方模板由 seed 写入（`isOfficial = true`，`workspaceId` 为空）

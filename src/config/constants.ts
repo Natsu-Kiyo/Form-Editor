@@ -52,10 +52,24 @@ export const IDENTITY_MODE = {
 
 export type IdentityMode = (typeof IDENTITY_MODE)[keyof typeof IDENTITY_MODE];
 
+/**
+ * 分享页链接下方的说明。**取决于作答身份** ——
+ * 写死「任何人打开即可填写」而问卷其实要求登录，就是在骗人。
+ */
+export const SHARE_LINK_HINT: Record<IdentityMode, string> = {
+  ANONYMOUS: '任何人打开此链接即可填写，无需登录。',
+  LOGIN_REQUIRED: '作答者需要登录账号后才能填写，每人限一份。',
+  PASSWORD: '作答者需要输入访问口令后才能进入。',
+};
+
+/** 文案逐字取自设计稿 W04 的「作答身份」三张卡 */
 export const IDENTITY_MODE_LABEL: Record<IdentityMode, { title: string; description: string }> = {
-  ANONYMOUS: { title: '匿名作答', description: '任何拿到链接的人都可以填写，不做身份识别' },
-  LOGIN_REQUIRED: { title: '需登录', description: '只有登录用户能填写，每人限一份' },
-  PASSWORD: { title: '口令访问', description: '需要输入口令才能进入作答页' },
+  ANONYMOUS: { title: '匿名作答', description: '任何人点开链接即可填写，不记录身份，回收率最高。' },
+  LOGIN_REQUIRED: {
+    title: '需登录作答',
+    description: '作答者需登录账号，可识别身份并防止重复提交。',
+  },
+  PASSWORD: { title: '口令访问', description: '输入正确口令才能进入，适合内部调研。' },
 };
 
 /**
@@ -104,3 +118,96 @@ export const GREYED_QUESTION_TYPES: readonly QuestionType[] = ['MATRIX'];
 
 /** 只有选择题才有「选项随机排序」 */
 export const CHOICE_QUESTION_TYPES: readonly QuestionType[] = ['SINGLE', 'MULTI'];
+
+/**
+ * 评分题的刻度上限与每行个数。
+ *
+ * 上限 10：再多就会在画布上挤成一排被压扁的窄框（实测 17 个 40px 方块直接溢出卡片）。
+ * 每行 5 个：6–10 分排成两行，仍然一眼看得完。
+ */
+export const RATING_SCALE = { MIN: 1, MAX: 10, PER_ROW: 5 } as const;
+
+/**
+ * 评分题的分值范围，**已按上限收敛**。
+ *
+ * 界面、题目摘要都从这里取，避免出现「摘要写 1–17、刻度只画 10 个」这种自相矛盾。
+ * 库里可能残留过大的历史值（上限规则是后加的），这里统一收敛而**不做数据迁移**：
+ * 数据只在下次保存时按新规则落库，展示层任何时候都是对的。
+ */
+export function ratingBounds(config: Record<string, unknown>) {
+  const rawMin = typeof config.min === 'number' ? config.min : RATING_SCALE.MIN;
+  const rawMax = typeof config.max === 'number' ? config.max : 5;
+
+  const min = Math.min(Math.max(rawMin, RATING_SCALE.MIN), RATING_SCALE.MAX - 1);
+  const max = Math.min(Math.max(rawMax, min + 1), RATING_SCALE.MAX);
+
+  return { min, max };
+}
+
+/** 截止原因。列表与详情据此给出不同提示，「恢复回收」只对 PAUSED 有意义 */
+export const CLOSE_REASON = {
+  MANUAL: 'MANUAL',
+  SCHEDULED: 'SCHEDULED',
+  LIMIT_REACHED: 'LIMIT_REACHED',
+  ADMIN: 'ADMIN',
+} as const;
+
+export type CloseReason = (typeof CLOSE_REASON)[keyof typeof CLOSE_REASON];
+
+export const CLOSE_REASON_LABEL: Record<CloseReason, string> = {
+  MANUAL: '手动截止',
+  SCHEDULED: '到期自动截止',
+  LIMIT_REACHED: '达到回收上限',
+  ADMIN: '管理员关闭',
+};
+
+/**
+ * 回收开关。**三态而不是两态**：
+ * 回收中 → 已暂停（可恢复）→ 已截止（**不可重开**，只能复制为新问卷）。
+ * 截止不可逆是刻意的：链接一旦对外发出，重新打开会让「什么时候能填」变得无法解释。
+ */
+export const COLLECTION_STATE_LABEL = {
+  PUBLISHED: '回收中',
+  PAUSED: '已暂停',
+  CLOSED: '已截止',
+} as const;
+
+/** 操作日志类型。库里存字符串（类型会随里程碑增长），文案在这里映射 */
+export const OPERATION_TYPE = {
+  PUBLISH: 'PUBLISH',
+  PAUSE: 'PAUSE',
+  RESUME: 'RESUME',
+  CLOSE: 'CLOSE',
+  ROLLBACK: 'ROLLBACK',
+  ARCHIVE: 'ARCHIVE',
+  RESTORE: 'RESTORE',
+  COPY: 'COPY',
+  IMPORT: 'IMPORT',
+  SETTINGS: 'SETTINGS',
+} as const;
+
+export type OperationType = (typeof OPERATION_TYPE)[keyof typeof OPERATION_TYPE];
+
+export const OPERATION_TYPE_LABEL: Record<OperationType, string> = {
+  PUBLISH: '发布问卷',
+  PAUSE: '暂停回收',
+  RESUME: '恢复回收',
+  CLOSE: '截止回收',
+  ROLLBACK: '回滚版本',
+  ARCHIVE: '归档问卷',
+  RESTORE: '恢复归档',
+  COPY: '复制问卷',
+  IMPORT: '导入 JSON',
+  SETTINGS: '修改发布设置',
+};
+
+/** 操作对象的类型。M10 的操作日志页按它过滤 */
+export const OPERATION_TARGET_LABEL = {
+  QUESTIONNAIRE: '问卷',
+  TEMPLATE: '模板',
+} as const;
+
+/** 版本号的展示文案。全站只有这一处拼 `v1` / `v12` */
+export function formatVersion(version: number) {
+  return `v${version}`;
+}

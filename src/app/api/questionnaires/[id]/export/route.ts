@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { getQuestionnairePayload } from '@/features/questionnaire/api/questionnaires';
+import { getQuestionnairePayload } from '@/lib/questionnaire-snapshot';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { payloadFileName } from '@/lib/questionnaire-structure';
 

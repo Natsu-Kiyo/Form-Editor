@@ -2,7 +2,7 @@ import 'server-only';
 
 import { cache } from 'react';
 
-import type { QuestionnaireStatus, QuestionType } from '@/config/constants';
+import { RATING_SCALE, type QuestionnaireStatus, type QuestionType } from '@/config/constants';
 import { prisma } from '@/lib/db';
 
 /** 矩阵题是 1.1 的灰显项，库里的枚举没有它，所以编辑器可用的题型是它的补集 */
@@ -60,8 +60,13 @@ function parseConfig(raw: unknown, type: EditableQuestionType): QuestionConfig {
   const maxLength = source.maxLength;
 
   if (type === 'RATING') {
-    config.min = typeof min === 'number' && min >= 0 ? min : 1;
-    config.max = typeof max === 'number' && max > config.min ? max : 5;
+    // 读进来就按当前规则收敛（上限规则是后加的，库里可能残留过大的历史值）：
+    // 停在读取这一处，草稿与下次保存自然都是规范值，展示层不用各自再兜一遍
+    config.min =
+      typeof min === 'number'
+        ? Math.min(Math.max(min, RATING_SCALE.MIN), RATING_SCALE.MAX - 1)
+        : RATING_SCALE.MIN;
+    config.max = typeof max === 'number' && max > config.min ? Math.min(max, RATING_SCALE.MAX) : 5;
   }
 
   if (type === 'SHORT_TEXT' || type === 'LONG_TEXT') {

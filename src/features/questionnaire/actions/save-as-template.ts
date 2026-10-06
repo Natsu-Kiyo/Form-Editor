@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import type { FormState } from '@/types/form-state';
 import { toFieldErrors } from '@/utils/zod-errors';
 
-import { getQuestionnairePayload } from '../api/questionnaires';
+import { getQuestionnairePayload } from '@/lib/questionnaire-snapshot';
 import { createTemplate, findWorkspaceTemplateByTitle } from '../api/templates';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { saveAsTemplateSchema } from '../schemas';

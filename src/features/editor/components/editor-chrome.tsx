@@ -3,7 +3,12 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-import { AlertCircleIcon, ArrowLeftIcon, CheckIcon } from '@/components/icons/ui-icons';
+import { AlertCircleIcon, CheckIcon } from '@/components/icons/ui-icons';
+import { QuestionnaireTopbar } from '@/components/layout/questionnaire-topbar';
+import { useIsDesktop } from '@/hooks/use-is-desktop';
+
+import type { VersionRow } from '../api/versions';
+import { VersionDrawer } from './version-drawer';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalContent } from '@/components/ui/modal';
 import { useUnsavedGuard } from '@/hooks/use-unsaved-guard';
@@ -13,40 +18,41 @@ import type { EditorReadOnlyReason } from '../api/questionnaires';
 import { useEditorDraft } from './editor-draft';
 
 /**
- * 编辑器顶栏（设计稿 W03 上半段）：返回、标题即输入框、**保存按钮与保存状态**。
+ * 编辑器顶栏（设计稿 W03 上半段）：返回、标题即输入框、保存按钮与保存状态，
+ * 以及右侧的「历史版本」与「发布」。
  *
- * 「历史版本 / 预览 / 协作 / 发布」四个操作各自属于后续里程碑，现在**不渲染** ——
- * 画一个点了没反应的按钮比少一个按钮糟得多。
+ * 「预览 / 协作」仍**不渲染**：预览要等 M5 的作答端（做一个仿的预览等于写一份注定要扔的代码），
+ * 协作属 2.0。画一个点了没反应的按钮比少一个按钮糟得多。
  */
-export function EditorChrome({ readOnlyReason }: { readOnlyReason: EditorReadOnlyReason }) {
-  const { title, dirty, state, errorMessage, setTitle, save, discard } = useEditorDraft();
+export function EditorChrome({
+  readOnlyReason,
+  versions,
+}: {
+  readOnlyReason: EditorReadOnlyReason;
+  versions: VersionRow[];
+}) {
+  const isDesktop = useIsDesktop();
+  const { questionnaireId, title, dirty, state, errorMessage, setTitle, save, discard } =
+    useEditorDraft();
   const { isLeaving, isBackNavigation, cancelLeave, leave } = useUnsavedGuard(dirty);
   const [discardOpen, setDiscardOpen] = useState(false);
 
   const readOnly = readOnlyReason !== null;
 
   return (
-    <header className="border-ink-200 flex h-16 shrink-0 items-center gap-3 border-b bg-white px-6">
-      <Link
-        href="/app"
-        aria-label="返回问卷列表"
-        className="text-ink-500 hover:bg-ink-100 flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-150"
-      >
-        <ArrowLeftIcon className="size-4" />
-      </Link>
-
-      <div className="bg-ink-200 h-5 w-px shrink-0" />
-
-      <input
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        readOnly={readOnly}
-        aria-label="问卷标题"
-        className="text-ink-900 hover:border-ink-200 focus:border-brand-500 w-64 min-w-0 rounded-none border-b border-transparent bg-transparent text-[15px] font-semibold transition-colors duration-150 outline-none read-only:cursor-default"
-      />
-
+    <QuestionnaireTopbar
+      titleSlot={
+        <input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          readOnly={readOnly}
+          aria-label="问卷标题"
+          className="text-ink-900 hover:border-ink-200 focus:border-brand-500 w-64 min-w-0 border-b border-transparent bg-transparent text-[15px] font-semibold transition-colors duration-150 outline-none read-only:cursor-default"
+        />
+      }
+    >
       {!readOnly ? (
-        <div className="ml-auto flex shrink-0 items-center gap-3">
+        <>
           <SaveState
             state={state}
             dirty={dirty}
@@ -58,8 +64,22 @@ export function EditorChrome({ readOnlyReason }: { readOnlyReason: EditorReadOnl
           <Button size="sm" disabled={!dirty || state === 'saving'} onClick={save}>
             {state === 'saving' ? '保存中…' : '保存'}
           </Button>
-        </div>
+        </>
       ) : null}
+
+      {/* 版本历史按 1.0 的范围只在桌面端出现（计划书 §3 的 C 级清单）：
+          窄屏用 useIsDesktop **真不渲染**，不是 CSS 藏起来 */}
+      {isDesktop ? (
+        <VersionDrawer questionnaireId={questionnaireId} versions={versions} readOnly={readOnly} />
+      ) : null}
+
+      {/* 发布设置有两个入口（设计稿要求）：这条与问卷内的「发布设置」Tab */}
+      <Link
+        href={`/app/q/${questionnaireId}/publish`}
+        className="border-ink-200 text-ink-600 hover:border-ink-300 flex h-9 shrink-0 items-center rounded-[10px] border bg-white px-3.5 text-[13px] font-medium transition-colors duration-150"
+      >
+        {readOnlyReason === 'FROZEN' ? '发布设置' : '发布'}
+      </Link>
 
       <UnsavedChangesDialog
         open={isLeaving}
@@ -97,7 +117,7 @@ export function EditorChrome({ readOnlyReason }: { readOnlyReason: EditorReadOnl
           </div>
         </ModalContent>
       </Modal>
-    </header>
+    </QuestionnaireTopbar>
   );
 }
 

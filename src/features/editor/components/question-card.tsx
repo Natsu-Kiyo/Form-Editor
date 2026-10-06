@@ -19,7 +19,12 @@ import {
 import { useRef, useState } from 'react';
 
 import { CommentIcon, GripIcon, TrashIcon } from '@/components/icons/ui-icons';
-import { QUESTION_TYPE_LABEL, UPCOMING_BADGE } from '@/config/constants';
+import {
+  QUESTION_TYPE_LABEL,
+  RATING_SCALE,
+  UPCOMING_BADGE,
+  ratingBounds,
+} from '@/config/constants';
 import { cn } from '@/utils/cn';
 
 import type { DraftQuestion } from './editor-draft';
@@ -33,7 +38,9 @@ function buildSummary(question: DraftQuestion) {
   const parts: string[] = [QUESTION_TYPE_LABEL[question.type]];
 
   if (question.type === 'RATING') {
-    parts[0] = `${QUESTION_TYPE_LABEL.RATING} ${question.config.min ?? 1}–${question.config.max ?? 5}`;
+    // 与刻度用同一个来源：摘要上写的范围必须和下面画出来的方块数量一致
+    const { min, max } = ratingBounds(question.config);
+    parts[0] = `${QUESTION_TYPE_LABEL.RATING} ${min}–${max}`;
   }
 
   parts.push(question.required ? '必填' : '选填');
@@ -156,7 +163,15 @@ export function QuestionCard({
           {isChoice ? (
             <OptionList question={question} readOnly={readOnly} />
           ) : question.type === 'RATING' ? (
-            <div className="flex items-center gap-2 pl-8">
+            // 网格而不是 flex 行：flex 会把放不下的方块**压窄**（固定宽高也扛不住 shrink），
+            // 网格则让它换到下一行 —— 每行 5 个，6–10 分正好两行
+            <div
+              className="grid gap-2 pl-8"
+              style={{
+                width: `calc(${RATING_SCALE.PER_ROW} * 2.5rem + ${RATING_SCALE.PER_ROW - 1} * 0.5rem)`,
+                gridTemplateColumns: `repeat(${RATING_SCALE.PER_ROW}, 2.5rem)`,
+              }}
+            >
               {scoreRange(question).map((score) => (
                 <span
                   key={score}
@@ -180,8 +195,7 @@ export function QuestionCard({
 }
 
 function scoreRange(question: DraftQuestion) {
-  const min = question.config.min ?? 1;
-  const max = question.config.max ?? 5;
+  const { min, max } = ratingBounds(question.config);
 
   return Array.from({ length: Math.max(0, max - min + 1) }, (_, index) => min + index);
 }

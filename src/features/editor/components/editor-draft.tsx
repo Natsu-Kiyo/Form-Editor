@@ -81,6 +81,8 @@ function isChoiceType(type: EditableQuestionType) {
 }
 
 type EditorDraftValue = {
+  /** 顶栏要用它拼「发布设置」的链接；页面内各组件不该自己从 URL 里抠 */
+  questionnaireId: string;
   title: string;
   questions: DraftQuestion[];
   dirty: boolean;
@@ -215,6 +217,7 @@ export function EditorDraftProvider({
 
   const value = useMemo<EditorDraftValue>(
     () => ({
+      questionnaireId,
       title,
       questions,
       dirty,
@@ -334,7 +337,7 @@ export function EditorDraftProvider({
       save,
       discard,
     }),
-    [title, questions, dirty, state, errorMessage, mutate, save, discard],
+    [questionnaireId, title, questions, dirty, state, errorMessage, mutate, save, discard],
   );
 
   return <EditorDraftContext.Provider value={value}>{children}</EditorDraftContext.Provider>;

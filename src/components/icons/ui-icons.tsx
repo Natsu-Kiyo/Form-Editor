@@ -305,6 +305,18 @@ export function ArchiveIcon(props: IconProps) {
   );
 }
 
+/** 分享节点。移动端分享页的「系统分享」用它 */
+export function ShareIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+    </Icon>
+  );
+}
+
 /** 上传。「导入 JSON」用它；下载图标已有 DownloadIcon */
 export function UploadIcon(props: IconProps) {
   return (

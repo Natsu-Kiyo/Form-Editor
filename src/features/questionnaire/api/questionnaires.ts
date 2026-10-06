@@ -141,54 +141,6 @@ export async function getQuestionnaireSummary(workspaceId: string): Promise<Ques
   };
 }
 
-/** 把一份问卷的题目结构读成 payload（导出 JSON / 另存为模板 / 复制都用它） */
-export async function getQuestionnairePayload(
-  questionnaireId: string,
-): Promise<{ title: string; intro: string | null; payload: QuestionnairePayload } | null> {
-  const questionnaire = await prisma.questionnaire.findUnique({
-    where: { id: questionnaireId },
-    select: {
-      title: true,
-      intro: true,
-      questions: {
-        orderBy: { order: 'asc' },
-        select: {
-          type: true,
-          title: true,
-          description: true,
-          required: true,
-          shuffleOptions: true,
-          pageIndex: true,
-          config: true,
-          options: { orderBy: { order: 'asc' }, select: { label: true } },
-        },
-      },
-    },
-  });
-
-  if (!questionnaire) return null;
-
-  return {
-    title: questionnaire.title,
-    intro: questionnaire.intro,
-    payload: {
-      formatVersion: 1,
-      title: questionnaire.title,
-      intro: questionnaire.intro,
-      questions: questionnaire.questions.map((question) => ({
-        type: question.type,
-        title: question.title,
-        description: question.description,
-        required: question.required,
-        shuffleOptions: question.shuffleOptions,
-        pageIndex: question.pageIndex,
-        config: (question.config ?? null) as Record<string, unknown> | null,
-        options: question.options.map((option) => option.label),
-      })),
-    },
-  };
-}
-
 /** 按 payload 建一份新问卷。空白创建传 `questions: []` 即可 */
 export async function createQuestionnaireWithPayload(input: {
   workspaceId: string;

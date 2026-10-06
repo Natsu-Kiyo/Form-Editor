@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 
 import { getEditorQuestionnaire } from '@/features/editor/api/questionnaires';
+import { listVersions } from '@/features/editor/api/versions';
+import { EditorChrome } from '@/features/editor/components/editor-chrome';
+import { EditorDraftProvider } from '@/features/editor/components/editor-draft';
 import { EditorWorkspace } from '@/features/editor/components/editor-workspace';
 import { hasAtLeastRole } from '@/lib/auth/permissions';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
@@ -8,10 +11,10 @@ import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 export const metadata: Metadata = { title: '问卷编辑' };
 
 /**
- * 编辑器画布（W03 / P08-a,b,c）。
+ * 编辑器（W03 / P08-a,b,c）。
  *
- * 草稿由 layout 里的 `EditorDraftProvider` 提供（顶栏要看见「有没有未保存的修改」），
- * 这里只负责把数据读出来、算出只读态。
+ * 草稿 provider 与顶栏都在**这一页**里：顶栏那个「标题输入框 / 保存状态 / 保存」读写的是草稿，
+ * 而草稿只在编辑器里有意义 —— 放到 layout 反而会让发布页也被迫挂一个用不上的草稿。
  */
 export default async function EditQuestionnairePage({
   params,
@@ -20,9 +23,10 @@ export default async function EditQuestionnairePage({
 }) {
   const { id } = await params;
 
-  const [{ role }, editor] = await Promise.all([
+  const [{ role }, editor, versions] = await Promise.all([
     requireQuestionnaireAccess(id, 'VIEWER'),
     getEditorQuestionnaire(id),
+    listVersions(id),
   ]);
 
   if (!editor) {
@@ -33,7 +37,37 @@ export default async function EditQuestionnairePage({
     );
   }
 
-  const readOnly = !hasAtLeastRole(role, 'EDITOR') || editor.status !== 'DRAFT';
+  const readOnlyReason = !hasAtLeastRole(role, 'EDITOR')
+    ? ('NO_PERMISSION' as const)
+    : editor.status !== 'DRAFT'
+      ? ('FROZEN' as const)
+      : null;
 
-  return <EditorWorkspace readOnly={readOnly} />;
+  return (
+    <EditorDraftProvider
+      questionnaireId={editor.id}
+      initialTitle={editor.title}
+      initialQuestions={editor.questions}
+      readOnly={readOnlyReason !== null}
+    >
+      <EditorChrome readOnlyReason={readOnlyReason} versions={versions} />
+      {readOnlyReason ? <ReadOnlyBanner reason={readOnlyReason} /> : null}
+      <EditorWorkspace readOnly={readOnlyReason !== null} />
+    </EditorDraftProvider>
+  );
+}
+
+function ReadOnlyBanner({ reason }: { reason: 'NO_PERMISSION' | 'FROZEN' }) {
+  return (
+    <div className="flex shrink-0 items-start gap-2 border-b border-amber-200 bg-amber-50 px-6 py-3 text-[12.5px] leading-5 text-amber-800">
+      {reason === 'NO_PERMISSION' ? (
+        <span>你在本工作区是查看者，可以浏览题目结构，但没有编辑权限。</span>
+      ) : (
+        <span>
+          这份问卷已发布，题目结构已冻结 ——
+          保证历史答卷与统计口径一致。如需调整，请在问卷列表里把它复制为新问卷。
+        </span>
+      )}
+    </div>
+  );
 }

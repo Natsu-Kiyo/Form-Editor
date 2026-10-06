@@ -3,9 +3,10 @@
 import { revalidatePath } from 'next/cache';
 
 import { requireDraftQuestionnaire } from '@/lib/auth/questionnaire-access';
-import { prisma } from '@/lib/db';
-import { toJsonColumn } from '@/lib/json';
 import { questionnairePayloadSchema } from '@/lib/questionnaire-structure';
+import { writeQuestionnaireVersion } from '@/lib/questionnaire-version';
+
+import { replaceStructure } from '../api/structure';
 
 export type SaveDraftResult = { ok: true } | { ok: false; message: string };
 
@@ -26,7 +27,7 @@ export async function saveEditorDraftAction(
   questionnaireId: string,
   draft: unknown,
 ): Promise<SaveDraftResult> {
-  await requireDraftQuestionnaire(questionnaireId);
+  const { user } = await requireDraftQuestionnaire(questionnaireId);
 
   const parsed = questionnairePayloadSchema.safeParse(draft);
   if (!parsed.success) {
@@ -37,37 +38,17 @@ export async function saveEditorDraftAction(
 
   const payload = parsed.data;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.questionnaire.update({
-      where: { id: questionnaireId },
-      data: { title: payload.title.slice(0, 80), intro: payload.intro ?? null },
-    });
+  await replaceStructure(questionnaireId, payload);
 
-    await tx.question.deleteMany({ where: { questionnaireId } });
-
-    for (const [index, question] of payload.questions.entries()) {
-      await tx.question.create({
-        data: {
-          questionnaireId,
-          type: question.type,
-          title: question.title,
-          description: question.description ?? null,
-          required: question.required,
-          shuffleOptions: question.shuffleOptions,
-          order: index,
-          pageIndex: question.pageIndex,
-          config: toJsonColumn(question.config),
-          options: question.options.length
-            ? {
-                create: question.options.map((label, optionIndex) => ({
-                  label,
-                  order: optionIndex,
-                })),
-              }
-            : undefined,
-        },
-      });
-    }
+  // 保存成功后写一条版本快照（结构没变时会跳过）。
+  // 「版本历史」要能回答「我上周改坏了，想退回去」—— 只在发布时记版本是不够的：
+  // 本项目的状态机里一份问卷只会发布一次，那样抽屉里永远只有一条。
+  // 把刚落库的 payload 直接传进去，省掉一次「再读一遍结构」的跨区域往返。
+  await writeQuestionnaireVersion({
+    questionnaireId,
+    label: '保存草稿',
+    createdById: user.id,
+    payload,
   });
 
   revalidatePath(`/app/q/${questionnaireId}/edit`);

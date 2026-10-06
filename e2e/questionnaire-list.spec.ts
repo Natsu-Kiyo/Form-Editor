@@ -65,20 +65,32 @@ test('全链路：新建 → 复制 → 归档 → 恢复 → 删除', async ({ 
   await signIn(page);
 
   // ---- 先清掉可能存在的残留 ----
-  // 空白创建的标题一律是「未命名问卷」，上一次失败留下的卡片会让后面的断言
-  // 命中两个同名元素。与其让用例变得「一失败就再也跑不过」，不如自己收拾干净。
-  const leftoverMenu = page.getByRole('button', { name: '「未命名问卷」更多操作' });
+  // 空白创建的标题一律是「未命名问卷」，上一次失败留下的卡片会让后面的断言命中多个同名元素。
+  // 与其让用例变得「一失败就再也跑不过」，不如自己收拾干净。
+  const clearLeftovers = async () => {
+    // 正则匹配**所有变体**：失败的那一轮可能停在「复制」之后，留下的是「未命名问卷（副本）」
+    const leftovers = page.getByRole('button', { name: /^「未命名问卷/ });
 
-  for (let remaining = await leftoverMenu.count(); remaining > 0; remaining -= 1) {
-    await leftoverMenu.first().click();
-    await page.getByRole('menuitem', { name: '删除问卷' }).click();
-    await page.getByRole('button', { name: '确认删除' }).click();
-    await expect(leftoverMenu).toHaveCount(remaining - 1);
-  }
+    for (let remaining = await leftovers.count(); remaining > 0; remaining -= 1) {
+      await leftovers.first().click();
+      await page.getByRole('menuitem', { name: '删除问卷' }).click();
+      await page.getByRole('button', { name: '确认删除' }).click();
+      await expect(leftovers).toHaveCount(remaining - 1);
+    }
+  };
 
-  // ---- 新建（空白创建） ----
+  // 注意：这里只清默认列表里的残留。
+  // 如果某一轮**失败在「归档」之后**，那份副本会留在「已归档」里，
+  // 需要人工清一次（归档卡的「⋯」菜单与普通卡不同，套用同一段清理会点不到「确认删除」）。
+  await clearLeftovers();
+
+  // ---- 新建（空白创建）→ 应该**直接进编辑器**，而不是回到列表 ----
   await page.getByRole('button', { name: '新建问卷' }).first().click();
   await page.getByRole('button', { name: '创建', exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
+
+  // 回列表：新建的这一份已经在里面
+  await page.goto('/app');
   await expect(cardTitle(page, '未命名问卷')).toBeVisible();
 
   const printed = '未命名问卷（副本）';
