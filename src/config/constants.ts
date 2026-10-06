@@ -216,6 +216,17 @@ export const OPERATION_TYPE = {
   COPY: 'COPY',
   IMPORT: 'IMPORT',
   SETTINGS: 'SETTINGS',
+  // M8 起：成员管理
+  INVITE: 'INVITE',
+  INVITE_REVOKE: 'INVITE_REVOKE',
+  MEMBER_JOIN: 'MEMBER_JOIN',
+  MEMBER_ROLE: 'MEMBER_ROLE',
+  MEMBER_REMOVE: 'MEMBER_REMOVE',
+  // 设计稿 W10 的日志里还有这三类（渠道 / 答卷状态 / 导出），一并记上
+  CHANNEL_CREATE: 'CHANNEL_CREATE',
+  RESPONSE_INVALIDATE: 'RESPONSE_INVALIDATE',
+  RESPONSE_RESTORE: 'RESPONSE_RESTORE',
+  EXPORT: 'EXPORT',
 } as const;
 
 export type OperationType = (typeof OPERATION_TYPE)[keyof typeof OPERATION_TYPE];
@@ -231,12 +242,102 @@ export const OPERATION_TYPE_LABEL: Record<OperationType, string> = {
   COPY: '复制问卷',
   IMPORT: '导入 JSON',
   SETTINGS: '修改发布设置',
+  INVITE: '邀请成员',
+  INVITE_REVOKE: '撤回邀请',
+  MEMBER_JOIN: '成员加入',
+  MEMBER_ROLE: '调整成员角色',
+  MEMBER_REMOVE: '移除成员',
+  CHANNEL_CREATE: '新建渠道',
+  RESPONSE_INVALIDATE: '标记答卷无效',
+  RESPONSE_RESTORE: '恢复答卷有效',
+  EXPORT: '导出答卷',
 };
 
-/** 操作对象的类型。M10 的操作日志页按它过滤 */
+/** 日志类型的分组。W10 的「全部操作类型」下拉与每条日志的第二行都用它 */
+export const OPERATION_TYPE_GROUP = {
+  QUESTIONNAIRE: '问卷',
+  STATUS: '状态变更',
+  DATA: '数据',
+  MEMBER: '成员管理',
+  DISTRIBUTION: '分发',
+} as const;
+
+export type OperationTypeGroup = (typeof OPERATION_TYPE_GROUP)[keyof typeof OPERATION_TYPE_GROUP];
+
+export const OPERATION_TYPE_GROUP_OF: Record<OperationType, OperationTypeGroup> = {
+  PUBLISH: OPERATION_TYPE_GROUP.STATUS,
+  PAUSE: OPERATION_TYPE_GROUP.STATUS,
+  RESUME: OPERATION_TYPE_GROUP.STATUS,
+  CLOSE: OPERATION_TYPE_GROUP.STATUS,
+  ARCHIVE: OPERATION_TYPE_GROUP.STATUS,
+  RESTORE: OPERATION_TYPE_GROUP.STATUS,
+  ROLLBACK: OPERATION_TYPE_GROUP.QUESTIONNAIRE,
+  COPY: OPERATION_TYPE_GROUP.QUESTIONNAIRE,
+  IMPORT: OPERATION_TYPE_GROUP.QUESTIONNAIRE,
+  SETTINGS: OPERATION_TYPE_GROUP.QUESTIONNAIRE,
+  INVITE: OPERATION_TYPE_GROUP.MEMBER,
+  INVITE_REVOKE: OPERATION_TYPE_GROUP.MEMBER,
+  MEMBER_JOIN: OPERATION_TYPE_GROUP.MEMBER,
+  MEMBER_ROLE: OPERATION_TYPE_GROUP.MEMBER,
+  MEMBER_REMOVE: OPERATION_TYPE_GROUP.MEMBER,
+  CHANNEL_CREATE: OPERATION_TYPE_GROUP.DISTRIBUTION,
+  RESPONSE_INVALIDATE: OPERATION_TYPE_GROUP.DATA,
+  RESPONSE_RESTORE: OPERATION_TYPE_GROUP.DATA,
+  EXPORT: OPERATION_TYPE_GROUP.DATA,
+};
+
+/** 邀请链接的有效期（天）。设计稿 W09 原话：「邀请链接 7 天后失效」 */
+export const INVITATION_EXPIRES_DAYS = 7;
+
+export const INVITATION_STATUS = {
+  PENDING: 'PENDING',
+  ACCEPTED: 'ACCEPTED',
+  REVOKED: 'REVOKED',
+  EXPIRED: 'EXPIRED',
+} as const;
+
+export type InvitationStatus = (typeof INVITATION_STATUS)[keyof typeof INVITATION_STATUS];
+
+export const INVITATION_STATUS_LABEL: Record<InvitationStatus, string> = {
+  PENDING: '等待接受',
+  ACCEPTED: '已接受',
+  REVOKED: '已撤回',
+  EXPIRED: '已过期',
+};
+
+/** 权限深浅：数值越大权限越高 */
+const ROLE_RANK: Record<Role, number> = {
+  VIEWER: 0,
+  EDITOR: 1,
+  ADMIN: 2,
+  OWNER: 3,
+};
+
+/**
+ * 角色够不够用。
+ *
+ * 放在 `constants.ts` 而不是 `lib/auth/permissions.ts`：**权限矩阵要在客户端渲染**
+ * （W09 的「权限说明」表），而后者有 `import 'server-only'`，客户端组件碰不得。
+ * 两边各写一份等级表必然漂移，所以服务端那个模块反过来复用它。
+ */
+export function hasAtLeastRole(role: Role, min: Role) {
+  return ROLE_RANK[role] >= ROLE_RANK[min];
+}
+
+/** 邀请弹层里每种角色的一句话说明（与权限矩阵同源，见 `members/lib/permissions-matrix.ts`） */
+export const ROLE_INVITE_HINT: Record<Role, string> = {
+  OWNER: '所有者：工作区的唯一拥有者，不可邀请 —— 转让属 2.0',
+  ADMIN: '管理员：可管理成员与全部问卷，但不能解散工作区',
+  EDITOR: '编辑者：可创建与编辑问卷、发布回收、导出数据',
+  VIEWER: '查看者：只能看问卷、数据与日志，不能修改任何东西',
+};
+
+/** 操作对象的类型。操作日志页按它过滤 */
 export const OPERATION_TARGET_LABEL = {
   QUESTIONNAIRE: '问卷',
   TEMPLATE: '模板',
+  WORKSPACE: '工作区',
+  MEMBER: '成员',
 } as const;
 
 /** 版本号的展示文案。全站只有这一处拼 `v1` / `v12` */

@@ -1,4 +1,4 @@
-import { FileTextIcon } from '@/components/icons/ui-icons';
+import { FileTextIcon, UsersIcon } from '@/components/icons/ui-icons';
 import { AppShell } from '@/components/layout/app-shell';
 import { SidebarNav, type SidebarNavItem } from '@/components/layout/sidebar-nav';
 import { SidebarShell } from '@/components/layout/sidebar-shell';
@@ -15,10 +15,14 @@ import { formatDisplayDate } from '@/utils/format';
 /**
  * 侧栏导航项。
  *
- * 「模板中心 / 成员与权限 / 操作日志」在 M8–M10 交付对应页面时再加进来 ——
+ * 只登记**已交付的页面**（「模板中心」「操作日志」分别在 M9 / M8-b 落地时再加进来）——
  * 在那之前画出来就是「点了 404」的假入口，宁可先少几项。
  */
-const NAV_ITEMS: SidebarNavItem[] = [{ href: '/app', label: '问卷列表', icon: <FileTextIcon /> }];
+const NAV_ITEMS: SidebarNavItem[] = [
+  { href: '/app', label: '问卷列表', icon: <FileTextIcon /> },
+  // 设计稿标了移动端隐藏，窄屏抽屉里不出现这一项（见 `SidebarNavItem.desktopOnly`）
+  { href: '/app/members', label: '成员与权限', icon: <UsersIcon />, desktopOnly: true },
+];
 
 /**
  * 管理台外壳：侧栏 + 窄屏抽屉。

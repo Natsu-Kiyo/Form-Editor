@@ -1,21 +1,11 @@
 import 'server-only';
 
-import type { Role } from '@/config/constants';
+import { hasAtLeastRole, type Role } from '@/config/constants';
 import { prisma } from '@/lib/db';
 
 import { requireUser } from './dal';
 
-/** 权限深浅：数值越大权限越高 */
-const ROLE_RANK: Record<Role, number> = {
-  VIEWER: 0,
-  EDITOR: 1,
-  ADMIN: 2,
-  OWNER: 3,
-};
-
-export function hasAtLeastRole(role: Role, min: Role) {
-  return ROLE_RANK[role] >= ROLE_RANK[min];
-}
+export { hasAtLeastRole };
 
 /** 当前用户在某工作区的成员关系；不在该工作区则为 null */
 export function getMembership(workspaceId: string, userId: string) {

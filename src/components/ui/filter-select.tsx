@@ -16,6 +16,7 @@ export function FilterSelect({
   options,
   onChange,
   placeholder,
+  disabled = false,
 }: {
   /** 无障碍名称（「渠道」「时间」…） */
   label: string;
@@ -24,13 +25,16 @@ export function FilterSelect({
   onChange: (value: string) => void;
   /** 未选中时显示在第一个选项位置上的文案，如「全部渠道」 */
   placeholder?: string;
+  /** 提交中禁用（成员角色这类「改了就落库」的下拉要用它） */
+  disabled?: boolean;
 }) {
   return (
     <select
       aria-label={label}
       value={value}
+      disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
-      className="border-ink-200 text-ink-600 hover:border-ink-300 h-8 shrink-0 rounded-lg border bg-white px-2.5 text-[12.5px] transition-colors duration-150 outline-none"
+      className="border-ink-200 text-ink-600 hover:border-ink-300 h-8 shrink-0 rounded-lg border bg-white px-2.5 text-[12.5px] transition-colors duration-150 outline-none disabled:opacity-45"
     >
       {placeholder ? <option value="">{placeholder}</option> : null}
       {options.map((option) => (

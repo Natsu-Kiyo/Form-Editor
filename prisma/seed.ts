@@ -18,6 +18,9 @@ import { toJsonColumn } from '@/lib/json';
 
 const WORKSPACE_SLUG = 'qingwj-demo';
 
+/** 演示用的邀请 token（手工打开 `/invite/demo-invite-li-meng` 即可验接受流程） */
+const DEMO_INVITE_TOKEN = 'demo-invite-li-meng';
+
 const DAY = 24 * 60 * 60 * 1000;
 
 function daysAgo(days: number) {
@@ -498,11 +501,52 @@ async function main() {
     create: { workspaceId: workspace.id, userId: owner.id, role: 'OWNER' },
   });
 
-  // 第二个账号是「查看者」：M8 会用它对写操作做越权走查
+  // 第二个账号是「查看者」：M8 用它做写操作的越权走查
   await prisma.membership.upsert({
     where: { workspaceId_userId: { workspaceId: workspace.id, userId: viewer.id } },
     update: { role: 'VIEWER' },
     create: { workspaceId: workspace.id, userId: viewer.id, role: 'VIEWER' },
+  });
+
+  // 另外两位成员：让「成员列表 / 行内角色切换」有真实内容可看（设计稿 W09 是 4 个人）
+  const admin = await upsertUser({
+    name: '陈思远',
+    email: 'chen.sy@example.com',
+    password: 'demo1234',
+  });
+  const editor = await upsertUser({
+    name: '王嘉禾',
+    email: 'wang.jh@example.com',
+    password: 'demo1234',
+  });
+
+  for (const member of [
+    { user: admin, role: 'ADMIN' as const },
+    { user: editor, role: 'EDITOR' as const },
+  ]) {
+    await prisma.membership.upsert({
+      where: { workspaceId_userId: { workspaceId: workspace.id, userId: member.user.id } },
+      update: { role: member.role },
+      create: { workspaceId: workspace.id, userId: member.user.id, role: member.role },
+    });
+  }
+
+  /**
+   * 一条待接受的邀请。**token 写死**：`/invite/<这个 token>` 因此可以手工打开验证接受流程
+   * （否则演示数据里那条邀请谁也点不开 —— 而「能复制的链接必须真的能用」是本项目的一条硬规矩）。
+   * 用 upsert 保证幂等：它可能已经被人接受或撤回过，那就别动它。
+   */
+  await prisma.invitation.upsert({
+    where: { token: DEMO_INVITE_TOKEN },
+    update: {},
+    create: {
+      workspaceId: workspace.id,
+      email: 'li.meng@example.com',
+      role: 'EDITOR',
+      token: DEMO_INVITE_TOKEN,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      invitedById: owner.id,
+    },
   });
 
   const responseTotal = await seedQuestionnaires(workspace.id, owner.id);

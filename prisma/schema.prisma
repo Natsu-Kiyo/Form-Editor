@@ -49,6 +49,8 @@ model User {
   invalidatedResponses Response[]      @relation("ResponseInvalidator")
   versions       QuestionnaireVersion[] @relation("VersionAuthor")
   operationLogs  OperationLog[]         @relation("OperationActor")
+  invitationsSent Invitation[]          @relation("InvitationInviter")
+  invitationsAccepted Invitation[]      @relation("InvitationAcceptor")
 }
 
 /// 服务端会话。Cookie 里只放原始 token，库里存它的 sha256 —— 库泄露也无法直接冒用
@@ -79,8 +81,33 @@ model Workspace {
   questionnaires Questionnaire[]
   templates   Template[]
   operationLogs OperationLog[]
+  invitations Invitation[]
 
   @@index([ownerId])
+}
+
+/// 邀请。**链接本身就是凭据**（token 唯一），有效期内任何人都能拿它加入 ——
+/// 本项目不发邮件（没有邮件通道），所以邀请链接由所有者/管理员手动复制转发，
+/// 与「分享问卷链接」是同一种信任模型。
+model Invitation {
+  id          String           @id @default(cuid())
+  workspaceId String
+  email       String
+  role        Role
+  token       String           @unique
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  invitedById String?
+  acceptedById String?
+  createdAt   DateTime         @default(now())
+  acceptedAt  DateTime?
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy  User?     @relation("InvitationInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+  acceptedBy User?     @relation("InvitationAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([email])
 }
 
 model Membership {
@@ -152,6 +179,15 @@ enum CloseReason {
   SCHEDULED
   LIMIT_REACHED
   ADMIN
+}
+
+/// 邀请状态。PENDING → ACCEPTED / REVOKED；过期**不靠定时任务**，
+/// 读取时按 expiresAt 判定并顺手落库为 EXPIRED（与问卷的「到期懒截止」同一条思路）
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
 }
 
 /// 题型。矩阵题是 1.1 的灰显项，不在此列
