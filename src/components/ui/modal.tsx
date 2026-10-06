@@ -48,6 +48,9 @@ export function ModalContent({
         className={cn(
           'fixed top-1/2 left-1/2 z-50 w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2',
           'rounded-modal border-ink-200 shadow-pop border bg-white',
+          // **限高 80vh + 内部滚动**：内容比屏高的弹层（预览、成员列表、帮助）如果不限高，
+          // 就会溢出到屏幕外且滚不动 —— 上下两头都点不到
+          'flex max-h-[80vh] flex-col',
           'data-[state=open]:animate-pop-in',
           MODAL_WIDTH[width],
           className,
@@ -73,14 +76,15 @@ export function ModalContent({
               </div>
               <DialogCloseButton />
             </div>
-            <div className="px-6 py-5">{children}</div>
+            {/* 标题与底部按钮固定，只有正文滚动 */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
           </>
         )}
 
-        {hideTitle ? children : null}
+        {hideTitle ? <div className="min-h-0 flex-1 overflow-y-auto">{children}</div> : null}
 
         {footer ? (
-          <div className="border-ink-200 flex items-center justify-end gap-2 border-t px-6 py-4">
+          <div className="border-ink-200 flex shrink-0 items-center justify-end gap-2 border-t px-6 py-4">
             {footer}
           </div>
         ) : null}

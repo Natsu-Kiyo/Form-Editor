@@ -153,7 +153,7 @@ export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
             <button
               type="button"
               title="添加一道单选题（其它题型请用左侧「题型」面板）"
-              onClick={() => setSelectedKey(addQuestion('SINGLE'))}
+              onClick={() => setSelectedKey(addQuestion('SINGLE', selected?.key ?? null))}
               className="border-ink-300 text-ink-500 hover:border-brand-400 hover:text-brand-500 hover:bg-brand-50 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed text-[13px] transition-all duration-150"
             >
               <PlusIcon className="size-4" />

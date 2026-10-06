@@ -68,8 +68,9 @@ export function EditorLeftPanel({
                     : `添加${QUESTION_TYPE_LABEL[type]}题`
               }
               onClick={() => {
-                // 加完立刻选中：用户接着就要改题目文本，不该还要自己去找
-                onSelect(addQuestion(type as Exclude<QuestionType, 'MATRIX'>));
+                // 加完立刻选中：用户接着就要改题目文本，不该还要自己去找。
+                // 插在**当前选中那道题之后**（没选中才追加到末尾）
+                onSelect(addQuestion(type as Exclude<QuestionType, 'MATRIX'>, selectedKey));
                 // 窄屏这块面板是弹层里的，加完就该收起来把画布还回去
                 onAfterAdd?.();
               }}

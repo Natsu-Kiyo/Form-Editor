@@ -89,7 +89,8 @@ type EditorDraftValue = {
   state: SaveState;
   errorMessage: string | null;
   setTitle: (title: string) => void;
-  addQuestion: (type: EditableQuestionType) => string;
+  /** 添加题目。给了 `afterKey` 就插在那道题之后，否则追加到末尾（并返回新题的 key） */
+  addQuestion: (type: EditableQuestionType, afterKey?: string | null) => string;
   updateQuestion: (key: string, patch: Partial<Omit<DraftQuestion, 'key' | 'options'>>) => void;
   removeQuestion: (key: string) => void;
   reorderQuestions: (keys: string[]) => void;
@@ -227,18 +228,26 @@ export function EditorDraftProvider({
         setTitleState(next);
         setDirty(true);
       },
-      addQuestion: (type) => {
+      addQuestion: (type, afterKey) => {
         const key = tempKey('q');
-        mutate((list) => [
-          ...list,
-          {
+        mutate((list) => {
+          /*
+           * **插在当前选中那道题之后**，没选中才追加到末尾。
+           * 原来的「一律追加」有个很具体的坏处：在一份 20 题的问卷里想在第 3 题后面
+           * 补一道题，新题会出现在第 21 位 —— 然后还得把它从末尾拖上去。
+           */
+          const at = afterKey ? list.findIndex((question) => question.key === afterKey) : -1;
+          const anchor = at >= 0 ? list[at] : list.at(-1);
+
+          const created: DraftQuestion = {
             key,
             type,
             title: '新题目',
             description: null,
             required: false,
             shuffleOptions: false,
-            pageIndex: list.at(-1)?.pageIndex ?? 0,
+            // 继承锚点那一题的页：插在第 2 页的题后面，新题自然也在第 2 页
+            pageIndex: anchor?.pageIndex ?? 0,
             config: defaultConfig(type),
             options: isChoiceType(type)
               ? Array.from({ length: DEFAULT_OPTION_COUNT }, (_, index) => ({
@@ -246,8 +255,14 @@ export function EditorDraftProvider({
                   label: `选项 ${index + 1}`,
                 }))
               : [],
-          },
-        ]);
+          };
+
+          if (at < 0) return [...list, created];
+
+          const next = [...list];
+          next.splice(at + 1, 0, created);
+          return next;
+        });
         return key;
       },
       updateQuestion: (key, patch) =>
