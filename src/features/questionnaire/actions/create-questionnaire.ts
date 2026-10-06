@@ -59,6 +59,28 @@ export async function createQuestionnaireAction(
   redirect(`/app/q/${created.id}/edit`);
 }
 
+/**
+ * 「使用此模板」。
+ *
+ * 与新建弹层里的「从模板创建」是**同一条路径**（同一个 `createFromTemplate`），
+ * 只是入口不同：模板中心那张卡点下去就该直接进编辑器，**中间不加确认层** ——
+ * 它在问一个用户刚刚已经回答过的问题（我点了「使用此模板」）。
+ */
+export async function createFromTemplateAction(templateId: string) {
+  const { user, workspace } = await requireActiveWorkspace('EDITOR');
+
+  const created = await createFromTemplate({
+    templateId,
+    workspaceId: workspace.id,
+    ownerId: user.id,
+  });
+
+  if (!created.ok) throw new Error(created.message);
+
+  revalidatePath('/app');
+  redirect(`/app/q/${created.id}/edit`);
+}
+
 async function createFromTemplate(input: {
   templateId: string;
   workspaceId: string;

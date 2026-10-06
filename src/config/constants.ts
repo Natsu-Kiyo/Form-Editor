@@ -340,6 +340,22 @@ export const ROLE_INVITE_HINT: Record<Role, string> = {
   VIEWER: '查看者：只能看问卷、数据与日志，不能修改任何东西',
 };
 
+/**
+ * 模板分类（W08 的分类胶囊）。
+ *
+ * **顺序就是界面上胶囊的顺序**，而它同时是「seed 里 8 张官方模板要覆盖的分类」——
+ * 两处对不上会出现一个点进去空无一物的胶囊。
+ */
+export const TEMPLATE_CATEGORIES = [
+  '满意度调研',
+  '报名登记',
+  '评估互评',
+  '考试测验',
+  '信息收集',
+] as const;
+
+export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
+
 /** 操作对象的类型。操作日志页按它过滤 */
 export const OPERATION_TARGET_LABEL = {
   QUESTIONNAIRE: '问卷',

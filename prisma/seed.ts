@@ -11,7 +11,7 @@
  * 同时纯 Node 不会自动读 `.env`，要显式 `--env-file-if-exists=.env`。
  * 这两个开关已写在 prisma.config.ts 的 `migrations.seed` 里。
  */
-import { DEMO_ACCOUNTS, type QuestionnaireStatus } from '@/config/constants';
+import { DEMO_ACCOUNTS, type QuestionnaireStatus, type TemplateCategory } from '@/config/constants';
 import { hashPassword } from '@/lib/auth/password';
 import { prisma } from '@/lib/db';
 import { toJsonColumn } from '@/lib/json';
@@ -240,13 +240,54 @@ const QUESTIONNAIRES: SeededQuestionnaire[] = [
 const OFFICIAL_TEMPLATES: {
   title: string;
   description: string;
-  category: string;
+  category: TemplateCategory;
   questions: SeededQuestion[];
 }[] = [
   {
-    title: '活动报名',
+    title: '用户满意度调研',
+    description: '整体评分 + 分项评分 + 开放建议，最常见的满意度结构。',
+    category: '满意度调研',
+    questions: [
+      {
+        type: 'RATING',
+        title: '总体来说，你对产品的满意度',
+        required: true,
+        config: { min: 1, max: 10 },
+      },
+      { type: 'RATING', title: '产品易用性', config: { min: 1, max: 5 } },
+      { type: 'RATING', title: '功能满足度', config: { min: 1, max: 5 } },
+      { type: 'LONG_TEXT', title: '还有哪里可以做得更好？' },
+    ],
+  },
+  {
+    title: 'NPS 净推荐值',
+    description: '一个 0–10 的推荐意愿题定分数，其余问题问原因。',
+    category: '满意度调研',
+    questions: [
+      {
+        type: 'RATING',
+        title: '你有多大可能把我们推荐给朋友？',
+        required: true,
+        config: { min: 0, max: 10 },
+      },
+      { type: 'LONG_TEXT', title: '主要原因是？', required: true },
+      {
+        type: 'SINGLE',
+        title: '你使用我们的频率',
+        options: ['每天', '每周几次', '每月几次', '更少'],
+      },
+      {
+        type: 'MULTI',
+        title: '你最常使用哪些功能？',
+        options: ['新建问卷', '模板中心', '数据统计', '导出数据'],
+      },
+      { type: 'LONG_TEXT', title: '还有什么想让我们知道的？' },
+    ],
+  },
+  {
+    title: '活动报名登记',
     description: '姓名、联系方式与场次选择，适合讲座、社团、比赛报名。',
-    category: '活动',
+    category: '报名登记',
     questions: [
       { type: 'SHORT_TEXT', title: '你的姓名', required: true },
       { type: 'SHORT_TEXT', title: '手机号或邮箱', required: true },
@@ -256,20 +297,54 @@ const OFFICIAL_TEMPLATES: {
     ],
   },
   {
-    title: '满意度调研',
-    description: '整体评分 + 分项评分 + 开放建议，标准 NPS 结构。',
-    category: '调研',
+    title: '小组作业互评',
+    description: '多维度评分为主，适合小组互评与教学反馈。',
+    category: '评估互评',
     questions: [
-      { type: 'RATING', title: '总体满意度', required: true, config: { min: 1, max: 10 } },
-      { type: 'RATING', title: '产品易用性', config: { min: 1, max: 5 } },
-      { type: 'RATING', title: '功能满足度', config: { min: 1, max: 5 } },
-      { type: 'LONG_TEXT', title: '还有哪里可以做得更好？' },
+      { type: 'SHORT_TEXT', title: '你评价的小组', required: true },
+      { type: 'RATING', title: '方案完整度', required: true, config: { min: 1, max: 5 } },
+      { type: 'RATING', title: '创新性', required: true, config: { min: 1, max: 5 } },
+      { type: 'RATING', title: '表达清晰度', required: true, config: { min: 1, max: 5 } },
+      { type: 'LONG_TEXT', title: '给这组的改进建议' },
     ],
   },
   {
-    title: '会议时间投票',
-    description: '收集可参与时段，快速找出全员都能到场的时间。',
-    category: '协作',
+    title: '知识小测 / 考试',
+    description: '单选 + 多选 + 简答，可直接用于培训后的随堂测验。',
+    category: '考试测验',
+    questions: [
+      { type: 'SHORT_TEXT', title: '你的姓名与工号', required: true },
+      {
+        type: 'SINGLE',
+        title: '新版本发布之前，最重要的一步是？',
+        required: true,
+        options: ['按走查清单过一遍主要路径', '直接上线再看反馈', '先通知用户'],
+      },
+      {
+        type: 'MULTI',
+        title: '以下哪些属于「结构性改动」？',
+        options: ['新增一道题', '调整题目顺序', '改选项文案', '删除题目'],
+      },
+      { type: 'RATING', title: '你对本次内容的掌握程度', config: { min: 1, max: 5 } },
+      { type: 'LONG_TEXT', title: '还有哪一处想再确认？' },
+    ],
+  },
+  {
+    title: '个人信息收集',
+    description: '字段少、填写快，适合签到、登记、发放物料这类场景。',
+    category: '信息收集',
+    questions: [
+      { type: 'SHORT_TEXT', title: '你的姓名', required: true },
+      { type: 'SHORT_TEXT', title: '手机号或邮箱', required: true },
+      { type: 'DROPDOWN', title: '你的身份', options: ['嘉宾', '工作人员', '观众'] },
+      { type: 'SHORT_TEXT', title: '所在单位' },
+      { type: 'DATE', title: '你到场的日期' },
+    ],
+  },
+  {
+    title: '投票表决',
+    description: '收集可参与时段与倾向，快速找出大家都能接受的那个。',
+    category: '信息收集',
     questions: [
       {
         type: 'MULTI',
@@ -279,42 +354,19 @@ const OFFICIAL_TEMPLATES: {
       },
       { type: 'SINGLE', title: '你更倾向线上还是线下', options: ['线下', '线上', '都可以'] },
       { type: 'DATE', title: '如果只能选一天，你希望是？' },
+      { type: 'LONG_TEXT', title: '其他想法' },
     ],
   },
   {
-    title: '课程作业互评',
-    description: '多维度评分为主，适合小组互评与教学反馈。',
-    category: '教育',
+    title: '培训效果反馈',
+    description: '讲师与内容各打一个分，再问下次想加强什么。',
+    category: '评估互评',
     questions: [
-      { type: 'SHORT_TEXT', title: '你评价的小组', required: true },
-      { type: 'RATING', title: '完整度', required: true, config: { min: 1, max: 5 } },
-      { type: 'RATING', title: '创新性', required: true, config: { min: 1, max: 5 } },
-      { type: 'RATING', title: '表达清晰度', required: true, config: { min: 1, max: 5 } },
-      { type: 'LONG_TEXT', title: '改进建议' },
-    ],
-  },
-  {
-    title: '用户访谈招募',
-    description: '筛选愿意深度交流的用户，含背景问题与联系方式。',
-    category: '调研',
-    questions: [
-      { type: 'SHORT_TEXT', title: '你的称呼', required: true },
-      { type: 'SHORT_TEXT', title: '联系方式（邮箱或微信）', required: true },
-      {
-        type: 'DROPDOWN',
-        title: '你使用产品的频率',
-        options: ['每天', '每周几次', '每月几次', '更少'],
-      },
-      { type: 'LONG_TEXT', title: '你希望聊哪些问题？' },
-    ],
-  },
-  {
-    title: '活动签到',
-    description: '现场扫码签到，字段极少，填写最快。',
-    category: '活动',
-    questions: [
-      { type: 'SHORT_TEXT', title: '你的姓名', required: true },
-      { type: 'DROPDOWN', title: '你的身份', options: ['嘉宾', '工作人员', '观众'] },
+      { type: 'RATING', title: '内容对工作的帮助', required: true, config: { min: 1, max: 5 } },
+      { type: 'RATING', title: '讲师表达是否清楚', required: true, config: { min: 1, max: 5 } },
+      { type: 'SINGLE', title: '你希望下次的时长', options: ['半天', '一天', '两天'] },
+      { type: 'MULTI', title: '你希望加强哪些部分', options: ['案例', '动手练习', '答疑'] },
+      { type: 'LONG_TEXT', title: '还有什么建议？' },
     ],
   },
 ];
@@ -450,7 +502,64 @@ async function seedQuestionnaires(workspaceId: string, ownerId: string) {
   return totalResponses;
 }
 
-async function seedTemplates() {
+/**
+ * 「我的模板」的演示数据。
+ *
+ * 它们属于工作区（`isOfficial: false`），代表「有人把某份问卷另存成了模板」这条路径的产物 ——
+ * W08 的第二个 Tab 与卡上的重命名 / 删除都得有东西可操作。
+ */
+const WORKSPACE_TEMPLATES: {
+  title: string;
+  description: string;
+  category: TemplateCategory;
+  usageCount: number;
+  questions: SeededQuestion[];
+}[] = [
+  {
+    title: '活动满意度回访',
+    description: '活动结束后的一次回访，三个评分 + 一个开放题。',
+    category: '满意度调研',
+    usageCount: 6,
+    questions: [
+      { type: 'SHORT_TEXT', title: '你参加的是哪场活动？', required: true },
+      { type: 'RATING', title: '整体满意度', required: true, config: { min: 1, max: 5 } },
+      { type: 'RATING', title: '组织与安排', config: { min: 1, max: 5 } },
+      { type: 'RATING', title: '内容是否有收获', config: { min: 1, max: 5 } },
+      { type: 'LONG_TEXT', title: '下次希望改进什么？' },
+    ],
+  },
+  {
+    title: '面试评分表',
+    description: '面试官现场打分用，四个维度 + 一段评语。',
+    category: '评估互评',
+    usageCount: 3,
+    questions: [
+      { type: 'SHORT_TEXT', title: '候选人姓名', required: true },
+      { type: 'RATING', title: '专业能力', required: true, config: { min: 1, max: 5 } },
+      { type: 'RATING', title: '沟通表达', required: true, config: { min: 1, max: 5 } },
+      { type: 'RATING', title: '岗位匹配度', required: true, config: { min: 1, max: 5 } },
+      { type: 'LONG_TEXT', title: '综合评价' },
+    ],
+  },
+  {
+    title: '周会时间收集',
+    description: '每周例会的时段收集，带一个线上 / 线下倾向。',
+    category: '信息收集',
+    usageCount: 11,
+    questions: [
+      {
+        type: 'MULTI',
+        title: '你方便参会的时段',
+        required: true,
+        options: ['周一上午', '周一下午', '周五上午', '周五下午'],
+      },
+      { type: 'SINGLE', title: '你更倾向线上还是线下', options: ['线下', '线上', '都可以'] },
+      { type: 'LONG_TEXT', title: '备注' },
+    ],
+  },
+];
+
+async function seedTemplates(workspaceId: string, ownerId: string) {
   // 官方模板由种子完全拥有：先清掉再重建，避免改了题目结构却留下旧版本
   await prisma.template.deleteMany({ where: { isOfficial: true } });
 
@@ -462,26 +571,64 @@ async function seedTemplates() {
         category: template.category,
         questionCount: template.questions.length,
         isOfficial: true,
-        payload: toJsonColumn({
-          formatVersion: 1,
-          title: template.title,
-          intro: template.description,
-          questions: template.questions.map((question) => ({
-            type: question.type,
-            title: question.title,
-            description: question.description ?? null,
-            required: question.required ?? false,
-            shuffleOptions: false,
-            pageIndex: 0,
-            config: question.config ?? null,
-            options: question.options ?? [],
-          })),
-        }),
+        payload: toJsonPayload(template),
       },
     });
   }
 
-  return OFFICIAL_TEMPLATES.length;
+  /*
+   * 「我的模板」也要有真实内容，否则 W08 的第二个 Tab 是空的 —— 而空 Tab 最容易
+   * 被当成「功能没做」。只清掉**种子自己造的这几张**（按标题），不碰用户真正
+   * 另存出来的那些。
+   */
+  await prisma.template.deleteMany({
+    where: {
+      workspaceId,
+      isOfficial: false,
+      title: { in: WORKSPACE_TEMPLATES.map((template) => template.title) },
+    },
+  });
+
+  for (const template of WORKSPACE_TEMPLATES) {
+    await prisma.template.create({
+      data: {
+        workspaceId,
+        ownerId,
+        title: template.title,
+        description: template.description,
+        category: template.category,
+        questionCount: template.questions.length,
+        usageCount: template.usageCount,
+        isOfficial: false,
+        payload: toJsonPayload(template),
+      },
+    });
+  }
+
+  return OFFICIAL_TEMPLATES.length + WORKSPACE_TEMPLATES.length;
+}
+
+/** 题目结构 → 库里的 Json 列（官方与我的共用一份，避免两处各写一遍） */
+function toJsonPayload(template: {
+  title: string;
+  description: string;
+  questions: SeededQuestion[];
+}) {
+  return toJsonColumn({
+    formatVersion: 1,
+    title: template.title,
+    intro: template.description,
+    questions: template.questions.map((question) => ({
+      type: question.type,
+      title: question.title,
+      description: question.description ?? null,
+      required: question.required ?? false,
+      shuffleOptions: false,
+      pageIndex: 0,
+      config: question.config ?? null,
+      options: question.options ?? [],
+    })),
+  });
 }
 
 async function main() {
@@ -550,7 +697,7 @@ async function main() {
   });
 
   const responseTotal = await seedQuestionnaires(workspace.id, owner.id);
-  const templateTotal = await seedTemplates();
+  const templateTotal = await seedTemplates(workspace.id, owner.id);
 
   // 顶栏铃铛必须有真实内容 —— 否则「点了没反应」的假入口就出在这里
   const existingNotifications = await prisma.notification.count({ where: { userId: owner.id } });
@@ -587,7 +734,7 @@ async function main() {
   }
 
   console.log(
-    `[seed] 完成：工作区「${workspace.name}」 · ${QUESTIONNAIRES.length} 份问卷 · ${responseTotal} 份答卷 · ${templateTotal} 套官方模板 · 账号 ${DEMO_ACCOUNTS.owner.email} / ${DEMO_ACCOUNTS.viewer.email}`,
+    `[seed] 完成：工作区「${workspace.name}」 · ${QUESTIONNAIRES.length} 份问卷 · ${responseTotal} 份答卷 · ${templateTotal} 套模板（官方 + 我的）· 账号 ${DEMO_ACCOUNTS.owner.email} / ${DEMO_ACCOUNTS.viewer.email}`,
   );
   await prisma.$disconnect();
 }

@@ -1,4 +1,4 @@
-import { ClockIcon, FileTextIcon, UsersIcon } from '@/components/icons/ui-icons';
+import { ClockIcon, FileTextIcon, GridIcon, UsersIcon } from '@/components/icons/ui-icons';
 import { AppShell } from '@/components/layout/app-shell';
 import { SidebarNav, type SidebarNavItem } from '@/components/layout/sidebar-nav';
 import { SidebarShell } from '@/components/layout/sidebar-shell';
@@ -20,6 +20,8 @@ import { formatDisplayDate } from '@/utils/format';
  */
 const NAV_ITEMS: SidebarNavItem[] = [
   { href: '/app', label: '问卷列表', icon: <FileTextIcon /> },
+  // 模板中心两端都有（移动端是底部导航三格之一，见 P07），所以不加 desktopOnly
+  { href: '/app/templates', label: '模板中心', icon: <GridIcon /> },
   // 设计稿标了移动端隐藏，窄屏抽屉里不出现这两项（见 `SidebarNavItem.desktopOnly`）
   { href: '/app/members', label: '成员与权限', icon: <UsersIcon />, desktopOnly: true },
   { href: '/app/logs', label: '操作日志', icon: <ClockIcon />, desktopOnly: true },

@@ -19,6 +19,9 @@ export const PERMISSION_MATRIX: { point: string; min: Role; source: string }[] =
   // 设计稿这张表把「导出」写成「查看者 ● / 编辑者 —」，那是 mock 写反了：
   // 把全部原始回答打包带走，不该比「看」更低。按代码口径（要求 EDITOR）写。
   { point: '导出答卷数据', min: 'EDITOR', source: '代码口径（设计稿该行系笔误）' },
+  // 模板不是数据（没有答卷挂在上面），所以与「改内容」同档；
+  // 官方模板在服务端另有拦（`findEditableTemplate` 里带 workspaceId 条件）
+  { point: '重命名 / 删除模板', min: 'EDITOR', source: '与「编辑内容」同档（模板不含数据）' },
   { point: '邀请 / 移除成员', min: 'ADMIN', source: '设计稿 W09 矩阵' },
   { point: '工作区设置 / 解散', min: 'OWNER', source: '设计稿 W09 矩阵' },
 ];
