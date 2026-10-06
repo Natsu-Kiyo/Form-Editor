@@ -210,6 +210,31 @@ export function describeOperation(input: {
         extra: null,
       };
 
+    case OPERATION_TYPE.DELETE:
+      return {
+        group: OPERATION_TYPE_GROUP_OF.DELETE,
+        typeLabel,
+        sentence: build('删除了问卷', name, ''),
+        // 删除是不可逆的，份数要留在日志里 —— 事后想找回「删掉的那份有多少答卷」只有这一处
+        extra: typeof detail.responses === 'number' ? `含 ${detail.responses} 份答卷` : null,
+      };
+
+    case OPERATION_TYPE.TEMPLATE_RENAME:
+      return {
+        group: OPERATION_TYPE_GROUP_OF.TEMPLATE_RENAME,
+        typeLabel,
+        sentence: build('把模板', name, '改了名'),
+        extra: detail.to ? `改为「${String(detail.to)}」` : null,
+      };
+
+    case OPERATION_TYPE.TEMPLATE_DELETE:
+      return {
+        group: OPERATION_TYPE_GROUP_OF.TEMPLATE_DELETE,
+        typeLabel,
+        sentence: build('删除了模板', name, ''),
+        extra: typeof detail.questions === 'number' ? `${detail.questions} 题` : null,
+      };
+
     default:
       // 兜底也要能读：类型随里程碑增长，漏一个不该让整页显示空白
       return {

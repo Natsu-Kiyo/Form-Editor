@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { OPERATION_TYPE } from '@/config/constants';
 import { requireMembership } from '@/lib/auth/permissions';
 import { prisma } from '@/lib/db';
+import { writeOperationLog } from '@/lib/operation-log';
 
 import { getQuestionnairePayload } from '@/lib/questionnaire-snapshot';
 
@@ -30,11 +32,23 @@ export async function copyQuestionnaireAction(questionnaireId: string) {
     title: `${source.title}${COPY_SUFFIX}`.slice(0, 80),
   };
 
-  await createQuestionnaireWithPayload({
+  const copy = await createQuestionnaireWithPayload({
     workspaceId: source.workspaceId,
     ownerId: source.ownerId,
     payload,
   });
 
+  await writeOperationLog({
+    workspaceId: source.workspaceId,
+    actorId: source.ownerId,
+    type: OPERATION_TYPE.COPY,
+    targetType: 'QUESTIONNAIRE',
+    // 记**源问卷**：日志的句子是「复制了问卷 X」，X 是那份被复制的
+    targetId: questionnaireId,
+    targetName: source.title,
+    detail: { copyId: copy.id, copyTitle: payload.title },
+  });
+
   revalidatePath('/app');
+  revalidatePath('/app/logs');
 }

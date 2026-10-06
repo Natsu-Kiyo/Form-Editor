@@ -7,6 +7,7 @@ import { requireUser } from '@/lib/auth/dal';
 import { setActiveWorkspace } from '@/lib/auth/active-workspace';
 import { prisma } from '@/lib/db';
 import { writeOperationLog } from '@/lib/operation-log';
+import { getWorkspaceAdminIds, notifyUsers } from '@/lib/notify';
 import type { FormState } from '@/types/form-state';
 
 import { getInvitationByToken } from '../api/members';
@@ -76,6 +77,17 @@ export async function acceptInvitationAction(
     targetId: user.id,
     targetName: user.name,
     detail: { email: user.email, role: ROLE_LABEL[invitation.role as Role] },
+  });
+
+  // 通知管事的那些人。面板上那句「成员加入时会出现在这里」的承诺，
+  // 在 2026-10-07 之前是空头的 —— 通知表里只有 seed 预置的几条
+  await notifyUsers({
+    userIds: await getWorkspaceAdminIds(invitation.workspaceId),
+    exceptUserId: user.id,
+    type: 'MEMBER_JOINED',
+    title: '新成员加入',
+    body: `${user.name} 以「${ROLE_LABEL[invitation.role as Role]}」身份加入了工作区。`,
+    linkUrl: '/app/members',
   });
 
   await setActiveWorkspace(invitation.workspaceId);

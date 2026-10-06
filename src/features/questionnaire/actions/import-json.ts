@@ -4,8 +4,10 @@ import { revalidatePath } from 'next/cache';
 
 import type { FormState } from '@/types/form-state';
 
+import { OPERATION_TYPE } from '@/config/constants';
 import { replaceQuestionnaireStructure } from '../api/questionnaires';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
+import { writeOperationLog } from '@/lib/operation-log';
 import { questionnairePayloadSchema } from '@/lib/questionnaire-structure';
 
 /** 上传文件的体积上限。结构 JSON 几十 KB 足够，超过这个数多半是传错了文件 */
@@ -26,7 +28,7 @@ export async function importQuestionnaireJsonAction(
   formData: FormData,
 ): Promise<FormState> {
   const questionnaireId = String(formData.get('questionnaireId') ?? '');
-  const { questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'EDITOR');
+  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'EDITOR');
 
   if (questionnaire.status !== 'DRAFT') {
     return { message: '只有草稿状态的问卷可以导入结构；已发布的问卷题目结构是冻结的' };
@@ -61,6 +63,19 @@ export async function importQuestionnaireJsonAction(
     intro: parsed.data.intro ?? null,
   });
 
+  await writeOperationLog({
+    workspaceId: questionnaire.workspaceId,
+    actorId: user.id,
+    type: OPERATION_TYPE.IMPORT,
+    targetType: 'QUESTIONNAIRE',
+    targetId: questionnaireId,
+    // 用**改之前**的名字：导入可能连标题一起换了，而日志要说的
+    // 是「谁在哪份问卷上做了这件事」
+    targetName: questionnaire.title,
+    detail: { questions: parsed.data.questions.length },
+  });
+
   revalidatePath('/app');
+  revalidatePath('/app/logs');
   return { success: `已导入 ${parsed.data.questions.length} 道题` };
 }

@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 
 import { getCurrentUser } from '@/lib/auth/dal';
 import { prisma } from '@/lib/db';
+import { notifyUsers } from '@/lib/notify';
 import { toJsonColumn } from '@/lib/json';
 
 import {
@@ -170,6 +171,26 @@ export async function submitResponseAction(input: {
         where: { id: context.id },
         data: { status: 'CLOSED', closeReason: 'LIMIT_REACHED', closedAt: new Date() },
       });
+
+      /*
+       * 通知问卷所有者。**「收满了」这个事实只会在这里被说出来一次** ——
+       * 之后链接直接失效，界面上再没有任何地方会提它。多查一次库（只在收满那一刻）
+       * 换一条能点进数据的通知，很划算。
+       */
+      const owned = await prisma.questionnaire.findUnique({
+        where: { id: context.id },
+        select: { title: true, ownerId: true },
+      });
+
+      if (owned) {
+        await notifyUsers({
+          userIds: [owned.ownerId],
+          type: 'RESPONSE_MILESTONE',
+          title: '问卷已收满',
+          body: `「${owned.title}」已达到回收上限 ${context.responseLimit} 份，链接已失效。`,
+          linkUrl: `/app/q/${context.id}/stats`,
+        });
+      }
     }
 
     revalidatePath(`/s/${input.slug}`);

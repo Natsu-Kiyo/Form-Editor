@@ -3,8 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
+import { OPERATION_TYPE } from '@/config/constants';
 import { requireActiveWorkspace } from '@/lib/auth/active-workspace';
 import { prisma } from '@/lib/db';
+import { writeOperationLog } from '@/lib/operation-log';
 import type { FormState } from '@/types/form-state';
 
 import { findEditableTemplate, getTemplateDetail } from '../api/templates';
@@ -26,7 +28,7 @@ export async function renameTemplateAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { workspace } = await requireActiveWorkspace('EDITOR');
+  const { user, workspace } = await requireActiveWorkspace('EDITOR');
 
   const parsed = renameTemplateSchema.safeParse({
     templateId: formData.get('templateId'),
@@ -59,7 +61,19 @@ export async function renameTemplateAction(
     throw error;
   }
 
+  await writeOperationLog({
+    workspaceId: workspace.id,
+    actorId: user.id,
+    type: OPERATION_TYPE.TEMPLATE_RENAME,
+    targetType: 'TEMPLATE',
+    targetId: template.id,
+    // 记**改之前**的名字：日志说的是「把模板 X 改了名」，X 是那个能被人认出来的旧名
+    targetName: template.title,
+    detail: { to: parsed.data.title },
+  });
+
   revalidatePath('/app/templates');
+  revalidatePath('/app/logs');
 
   return { success: '已重命名' };
 }
@@ -87,12 +101,27 @@ export async function loadTemplateForPreviewAction(templateId: string) {
 }
 
 export async function deleteTemplateAction(templateId: string) {
-  const { workspace } = await requireActiveWorkspace('EDITOR');
+  const { user, workspace } = await requireActiveWorkspace('EDITOR');
 
   const template = await findEditableTemplate(templateId, workspace.id);
   if (!template) throw new Error('NOT_FOUND');
 
+  const questions = await prisma.template.count({
+    where: { id: template.id },
+  });
+
   await prisma.template.delete({ where: { id: template.id } });
 
+  await writeOperationLog({
+    workspaceId: workspace.id,
+    actorId: user.id,
+    type: OPERATION_TYPE.TEMPLATE_DELETE,
+    targetType: 'TEMPLATE',
+    targetId: template.id,
+    targetName: template.title,
+    detail: { questions },
+  });
+
   revalidatePath('/app/templates');
+  revalidatePath('/app/logs');
 }
