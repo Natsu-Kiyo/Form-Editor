@@ -186,6 +186,9 @@ model Questionnaire {
   archivedAt    DateTime?
   /// 题目结构版本号。发布时 +1，M3 的版本历史用它
   version       Int                 @default(1)
+  /// 公开页被打开的次数。**完成率的分母** —— 没有它就只能拿「提交数」当分母，
+  /// 那个比率恒等于 100%，没有任何意义
+  viewCount     Int                 @default(0)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
@@ -259,6 +262,9 @@ model Response {
   invalidatedAt   DateTime?
   submittedAt     DateTime       @default(now())
   userAgent       String?
+  /// 作答耗时（毫秒）。由作答页在提交时带上；「打开但没提交」没有值 ——
+  /// 它是**作答者的实际用时**，不是「从发布到提交经过了多久」
+  durationMs      Int?
 
   questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
   channel       Channel?      @relation(fields: [channelId], references: [id], onDelete: SetNull)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isTransientConnectionError } from '../db-retry';
+import { describeStaleClientHint, isTransientConnectionError } from '../db-retry';
 
 /**
  * 这些判定直接决定「偶发的连接抖动」会不会冒到页面上变成 Runtime Error，
@@ -45,5 +45,26 @@ describe('isTransientConnectionError', () => {
     expect(isTransientConnectionError(null)).toBe(false);
     expect(isTransientConnectionError(undefined)).toBe(false);
     expect(isTransientConnectionError('')).toBe(false);
+  });
+});
+
+describe('describeStaleClientHint', () => {
+  it('认出「客户端比 schema 旧」的原话（线上那次 500 的报错）', () => {
+    const hint = describeStaleClientHint(
+      new Error('Unknown field `viewCount` for select statement on model `Questionnaire`.'),
+    );
+
+    expect(hint).toContain('重启');
+  });
+
+  it('`Unknown argument` 也算 —— 两种原因都要说出来，不能只报一种', () => {
+    const hint = describeStaleClientHint(new Error('Unknown argument `channelId`.'));
+    expect(hint).toContain('写错了字段名');
+  });
+
+  it('别的查询错误不掺和：提示只给这一类错，否则它就成了噪音', () => {
+    expect(describeStaleClientHint(new Error('Unique constraint failed on `email`'))).toBeNull();
+    expect(describeStaleClientHint(new Error('Connection terminated unexpectedly'))).toBeNull();
+    expect(describeStaleClientHint(null)).toBeNull();
   });
 });

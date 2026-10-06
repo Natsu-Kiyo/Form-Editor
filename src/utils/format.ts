@@ -1,5 +1,5 @@
 /** 全站展示用的固定时区。服务器是 UTC，而访客与所有者都在国内 —— 一律按东八区显示 */
-const DISPLAY_TIME_ZONE = 'Asia/Shanghai';
+export const DISPLAY_TIME_ZONE = 'Asia/Shanghai';
 
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   timeZone: DISPLAY_TIME_ZONE,
@@ -121,6 +121,31 @@ export function parseDateTimeLocal(value: string): Date | null {
   return new Date(guess - zoneOffsetMinutes(new Date(guess)) * 60_000);
 }
 
+/**
+ * 解析 `2026-10-05`（`<input type="date">` 的值）为展示时区里**这一天的 00:00**。
+ *
+ * 与 `parseDateTimeLocal` 同一套做法：先当 UTC 猜一个，再按该时刻在展示时区的偏移校正。
+ *
+ * 会校验日期真实存在：`2026-02-31` 交给 `Date.UTC` 会**悄悄滚到 3 月 3 日**，
+ * 而这种值只可能来自手改的 URL —— 静默接受等于让「筛了哪天」变得无法解释。
+ */
+export function parseDisplayDate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!match) return null;
+
+  const [, year, month, day] = match.map(Number) as unknown as number[];
+  const guess = Date.UTC(year, month - 1, day);
+  const asUtc = new Date(guess);
+  const exists =
+    asUtc.getUTCFullYear() === year &&
+    asUtc.getUTCMonth() === month - 1 &&
+    asUtc.getUTCDate() === day;
+
+  if (!exists) return null;
+
+  return new Date(guess - zoneOffsetMinutes(asUtc) * 60_000);
+}
+
 /** 距某个时刻还有几天（不足一天按 0 算，已过去返回负数）。分享页的「还剩 16 天」用它 */
 export function daysUntil(target: Date, now = new Date()): number {
   return Math.ceil((target.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
@@ -132,6 +157,36 @@ export function daysUntil(target: Date, now = new Date()): number {
  * 统计「今日新增 / 昨日」必须用它，不能用服务器本地时区：服务器跑在 UTC，
  * 用它切天会让北京时间上午 8 点之前提交的答卷被算进「昨天」。
  */
+/** 展示时区里那一周的周一 00:00。趋势图按周聚合时用 */
+export function displayWeekStart(date = new Date()): Date {
+  const dayStart = displayDayStart(date);
+  // 周日（0）要回到 6 天前，其余回到「星期几 − 1」天前
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: DISPLAY_TIME_ZONE,
+    weekday: 'short',
+  }).format(date);
+  const index = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(weekday);
+  const backDays = index === -1 ? 0 : index;
+
+  return new Date(dayStart.getTime() - backDays * 24 * 60 * 60 * 1000);
+}
+
+/** 展示时区里那个月的 1 号 00:00 */
+export function displayMonthStart(date = new Date()): Date {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: DISPLAY_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '01';
+  const offsetMinutes = zoneOffsetMinutes(date);
+  const guess = Date.UTC(Number(pick('year')), Number(pick('month')) - 1, 1);
+
+  return new Date(guess - offsetMinutes * 60_000);
+}
+
 export function displayDayStart(date = new Date()): Date {
   const dayMs = 24 * 60 * 60 * 1000;
   const offsetMinutes = zoneOffsetMinutes(date);

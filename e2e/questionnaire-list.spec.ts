@@ -58,6 +58,42 @@ test('状态筛选与搜索走 URL，刷新后仍然生效', async ({ page }) =>
   await expect(cardTitle(page, '2026 秋季社团招新报名')).toHaveCount(0);
 });
 
+test('卡片底部的动作随状态换内容（W02 / P02）', async ({ page }, testInfo) => {
+  const desktop = testInfo.project.name === 'desktop';
+  await signIn(page);
+
+  // 回收中：编辑 · 数据 · 分享
+  await expect(page.getByRole('link', { name: '编辑「2026 秋季社团招新报名」' })).toHaveCount(
+    desktop ? 1 : 0,
+  );
+  await expect(page.getByRole('link', { name: '数据「2026 秋季社团招新报名」' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '分享「2026 秋季社团招新报名」' })).toBeVisible();
+
+  // 已暂停：数据与分享照旧可达（暂停只影响回收，不影响看与发）
+  await expect(
+    page.getByRole('link', { name: '数据「课程作业互评 · 用户体验设计」' }),
+  ).toBeVisible();
+
+  // 已截止：结构冻结，第一个位置换成「复制」（窄屏下「编辑」与「复制」都不渲染）
+  await expect(page.getByRole('button', { name: '复制「团建活动时间意愿投票」' })).toHaveCount(
+    desktop ? 1 : 0,
+  );
+  await expect(page.getByRole('link', { name: '编辑「团建活动时间意愿投票」' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: '分享「团建活动时间意愿投票」' })).toBeVisible();
+
+  // 已归档：不能再分享，只剩「恢复」与「数据」
+  await page.getByRole('link', { name: /^已归档/ }).click();
+  await expect(
+    page.getByRole('button', { name: '恢复「旧版功能使用情况摸底（已停用）」' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: '数据「旧版功能使用情况摸底（已停用）」' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: '分享「旧版功能使用情况摸底（已停用）」' }),
+  ).toHaveCount(0);
+});
+
 test('全链路：新建 → 复制 → 归档 → 恢复 → 删除', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', '会写数据库，只在一个 project 跑');
   test.setTimeout(120_000);
@@ -90,6 +126,20 @@ test('全链路：新建 → 复制 → 归档 → 恢复 → 删除', async ({ 
   await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
 
   // 回列表：新建的这一份已经在里面
+  await page.goto('/app');
+  await expect(cardTitle(page, '未命名问卷')).toBeVisible();
+
+  // ---- 卡片底部的三个动作（W02）：编辑 / 数据 / 分享 ----
+  // 「点数据能打开」这条曾经挂过（统计页的查询里写了一个 schema 里没有的字段），
+  // 而草稿问卷的统计页（0 份答卷）是当时唯一没人走过的路径
+  await expect(page.getByRole('link', { name: '编辑「未命名问卷」' })).toBeVisible();
+  await page.getByRole('link', { name: '数据「未命名问卷」' }).click();
+  await expect(page).toHaveURL(/\/stats$/);
+
+  await page.goto('/app');
+  await page.getByRole('link', { name: '分享「未命名问卷」' }).click();
+  await expect(page).toHaveURL(/\/share$/);
+
   await page.goto('/app');
   await expect(cardTitle(page, '未命名问卷')).toBeVisible();
 

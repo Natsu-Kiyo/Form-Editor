@@ -342,6 +342,20 @@ export async function getSubmittedResponse(slug: string, responseId: string) {
   };
 }
 
+/**
+ * 记一次打开 —— 完成率的分母。
+ *
+ * **只在「可作答」时记**：一份已截止的问卷被打开一万次，也不该把它自己的完成率拉低。
+ * 在 GET 里写库不优雅，但没有定时任务也没有埋点服务 —— 这是自建轻量统计能接受的代价，
+ * 而且 `updateMany` 带 `status` 条件，重复触发也不会算到不该算的状态上。
+ */
+export async function recordQuestionnaireView(slug: string) {
+  await prisma.questionnaire.updateMany({
+    where: { slug, status: 'PUBLISHED' },
+    data: { viewCount: { increment: 1 } },
+  });
+}
+
 /** 口令是否已被这道题的访客解开过（哈希存在 Cookie 里，见 `lib/unlock.ts`） */
 export async function getAccessPasswordHash(slug: string) {
   return prisma.questionnaire.findUnique({

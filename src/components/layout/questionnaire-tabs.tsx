@@ -17,6 +17,7 @@ const TABS = [
   { segment: 'edit', label: '编辑' },
   { segment: 'publish', label: '发布设置' },
   { segment: 'share', label: '分享' },
+  { segment: 'stats', label: '数据' },
 ] as const;
 
 export function QuestionnaireTabs({ questionnaireId }: { questionnaireId: string }) {

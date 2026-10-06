@@ -5,7 +5,12 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { env } from '@/config/env';
 import { PrismaClient } from '@/generated/prisma/client';
 import { withVerifiedTls } from '@/lib/database-url';
-import { isTransientConnectionError, RETRY_DELAYS_MS, sleep } from '@/lib/db-retry';
+import {
+  describeStaleClientHint,
+  isTransientConnectionError,
+  RETRY_DELAYS_MS,
+  sleep,
+} from '@/lib/db-retry';
 
 /**
  * 全应用唯一的数据库访问出口。
@@ -129,6 +134,17 @@ function createPrismaClient() {
             } catch (error) {
               lastError = error;
               const delay = RETRY_DELAYS_MS[attempt];
+
+              /**
+               * 「客户端比 schema 旧」既不是抖动也不是业务错误，重试多少次都一样，
+               * 而报错原文（`Unknown field 'viewCount' for select statement on model ...`）
+               * 完全看不出该去重启服务 —— 我们为它查了一整轮，所以在抛出前把话说清楚。
+               */
+              const hint = describeStaleClientHint(error);
+              if (hint) {
+                const original = error instanceof Error ? error.message : String(error);
+                throw new Error(`${hint}\n\n—— 原始报错 ——\n${original}`, { cause: error });
+              }
 
               if (delay === undefined || !isTransientConnectionError(error)) throw error;
 

@@ -7,6 +7,7 @@ import { IDENTITY_MODE_LABEL } from '@/config/constants';
 import {
   getAccessPasswordHash,
   getPublicQuestionnaire,
+  recordQuestionnaireView,
 } from '@/features/answering/api/public-questionnaire';
 import { LoginRequiredCard, UnlockCard } from '@/features/answering/components/access-cards';
 import { AnsweringForm } from '@/features/answering/components/answering-form';
@@ -60,6 +61,9 @@ export default async function PublicQuestionnairePage({
 
   // 可作答：表单自带版式（左侧题目 + 右侧题号导航），不套外层的居中卡片
   if (view.state === 'COLLECTING' && !view.locked && !view.needsLogin) {
+    // 记一次打开，作为完成率的分母（只在这里记，理由见该函数说明）
+    await recordQuestionnaireView(slug);
+
     return (
       <main className="bg-ink-50 min-h-[100dvh]">
         <AnsweringForm

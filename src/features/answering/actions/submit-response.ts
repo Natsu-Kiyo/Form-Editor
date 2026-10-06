@@ -40,6 +40,8 @@ export async function submitResponseAction(input: {
   slug: string;
   answers: unknown;
   srcToken: string | null;
+  /** 从打开作答页到点提交的毫秒数。统计页的「平均用时」用它 */
+  durationMs: number | null;
 }): Promise<SubmitResponseResult> {
   const context = await loadSubmissionContext(input.slug);
   if (!context) return { ok: false, kind: 'UNAVAILABLE', state: 'NOT_FOUND' };
@@ -134,6 +136,14 @@ export async function submitResponseAction(input: {
           fingerprint,
           submittedAt: now,
           userAgent,
+          // 上限一天：超过这个数的多半是「开着页面去吃饭了」，
+          // 让它进统计只会把「平均用时」变成一个没意义的数字
+          durationMs:
+            typeof input.durationMs === 'number' &&
+            input.durationMs > 0 &&
+            input.durationMs < 86_400_000
+              ? Math.round(input.durationMs)
+              : null,
         },
         select: { id: true },
       });

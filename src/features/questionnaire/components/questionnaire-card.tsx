@@ -4,16 +4,13 @@ import { cn } from '@/utils/cn';
 
 import type { QuestionnaireCard as QuestionnaireCardData } from '../api/questionnaires';
 import { CardActions } from './card-actions';
-import { CardEditLink } from './card-edit-link';
-import { RestoreButton } from './restore-button';
+import { CardPrimaryActions } from './card-primary-actions';
 
 /**
- * 问卷卡片。
+ * 问卷卡片（设计稿 W02 / P02）。
  *
- * **底部没有「编辑 / 数据 / 分享」三个按钮** —— 它们分别属于 M3（编辑器）、
- * M6（统计）、M4（分享分发），对应的页面还不存在。
- * 画一个点了没反应的按钮比少一个按钮糟得多，所以宁可先空着，
- * 等各自里程碑落地时按设计稿补回来。
+ * 底部的主操作在 `card-primary-actions.tsx`：它随状态换内容（已截止换成「复制」、
+ * 已归档只剩「恢复 + 数据」），窄屏还换一套形状。
  */
 export function QuestionnaireCardItem({ questionnaire }: { questionnaire: QuestionnaireCardData }) {
   const archived = questionnaire.status === 'ARCHIVED';
@@ -71,13 +68,7 @@ export function QuestionnaireCardItem({ questionnaire }: { questionnaire: Questi
         </div>
       )}
 
-      {archived ? (
-        <div className="border-ink-100 flex items-center gap-1 border-t pt-3.5">
-          <RestoreButton questionnaireId={questionnaire.id} title={questionnaire.title} />
-        </div>
-      ) : (
-        <CardEditLink questionnaireId={questionnaire.id} title={questionnaire.title} />
-      )}
+      <CardPrimaryActions questionnaire={questionnaire} />
     </div>
   );
 }

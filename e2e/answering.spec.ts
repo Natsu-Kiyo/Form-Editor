@@ -45,6 +45,8 @@ test.describe('公开作答端', () => {
     await page.getByRole('button', { name: '新建问卷' }).first().click();
     await page.getByRole('button', { name: '创建', exact: true }).click();
     await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/, { timeout: 90_000 });
+    // 统计页要用 id 打开，先把 id 记下来（后面会被导航带走）
+    const questionnaireId = page.url().match(/\/app\/q\/([^/]+)\//)![1]!;
     await page.getByLabel('问卷标题').fill(TITLE);
 
     // 加一道单选题即可（默认选项就是「选项 1 / 选项 2」，够用来走完提交链路）。
@@ -104,6 +106,72 @@ test.describe('公开作答端', () => {
 
     await otherVisitor.close();
     await visitor.close();
+
+    // ---- 统计页：数字要与刚才那一份答卷自洽 ----
+    await page.goto(`/app/q/${questionnaireId}/stats`);
+
+    // 精确匹配：`getByText` 也是子串匹配，而「有效答卷」这四个字
+    // 还出现在卡片说明与题目卡脚注里（同一类坑这个项目已经踩了四次）
+    await expect(page.getByText('回收份数', { exact: true })).toBeVisible();
+    await expect(page.getByText('有效答卷', { exact: true })).toBeVisible();
+    // 口径说明是「能核对数字」的唯一入口，所以它必须真的打得开
+    await page.getByRole('button', { name: '有效答卷的口径说明' }).click();
+    await expect(page.getByText('有效答卷 = 回收份数 − 已标记无效的')).toBeVisible();
+
+    // 趋势图与单题图表都画出来了，且那道题的有效作答人数就是 1
+    await expect(page.getByRole('img', { name: '回收趋势' })).toBeVisible();
+    await expect(page.getByText('有效作答 1 人')).toBeVisible();
+
+    // ---- 时间筛选：双日期选择器（替代原来的「最近 7 天」下拉）----
+    // 没选时显示占位文案，一眼看出「没筛」，而不是拿一个「全部时间」把两件事混在一起
+    await expect(page.getByRole('button', { name: '开始时间 - 结束时间' })).toBeVisible();
+    // 粒度不再是可选项：按区间跨度自动定，并把结果标出来
+    await expect(page.getByText('按日汇总 · 横轴为筛选区间')).toBeVisible();
+
+    await page.getByRole('button', { name: '开始时间 - 结束时间' }).click();
+    await page.getByLabel('开始时间', { exact: true }).fill('2020-01-01');
+    await page.getByLabel('结束时间', { exact: true }).fill('2020-01-31');
+    await expect(page).toHaveURL(/from=2020-01-01/);
+    await expect(page).toHaveURL(/to=2020-01-31/);
+
+    // 这个区间里没有答卷 → 卡片与题目卡都要认账，而不是继续显示刚才那一份
+    await expect(page.getByText('本次筛选范围内还没有有效答卷')).toBeVisible();
+    // 选完之后控件显示的是区间本身（不再是占位文案）
+    await expect(page.getByRole('button', { name: '2020-01-01 - 2020-01-31' })).toBeVisible();
+
+    // ---- 导出跟着筛选走：这个区间没有答卷，CSV 就该只有表头 ----
+    await page.getByRole('button', { name: '导出' }).click();
+    const filtered = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('link', { name: '下载 CSV' }).click(),
+    ]).then(([event]) => event);
+    const filteredStream = await filtered.createReadStream();
+    const filteredChunks: Buffer[] = [];
+    for await (const chunk of filteredStream) filteredChunks.push(chunk as Buffer);
+    const filteredCsv = Buffer.concat(filteredChunks);
+    expect(filteredCsv.toString('utf8').split('\r\n').filter(Boolean)).toHaveLength(1);
+
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: '2020-01-01 - 2020-01-31' }).click();
+    await page.getByRole('button', { name: '清空' }).click();
+    await expect(page).toHaveURL(/\/stats$/);
+    await expect(page.getByText('有效作答 1 人')).toBeVisible();
+
+    // ---- 导出：CSV 要被 Excel 正确打开（UTF-8 BOM），且表头是题目 ----
+    await page.getByRole('button', { name: '导出' }).click();
+    const download = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('link', { name: '下载 CSV' }).click(),
+    ]).then(([event]) => event);
+    const stream = await download.createReadStream();
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(chunk as Buffer);
+    const csv = Buffer.concat(chunks);
+
+    // 前三个字节必须是 BOM：不加它在中文 Windows 上双击打开就是乱码
+    expect(csv.subarray(0, 3).toString('hex')).toBe('efbbbf');
+    expect(csv.toString('utf8')).toContain('提交时间');
+    expect(csv.toString('utf8')).toContain('选项 1');
 
     // ---- 收尾 ----
     await page.goto('/app');

@@ -63,3 +63,36 @@ export function isTransientConnectionError(error: unknown) {
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * 「这个错多半是因为运行中的 Prisma 客户端比 schema 旧」的判定。
+ *
+ * 同一个根因有两种表现，**这个函数只管第二种**：
+ * - 整个模型缺失 → `Cannot read properties of undefined (reading 'findFirst')`，
+ *   启动时由 `db.ts` 的 `assertGeneratedModels` 拦下（报错本身看不出与 schema 有关）
+ * - 模型在、字段不在 → `Unknown field 'viewCount' for select statement on model 'Questionnaire'`，
+ *   只有真跑起来才暴露：字段级的差异不在客户端的模型清单里，启动检查发现不了
+ *
+ * 判据故意放宽到「Unknown field / argument」：这两种提示**有可能是我们自己敲错了字段名**，
+ * 所以它的产出是一句「先怎么做」的提示，而不是一个结论 —— 原文照旧抛出，不多不少。
+ */
+const STALE_CLIENT_PATTERNS = [
+  'for select statement on model',
+  'for include statement on model',
+  'Unknown field',
+  'Unknown argument',
+];
+
+export function describeStaleClientHint(error: unknown): string | null {
+  if (!error) return null;
+
+  const message = errorMessage(error);
+  if (!STALE_CLIENT_PATTERNS.some((pattern) => message.includes(pattern))) return null;
+
+  return (
+    '[db] 查询里的模型/字段与 Prisma 客户端对不上。两种可能：\n' +
+    '① **改了 schema 之后没重启服务**（最常见）：migrate 会重新生成客户端，' +
+    '但运行中的进程仍握着旧模块，重启一次即可（`pnpm db:generate` 之后重跑 `pnpm dev`）。\n' +
+    '② 这处查询确实写错了字段名 —— 那就不是环境问题，去看那个 `select`。'
+  );
+}

@@ -89,6 +89,38 @@ export const DEMO_ACCOUNTS = {
 /** 供 E2E 与 seed 复用的主演示账号 */
 export const PRIMARY_DEMO_ACCOUNT = DEMO_ACCOUNTS.owner;
 
+/**
+ * 统计口径的说明（设计稿 W06 每张指标卡右上角的「?」）。
+ *
+ * **把算法本身写出来**，而不是「本指标统计回收的问卷数」这种废话：
+ * 口径说明的唯一价值是让人能拿它去核对数字。
+ */
+export const METRIC_HINT = {
+  RECEIVED: '回收份数 = 收到的全部答卷，含已标记无效的。',
+  VALID: '有效答卷 = 回收份数 − 已标记无效的。所有图表只统计有效答卷。',
+  COMPLETION: '完成率 = 提交数 ÷ 打开数。打开数是公开页被访问的次数，同一人多次打开会重复计。',
+  DURATION:
+    '平均用时 = 全部已提交答卷的作答时长平均值（从打开作答页到点提交）。中位数比平均数更抗极端值 —— 有人开着页面去吃饭时，只有中位数还接近真实感受。',
+} as const;
+
+/** 趋势图按什么粒度聚合 */
+export const TREND_GRANULARITY = {
+  DAY: 'DAY',
+  WEEK: 'WEEK',
+  MONTH: 'MONTH',
+} as const;
+
+export type TrendGranularity = (typeof TREND_GRANULARITY)[keyof typeof TREND_GRANULARITY];
+
+export const TREND_GRANULARITY_LABEL: Record<TrendGranularity, string> = {
+  DAY: '日',
+  WEEK: '周',
+  MONTH: '月',
+};
+
+/** 统计页的时间范围筛选 */
+export const ANALYTICS_RANGE = { D7: 7, D30: 30, ALL: 0 } as const;
+
 /** 1.1 / 2.0 规划功能的灰显角标文案 */
 export const UPCOMING_BADGE = {
   V11: '1.1',

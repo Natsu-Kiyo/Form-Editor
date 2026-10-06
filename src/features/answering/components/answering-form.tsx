@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { AlertCircleIcon, CheckIcon } from '@/components/icons/ui-icons';
@@ -90,14 +90,19 @@ export function AnsweringForm({
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [activeId, setActiveId] = useState<string | null>(questions[0]?.id ?? null);
+  const startedAt = useRef(0);
 
   const sections = useMemo(() => groupBySection(questions), [questions]);
   const answeredCount = questions.filter((question) => isAnswered(answers[question.id])).length;
 
   // 首次访问就把浏览器标识种下：**服务端渲染时要读它**判断「你已提交过」，
-  // 而那时客户端 JS 还没跑，所以必须尽早写
+  // 而那时客户端 JS 还没跑，所以必须尽早写。
+  // 顺便记下开始作答的时刻 —— 统计页的「平均用时」就是「这一刻到点提交」。
+  // 口径刻意写成「从打开作答页算起」（而不是从第一次答题算起），因为它简单且可解释：
+  // 用户能自己复现这个数（再次打开、填完、看用了多久）。
   useEffect(() => {
     ensureClientId();
+    startedAt.current = Date.now();
   }, []);
 
   // ---- 当前题高亮（题号导航用）----
@@ -154,7 +159,12 @@ export function AnsweringForm({
     startTransition(async () => {
       // 浏览器标识不随请求带上：服务端自己从 Cookie 读，
       // 免得「客户端传的值」与「页面判定用的值」出现两份可能不一致的来源
-      const result = await submitResponseAction({ slug, answers, srcToken });
+      const result = await submitResponseAction({
+        slug,
+        answers,
+        srcToken,
+        durationMs: startedAt.current > 0 ? Date.now() - startedAt.current : null,
+      });
 
       if (result.ok) {
         // 提交成功就清掉草稿：留着它只会让下一次打开时误报「已为你恢复」
