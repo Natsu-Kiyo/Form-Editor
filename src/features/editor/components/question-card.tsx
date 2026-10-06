@@ -4,6 +4,7 @@ import {
   DndContext,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   closestCorners,
   useSensor,
   useSensors,
@@ -223,6 +224,12 @@ function OptionList({ question, readOnly }: { question: DraftQuestion; readOnly:
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    /*
+     * 触摸端**长按才拖**，与题目卡那一层同一条规矩（设计稿 P08-a：「长按拖拽排序」）。
+     * 只有指针传感器时，手机上这次手势会被浏览器当成滚动吃掉 —— 表现就是「拖不动」。
+     * 手柄上还配了 `touch-none`，两者缺一不可。
+     */
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
 
   const onDragEnd = (event: DragEndEvent) => {
@@ -331,7 +338,9 @@ function OptionRow({
           {...attributes}
           {...listeners}
           aria-label={`拖动选项「${label}」`}
-          className="text-ink-300 hover:text-ink-500 -mr-1 shrink-0 cursor-grab opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
+          // 手柄在桌面是悬浮才显形（不干扰阅读），但 375px 没有 hover 可言 —— 常显，
+          // 否则手机上根本看不到这里能拖。`touch-none` 是触摸端拖得动的前提
+          className="text-ink-300 hover:text-ink-500 -mr-1 shrink-0 cursor-grab touch-none transition-opacity duration-150 active:cursor-grabbing lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100"
         >
           <GripIcon className="size-3.5" />
         </button>
