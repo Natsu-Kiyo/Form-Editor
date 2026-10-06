@@ -12,6 +12,10 @@ const TRANSIENT_ERROR_PATTERNS = [
   'Connection terminated due to connection timeout',
   'Connection terminated unexpectedly',
   'timeout expired',
+  // pg 的连接池**取连接**超时的原话（`connectionTimeoutMillis` 到了）。它与上一条是
+  // 两件事：上一条是「建这条连接超时」，这一条是「池子里那条连接不可用、想再建一条又超时」。
+  // 漏掉它的代价是页面直接 500 —— M7 的 E2E 里连着两次偶发失败就是它，重试一次即好
+  'timeout exceeded when trying to connect',
   'Connection reset by peer',
   'ECONNRESET',
   'ETIMEDOUT',

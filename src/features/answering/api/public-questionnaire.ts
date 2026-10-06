@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { CloseReason, IdentityMode, QuestionType } from '@/config/constants';
 import { prisma } from '@/lib/db';
+import { responseSerial } from '@/lib/response-serial';
 import { daysUntil, formatDateTimeLocal } from '@/utils/format';
 
 import type { SubmittableQuestion } from '../lib/answers';
@@ -320,19 +321,15 @@ export async function getSubmittedResponse(slug: string, responseId: string) {
     where: { id: responseId, questionnaire: { slug } },
     select: {
       submittedAt: true,
-      questionnaire: { select: { title: true, identityMode: true } },
+      questionnaire: { select: { id: true, title: true, identityMode: true } },
     },
   });
 
   if (!response) return null;
 
-  const serial = await prisma.response.count({
-    where: {
-      questionnaire: { slug },
-      status: 'VALID',
-      submittedAt: { lte: response.submittedAt },
-    },
-  });
+  // 编号的口径收在 `lib/response-serial.ts`：明细页要按同一个规则显示（含已标记无效的），
+  // 否则同一份答卷在两个地方会得到两个编号
+  const serial = await responseSerial(response.questionnaire.id, response.submittedAt);
 
   return {
     serial,

@@ -23,6 +23,12 @@ describe('isTransientConnectionError', () => {
     expect(isTransientConnectionError({ code: 'P1017' })).toBe(true);
   });
 
+  it('认出连接池取连接超时（pg 的原话，漏掉它就是一次 500）', () => {
+    expect(isTransientConnectionError(new Error('timeout exceeded when trying to connect'))).toBe(
+      true,
+    );
+  });
+
   it('认出我们自己设的查询级超时（多半意味着这条连接已经废了）', () => {
     expect(
       isTransientConnectionError({ message: 'canceling statement due to statement timeout' }),

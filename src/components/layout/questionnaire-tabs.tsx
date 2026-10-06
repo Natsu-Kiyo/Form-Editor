@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { useIsDesktop } from '@/hooks/use-is-desktop';
 import { cn } from '@/utils/cn';
 
 /**
@@ -18,10 +19,14 @@ const TABS = [
   { segment: 'publish', label: '发布设置' },
   { segment: 'share', label: '分享' },
   { segment: 'stats', label: '数据' },
+  // 答卷明细是**桌面端专属**（设计稿 W07 标了「移动端隐藏」）：窄屏下这个入口
+  // 完全不渲染，而不是灰掉一个点不动的 Tab
+  { segment: 'responses', label: '答卷', desktopOnly: true },
 ] as const;
 
 export function QuestionnaireTabs({ questionnaireId }: { questionnaireId: string }) {
   const pathname = usePathname();
+  const isDesktop = useIsDesktop();
 
   return (
     // role + aria-label 不只是给读屏用的：「顶栏的发布设置」与「Tab 的发布设置」同名，
@@ -30,7 +35,7 @@ export function QuestionnaireTabs({ questionnaireId }: { questionnaireId: string
       aria-label="问卷内页面"
       className="border-ink-200 flex shrink-0 items-center gap-1 border-b bg-white px-6"
     >
-      {TABS.map((tab) => {
+      {TABS.filter((tab) => isDesktop || !('desktopOnly' in tab && tab.desktopOnly)).map((tab) => {
         const href = `/app/q/${questionnaireId}/${tab.segment}`;
         const active = pathname === href;
 

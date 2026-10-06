@@ -146,6 +146,33 @@ export function parseDisplayDate(value: string): Date | null {
   return new Date(guess - zoneOffsetMinutes(asUtc) * 60_000);
 }
 
+/** 形如 `10-04 13:42`。答卷明细的「提交时间」用时区换算，不带年份（表格里年份是噪音） */
+export function formatShortDateTime(date: Date): string {
+  const parts = dateTimePartsFormatter.formatToParts(date);
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '00';
+
+  return `${pick('month')}-${pick('day')} ${pick('hour')}:${pick('minute')}`;
+}
+
+/**
+ * 作答用时的展示文案（`2:08`）。
+ *
+ * 超过一小时会变成 `1:02:08`：有人开了页面去吃饭，只写分钟会得到 `62:08` 这种读不出来的数。
+ */
+export function formatDurationMs(ms: number): string {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 /** 距某个时刻还有几天（不足一天按 0 算，已过去返回负数）。分享页的「还剩 16 天」用它 */
 export function daysUntil(target: Date, now = new Date()): number {
   return Math.ceil((target.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));

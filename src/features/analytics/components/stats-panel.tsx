@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 import { DownloadIcon, HelpIcon, InfoIcon } from '@/components/icons/ui-icons';
 import { QuestionnaireTopbar } from '@/components/layout/questionnaire-topbar';
+import { ExportResponsesDialog } from '@/components/questionnaire/export-responses-dialog';
 import { Button } from '@/components/ui/button';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { Modal, ModalContent } from '@/components/ui/modal';
 import {
   METRIC_HINT,
@@ -13,6 +15,7 @@ import {
   TREND_GRANULARITY_LABEL,
   UPCOMING_BADGE,
 } from '@/config/constants';
+import { formatDurationMs } from '@/utils/format';
 
 import type { AnalyticsData, AnalyticsQuestion } from '../api/analytics';
 import { DateRangeFilter } from './date-range-filter';
@@ -118,13 +121,15 @@ export function StatsPanel({
             <MetricCard
               label="平均用时"
               value={
-                summary.averageDurationMs === null ? '—' : formatDuration(summary.averageDurationMs)
+                summary.averageDurationMs === null
+                  ? '—'
+                  : formatDurationMs(summary.averageDurationMs)
               }
               hint={METRIC_HINT.DURATION}
               note={
                 summary.medianDurationMs === null
                   ? '还没有耗时记录'
-                  : `中位数 ${formatDuration(summary.medianDurationMs)}`
+                  : `中位数 ${formatDurationMs(summary.medianDurationMs)}`
               }
             />
           </div>
@@ -202,7 +207,7 @@ export function StatsPanel({
 
       <AnswersDialog question={openQuestion} onClose={() => setOpenQuestion(null)} />
 
-      <ExportDialog
+      <ExportResponsesDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
         questionnaireId={data.id}
@@ -254,33 +259,6 @@ function MetricCard({
         </p>
       ) : null}
     </div>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <select
-      aria-label={label}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="border-ink-200 text-ink-600 h-8 rounded-lg border bg-white px-2.5 text-[12.5px] outline-none"
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
   );
 }
 
@@ -526,86 +504,6 @@ function AnswersDialog({
   );
 }
 
-function ExportDialog({
-  open,
-  onOpenChange,
-  questionnaireId,
-  channelId,
-  from,
-  to,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  questionnaireId: string;
-  channelId: string | null;
-  from: string | null;
-  to: string | null;
-}) {
-  const [includeInvalid, setIncludeInvalid] = useState(false);
-
-  // 导出带上当前筛选：页面上筛的是 9 月，导出的就该是 9 月（参数与统计页同名，服务端同一套解析）
-  const params = new URLSearchParams();
-  if (channelId) params.set('channel', channelId);
-  if (from) params.set('from', from);
-  if (to) params.set('to', to);
-  if (includeInvalid) params.set('invalid', '1');
-  const href = `/api/questionnaires/${questionnaireId}/export-responses?${params.toString()}`;
-
-  return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent title="导出答卷" description="每行一份答卷，列为题目" width="sm">
-        <div className="space-y-4">
-          <div>
-            <div className="text-ink-500 mb-2 text-[11.5px] font-medium">格式</div>
-            <div className="border-ink-200 text-ink-700 rounded-xl border bg-white p-3.5 text-[12.5px]">
-              CSV（UTF-8 带 BOM）
-              <p className="text-ink-400 mt-1 text-[11.5px] leading-5">
-                带 BOM 是为了让 Excel 双击打开时中文不乱码 —— 不加 BOM 的 UTF-8 CSV 在中文 Windows
-                上会变成乱码。
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <div className="text-ink-500 mb-2 text-[11.5px] font-medium">范围</div>
-            <label className="text-ink-600 flex items-center gap-2.5 text-[12.5px]">
-              <input
-                type="checkbox"
-                checked={includeInvalid}
-                onChange={(event) => setIncludeInvalid(event.target.checked)}
-                className="accent-brand-500 size-4"
-              />
-              包含已标记无效的答卷
-            </label>
-            <p className="text-ink-400 mt-1.5 text-[11.5px]">
-              默认只导出有效答卷；勾上之后会多一列「状态」，说明哪几份是无效的。
-            </p>
-          </div>
-
-          <div className="flex gap-2.5 pt-1">
-            <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
-              取消
-            </Button>
-            <Button asChild className="flex-1">
-              <a href={href} download>
-                下载 CSV
-              </a>
-            </Button>
-          </div>
-        </div>
-      </ModalContent>
-    </Modal>
-  );
-}
-
 function formatPercent(ratio: number) {
   return `${(ratio * 100).toFixed(1)}%`;
-}
-
-function formatDuration(ms: number) {
-  const totalSeconds = Math.round(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }

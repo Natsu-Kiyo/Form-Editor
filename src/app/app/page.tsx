@@ -16,7 +16,7 @@ import { listOfficialTemplates } from '@/features/questionnaire/api/templates';
 import { CreateQuestionnaireDialog } from '@/features/questionnaire/components/create-questionnaire-dialog';
 import { ListToolbar } from '@/features/questionnaire/components/list-toolbar';
 import { QuestionnaireCardItem } from '@/features/questionnaire/components/questionnaire-card';
-import { SearchField } from '@/features/questionnaire/components/search-field';
+import { SearchField } from '@/components/ui/search-field';
 import { SummaryCards } from '@/features/questionnaire/components/summary-cards';
 import { requireActiveWorkspace } from '@/lib/auth/active-workspace';
 
@@ -98,6 +98,8 @@ export default async function DashboardHomePage({
                   ...(filter !== 'ALL' ? { status: filter } : {}),
                   ...(sort !== 'UPDATED' ? { sort } : {}),
                 }}
+                placeholder="搜索问卷名称…"
+                label="搜索问卷名称"
               />
             </div>
             <CreateQuestionnaireDialog templates={templates} />
