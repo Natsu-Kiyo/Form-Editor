@@ -86,11 +86,12 @@ test.describe('分享与分发', () => {
 
     // ---- 分享出去的链接必须真的能打开 ----
     // 回归：曾经复制的短链是一个 404（作答端还没做），看起来像整站坏了。
-    // 必须在「截止」之前验 —— 截止之后公开页显示的是已截止状态，不是题目预览
+    // 必须在「截止」之前验 —— 截止之后公开页显示的是已截止状态，不是作答表单
     const shareLabel = await page.getByText(/\/s\//).first().textContent();
     await page.goto(`/s/${shareLabel!.split('/s/')[1]}`);
     await expect(page.getByRole('heading', { name: TITLE })).toBeVisible();
-    await expect(page.getByText('题目预览')).toBeVisible();
+    // 是**能填的表单**而不只是题目预览：M5 交付作答端之前这里只显示预览
+    await expect(page.getByRole('button', { name: /提交答卷/ })).toBeVisible();
     await page.goBack();
 
     // ---- 回收开关三态 ----

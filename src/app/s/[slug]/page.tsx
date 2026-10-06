@@ -1,24 +1,33 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
+import { cookies, headers } from 'next/headers';
 
-import { IDENTITY_MODE_LABEL, QUESTION_TYPE_LABEL } from '@/config/constants';
+import { Button } from '@/components/ui/button';
+import { IDENTITY_MODE_LABEL } from '@/config/constants';
 import {
+  getAccessPasswordHash,
   getPublicQuestionnaire,
-  type PublicView,
 } from '@/features/answering/api/public-questionnaire';
+import { LoginRequiredCard, UnlockCard } from '@/features/answering/components/access-cards';
+import { AnsweringForm } from '@/features/answering/components/answering-form';
+import { UnavailableState } from '@/features/answering/components/unavailable-state';
+import { buildFingerprint } from '@/features/answering/lib/fingerprint';
+import { isUnlocked } from '@/features/answering/lib/unlock';
+import { getCurrentUser } from '@/lib/auth/dal';
 
 export const metadata: Metadata = { title: '填写问卷' };
 
 /**
- * 公开作答页（短链 `/s/{slug}`）。
+ * 公开作答页（短链 `/s/{slug}`，设计稿 W12 可作答 / W13 五种不可用态）。
  *
- * **这一轮先交付「门与状态」，作答表单本身属 M5**：链接一旦发出去，
- * 最不能接受的就是点开一个框架自带的 404 —— 那看起来像整站坏了。
- * 所以这里先把五种状态各自说清楚，回收中的问卷则给出题目预览（内容是真的，只是还不能提交），
- * 并**明说**提交功能还没到 —— 一个「填完点提交没反应」的表单比预览糟得多。
+ * 一次渲染决定「能不能填」：公开链接没有身份，判断依据只有三样 ——
+ * 问卷自身状态、`?src=` 渠道、以及浏览器身份（Cookie 里的随机 id / 登录态）。
+ * 这三样都在服务端算，所以打开链接**第一眼**就是正确的画面，不会先闪一下表单再跳走。
  *
- * 为什么没有定时任务也能「到期自动截止」：状态判定放在读取时（`getPublicQuestionnaire`），
- * 发现过了结束时间就落库为已截止。这样列表、分享页、公开页看到的是同一个事实。
+ * 故意不做静态化：同一份问卷对不同访客给出的结果不同（已提交过 / 需登录 / 需口令）。
  */
+export const dynamic = 'force-dynamic';
+
 export default async function PublicQuestionnairePage({
   params,
   searchParams,
@@ -27,10 +36,50 @@ export default async function PublicQuestionnairePage({
   searchParams: Promise<{ src?: string; embed?: string }>;
 }) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
-  const view = await getPublicQuestionnaire(slug, query.src ?? null);
+  const [cookieStore, requestHeaders, user] = await Promise.all([
+    cookies(),
+    headers(),
+    getCurrentUser(),
+  ]);
 
-  // 嵌入态（`?embed=1`）不显示品牌栏：它要嵌进别人的网页里
+  const clientId = cookieStore.get('qw_client_id')?.value ?? null;
+  const userAgent = requestHeaders.get('user-agent');
+  // 与提交时用的是同一个函数：页面判「已提交过」与实际拦截的依据必须一致
+  const fingerprint = clientId || userAgent ? buildFingerprint(clientId, userAgent) : null;
+
+  const access = await getAccessPasswordHash(slug);
+  const unlocked = access ? await isUnlocked(access.id, access.accessPasswordHash) : false;
+
+  const view = await getPublicQuestionnaire(
+    slug,
+    { srcToken: query.src ?? null, fingerprint, respondentId: user?.id ?? null },
+    unlocked,
+  );
+
   const embedded = query.embed === '1';
+
+  // 可作答：表单自带版式（左侧题目 + 右侧题号导航），不套外层的居中卡片
+  if (view.state === 'COLLECTING' && !view.locked && !view.needsLogin) {
+    return (
+      <main className="bg-ink-50 min-h-[100dvh]">
+        <AnsweringForm
+          slug={slug}
+          title={view.title}
+          intro={view.intro}
+          questions={view.questions}
+          identityLabel={
+            view.identityMode === 'ANONYMOUS'
+              ? '匿名收集，不记录身份信息'
+              : user
+                ? `已登录：${user.name}`
+                : IDENTITY_MODE_LABEL[view.identityMode].title
+          }
+          channelName={view.channelName}
+          srcToken={query.src ?? null}
+        />
+      </main>
+    );
+  }
 
   return (
     <main className="bg-ink-50 flex min-h-[100dvh] flex-col items-center px-4 py-10">
@@ -39,106 +88,24 @@ export default async function PublicQuestionnairePage({
       ) : null}
 
       <div className="border-ink-200 w-full max-w-[560px] rounded-2xl border bg-white p-7">
-        {view.state === 'COLLECTING' ? <Collecting view={view} /> : <NotCollecting view={view} />}
+        {view.state === 'NOT_FOUND' ? (
+          <div className="text-center">
+            <h1 className="text-ink-900 text-[22px] leading-8 font-semibold">链接无效</h1>
+            <p className="text-ink-500 mt-3 text-[13.5px] leading-6">
+              这个链接可能已经失效，或者问卷已被删除。请向发给你链接的人确认。
+            </p>
+            <Button asChild size="lg" className="mt-8 h-12 w-full">
+              <Link href="/">返回首页</Link>
+            </Button>
+          </div>
+        ) : view.state === 'UNAVAILABLE' ? (
+          <UnavailableState view={view} />
+        ) : view.locked ? (
+          <UnlockCard slug={slug} title={view.title} />
+        ) : (
+          <LoginRequiredCard slug={slug} title={view.title} />
+        )}
       </div>
     </main>
-  );
-}
-
-function NotCollecting({
-  view,
-}: {
-  view: Extract<PublicView, { state: 'NOT_FOUND' | 'DRAFT' | 'NOT_STARTED' | 'PAUSED' | 'CLOSED' }>;
-}) {
-  const message = describeNotCollecting(view);
-
-  return (
-    <div className="text-center">
-      <h1 className="text-ink-900 mb-2 text-[17px] font-semibold">
-        {view.state === 'NOT_FOUND' ? '链接无效' : view.title}
-      </h1>
-      <p className="text-ink-500 text-[13px] leading-6">{message}</p>
-    </div>
-  );
-}
-
-function describeNotCollecting(
-  view: Extract<PublicView, { state: 'NOT_FOUND' | 'DRAFT' | 'NOT_STARTED' | 'PAUSED' | 'CLOSED' }>,
-) {
-  switch (view.state) {
-    case 'NOT_FOUND':
-      return '这个链接可能已经失效，或者问卷已被删除。请向发给你链接的人确认。';
-    case 'DRAFT':
-      return '创建者还没有发布它，请稍后再来。';
-    case 'NOT_STARTED':
-      return view.startsAtLabel
-        ? `回收还没开始，将于 ${view.startsAtLabel} 开放。`
-        : '回收还没开始。';
-    case 'PAUSED':
-      return '创建者暂时关闭了回收，请稍后再试。';
-    case 'CLOSED':
-      // 说清「为什么不能填」—— 达到上限与到期是两件不同的事
-      if (view.closeReason === 'LIMIT_REACHED') return '这份问卷已达到回收上限，感谢参与。';
-      if (view.closeReason === 'SCHEDULED' && view.endsAtLabel) {
-        return `这份问卷已于 ${view.endsAtLabel} 到期，回收自动截止。`;
-      }
-      return '这份问卷已经结束回收，感谢参与。';
-  }
-}
-
-function Collecting({ view }: { view: Extract<PublicView, { state: 'COLLECTING' }> }) {
-  return (
-    <div>
-      <h1 className="text-ink-900 text-[17px] font-semibold">{view.title}</h1>
-      {view.intro ? <p className="text-ink-500 mt-2 text-[13px] leading-6">{view.intro}</p> : null}
-
-      <div className="text-ink-400 mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
-        <span>{IDENTITY_MODE_LABEL[view.identityMode].title}</span>
-        {view.needsPassword ? <span>需要口令</span> : null}
-        {view.channelName ? <span>来自渠道：{view.channelName}</span> : null}
-      </div>
-
-      <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12px] leading-5 text-amber-800">
-        题目预览：<b>作答与提交</b>将在下一轮交付。现在可以先确认题目与文案 ——
-        分享链接与二维码都是真实可用的。
-      </div>
-
-      <ol className="mt-6 space-y-5">
-        {view.questions.map((question, index) => (
-          <li key={question.id}>
-            <div className="flex items-start gap-2">
-              <span className="text-ink-400 mt-0.5 shrink-0 font-mono text-[12px]">
-                {index + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-ink-900 text-[13.5px] font-medium">
-                  {question.title}
-                  {question.required ? <span className="ml-1 text-rose-500">*</span> : null}
-                </div>
-                <div className="text-ink-400 mt-0.5 text-[11.5px]">
-                  {QUESTION_TYPE_LABEL[question.type]}
-                </div>
-                {question.description ? (
-                  <p className="text-ink-500 mt-1 text-[12px] leading-5">{question.description}</p>
-                ) : null}
-
-                {question.options.length > 0 ? (
-                  <ul className="mt-2 space-y-1.5">
-                    {question.options.map((option) => (
-                      <li
-                        key={option}
-                        className="border-ink-200 text-ink-600 rounded-lg border px-3 py-2 text-[12.5px]"
-                      >
-                        {option}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </div>
   );
 }

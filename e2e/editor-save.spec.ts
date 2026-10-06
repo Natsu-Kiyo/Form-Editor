@@ -62,14 +62,21 @@ test.describe('编辑器保存', () => {
 
     await page.getByLabel('问卷标题').fill(TEMPLATE_TITLE);
 
-    // 只改问卷标题：它和题目结构在同一次保存里落库，整条链路
-    //（模板 payload → 草稿 → 保存 → 数据库 → 刷新读回）已经完整走到。
-    // 不改题目标题是因为**在模板创建的问卷里取不到那个输入框**（见计划书遗留），
-    // 这里不为了凑覆盖率把用例变成猜谜。
     await page.getByLabel('问卷标题').fill(TEMPLATE_TITLE);
 
+    // 连题目一起改，整条链路（模板 payload → 草稿 → 保存 → 数据库 → 刷新读回）才是完整的。
+    // 两个坑都在定位上，不是功能问题：
+    // ① 题目标题在**属性面板**里（画布上那张卡只是展示，标题是个 div），要先点卡片选中它；
+    // ② 必须用 `getByRole('textbox')` 而不是 `getByLabel('题目')` —— 后者是子串匹配，
+    //    会先命中面板更上方的「题目类型」下拉触发器（一个不可编辑的 button）。
+    // 名字刻意不带「保存」二字：Playwright 的 `name` 是**子串匹配**，
+    // 而左侧题目列表里那一项的可访问名就是题目标题 —— 叫「保存链路」会让
+    // 后面的 `getByRole('button', { name: '保存' })` 一次命中两个元素
+    await page.getByRole('group', { name: /^第 1 题/ }).click();
+    await page.getByRole('textbox', { name: '题目' }).fill('链路校验-题目一');
+
     // ---- 保存：这一步曾经 500（写版本快照时客户端是旧的）----
-    await page.getByRole('button', { name: '保存' }).click();
+    await page.getByRole('button', { name: '保存', exact: true }).click();
     await expect(page.getByRole('banner').getByText('已保存')).toBeVisible();
 
     // ---- 关键：**刷新**后内容还在 ----
@@ -77,9 +84,8 @@ test.describe('编辑器保存', () => {
     //（事故当时的症状恰恰是「报错但已落库」，所以这里要反过来钉住「成功即已落库」）
     await page.reload();
     await expect(page.getByLabel('问卷标题')).toHaveValue(TEMPLATE_TITLE);
-    // 模板带来的题目也在（不是被存成了空问卷）。不写死条数：
-    // 模板的题目数由种子决定，写死就会在换模板时莫名其妙地红
-    await expect(page.getByRole('group').first()).toBeVisible();
+    // 题目的改动也在：说明模板带来的题目是**整份存回去**的，而不是被存成了空问卷
+    await expect(page.getByRole('group', { name: /^第 1 题：链路校验-题目一/ })).toBeVisible();
 
     // ---- 收尾 ----
     await page.goto('/app');
