@@ -113,7 +113,9 @@ export function QuestionCard({
             {...attributes}
             {...listeners}
             aria-label={`拖动第 ${index + 1} 题`}
-            className="text-ink-300 hover:text-ink-500 -ml-1 shrink-0 cursor-grab pt-1 transition-colors duration-150 active:cursor-grabbing"
+            // `touch-none` 是触摸端能拖的前提：否则浏览器会把这次手势当成滚动，
+            // dnd-kit 收不到移动事件（表现就是「长按也没反应」）
+            className="text-ink-300 hover:text-ink-500 -ml-1 shrink-0 cursor-grab touch-none pt-1 transition-colors duration-150 active:cursor-grabbing"
           >
             <GripIcon className="size-3.5" />
           </button>
@@ -150,11 +152,16 @@ export function QuestionCard({
               </div>
             </div>
 
+            {/* 窄屏：`›` 是「点开属性弹层」的提示（P08-a）；桌面没有它，因为右栏一直visible */}
+            <span className="text-ink-300 mt-0.5 shrink-0 text-[15px] lg:hidden" aria-hidden="true">
+              ›
+            </span>
+
             <button
               type="button"
               disabled
               title={`评论 @提及属 ${UPCOMING_BADGE.V20} 规划，本版本不开放`}
-              className="text-ink-300 -mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md disabled:cursor-not-allowed"
+              className="text-ink-300 -mt-0.5 hidden size-6 shrink-0 items-center justify-center rounded-md disabled:cursor-not-allowed lg:flex"
             >
               <CommentIcon className="size-3.5" />
             </button>

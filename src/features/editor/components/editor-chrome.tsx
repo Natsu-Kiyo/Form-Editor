@@ -11,6 +11,9 @@ import type { VersionRow } from '../api/versions';
 import { VersionDrawer } from './version-drawer';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalContent } from '@/components/ui/modal';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import type { PublishPageData } from '@/features/publish/api/publish';
+import { PublishSettings } from '@/features/publish/components/publish-settings';
 import { useUnsavedGuard } from '@/hooks/use-unsaved-guard';
 import { cn } from '@/utils/cn';
 
@@ -29,16 +32,23 @@ import { EditorPreviewDialog } from './editor-preview-dialog';
 export function EditorChrome({
   readOnlyReason,
   versions,
+  publishData,
+  canPublish,
 }: {
   readOnlyReason: EditorReadOnlyReason;
   versions: VersionRow[];
+  /** 窄屏「发布」弹层要用的数据（页面取好传进来，避免这一层去碰 publish 的 api） */
+  publishData: PublishPageData | null;
+  canPublish: boolean;
 }) {
-  const isDesktop = useIsDesktop();
+  // 断点写 1024：与 workspace 那边一致（`useIsDesktop` 默认 768 会让 768~1023 档错位）
+  const isDesktop = useIsDesktop('(min-width: 1024px)');
   const { questionnaireId, title, dirty, state, errorMessage, setTitle, save, discard } =
     useEditorDraft();
   const { isLeaving, isBackNavigation, cancelLeave, leave } = useUnsavedGuard(dirty);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [publishSheetOpen, setPublishSheetOpen] = useState(false);
 
   const readOnly = readOnlyReason !== null;
 
@@ -70,10 +80,16 @@ export function EditorChrome({
         </>
       ) : null}
 
-      {/* 预览：只读示意，两端都有（连只读状态也能看 —— 它本来就不改任何东西） */}
-      <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
-        预览
-      </Button>
+      {/*
+        预览：只读示意。**只在桌面出现在顶栏** —— 窄屏它在底部操作条里（P08-a 的
+        左侧眼睛按钮），两处都放就会有两个同名按钮，屏幕阅读器与自动化都分不清。
+        连只读状态也能看：它本来就不改任何东西。
+      */}
+      {isDesktop ? (
+        <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
+          预览
+        </Button>
+      ) : null}
 
       {/* 版本历史按 1.0 的范围只在桌面端出现（计划书 §3 的 C 级清单）：
           窄屏用 useIsDesktop **真不渲染**，不是 CSS 藏起来 */}
@@ -81,13 +97,37 @@ export function EditorChrome({
         <VersionDrawer questionnaireId={questionnaireId} versions={versions} readOnly={readOnly} />
       ) : null}
 
-      {/* 发布设置有两个入口（设计稿要求）：这条与问卷内的「发布设置」Tab */}
-      <Link
-        href={`/app/q/${questionnaireId}/publish`}
-        className="border-ink-200 text-ink-600 hover:border-ink-300 flex h-9 shrink-0 items-center rounded-[10px] border bg-white px-3.5 text-[13px] font-medium transition-colors duration-150"
-      >
-        {readOnlyReason === 'FROZEN' ? '发布设置' : '发布'}
-      </Link>
+      {/*
+        发布设置有两个入口（设计稿要求）：这条与问卷内的「发布设置」Tab。
+        **窄屏是 P08-d 的底部弹层**（不再跳去一个独立页面 —— 那个页面在 375px 下
+        曾经被挤成一条竖排的标签），桌面仍去独立页面（那里有空间铺开）。
+      */}
+      {isDesktop || !publishData ? (
+        <Link
+          href={`/app/q/${questionnaireId}/publish`}
+          className="border-ink-200 text-ink-600 hover:border-ink-300 flex h-9 shrink-0 items-center rounded-[10px] border bg-white px-3.5 text-[13px] font-medium transition-colors duration-150"
+        >
+          {readOnlyReason === 'FROZEN' ? '发布设置' : '发布'}
+        </Link>
+      ) : (
+        <Sheet open={publishSheetOpen} onOpenChange={setPublishSheetOpen}>
+          <SheetTrigger asChild>
+            <Button size="sm" className="shrink-0">
+              发布
+            </Button>
+          </SheetTrigger>
+          <SheetContent
+            title="发布设置"
+            description="与桌面端是同一组字段"
+            className="max-h-[88vh]"
+          >
+            {/* 同一块组件、同一份字段，只是壳换成弹层（见 PublishSettings 的 variant） */}
+            <div className="-mx-1">
+              <PublishSettings data={publishData} canEdit={canPublish} variant="sheet" />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
 
       <EditorPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} />
 

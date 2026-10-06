@@ -5,6 +5,7 @@ import { listVersions } from '@/features/editor/api/versions';
 import { EditorChrome } from '@/features/editor/components/editor-chrome';
 import { EditorDraftProvider } from '@/features/editor/components/editor-draft';
 import { EditorWorkspace } from '@/features/editor/components/editor-workspace';
+import { getPublishPageData } from '@/features/publish/api/publish';
 import { hasAtLeastRole } from '@/lib/auth/permissions';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 
@@ -23,10 +24,12 @@ export default async function EditQuestionnairePage({
 }) {
   const { id } = await params;
 
-  const [{ role }, editor, versions] = await Promise.all([
+  const [{ role }, editor, versions, publishData] = await Promise.all([
     requireQuestionnaireAccess(id, 'VIEWER'),
     getEditorQuestionnaire(id),
     listVersions(id),
+    // 窄屏的「发布」要开 P08-d 弹层，所以这份数据在这一页就取好（与其它三项并行，不额外加一次往返）
+    getPublishPageData(id),
   ]);
 
   if (!editor) {
@@ -50,7 +53,12 @@ export default async function EditQuestionnairePage({
       initialQuestions={editor.questions}
       readOnly={readOnlyReason !== null}
     >
-      <EditorChrome readOnlyReason={readOnlyReason} versions={versions} />
+      <EditorChrome
+        readOnlyReason={readOnlyReason}
+        versions={versions}
+        publishData={publishData}
+        canPublish={hasAtLeastRole(role, 'EDITOR')}
+      />
       {readOnlyReason ? <ReadOnlyBanner reason={readOnlyReason} /> : null}
       <EditorWorkspace readOnly={readOnlyReason !== null} />
     </EditorDraftProvider>

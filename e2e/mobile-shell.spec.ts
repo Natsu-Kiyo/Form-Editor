@@ -214,6 +214,17 @@ test.describe('移动外壳', () => {
     await page.getByRole('button', { name: '预览', exact: true }).click();
     const preview = page.getByRole('dialog');
     await expect(preview.getByText(/按当前草稿渲染/)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // ---- P08-d 发布设置：窄屏是**弹层**，字段与桌面是同一块组件 ----
+    await page.getByRole('button', { name: '发布', exact: true }).click();
+    const publishSheet = page.getByRole('dialog');
+    await expect(publishSheet.getByRole('heading', { name: '发布设置' })).toBeVisible();
+    // 用 exact：发布前检查里那句「未设置回收时间…」是**子串命中**，不精确会撞出两个
+    await expect(publishSheet.getByText('回收时间', { exact: true })).toBeVisible();
+    await expect(publishSheet.getByText('回收份数上限', { exact: true })).toBeVisible();
+    await expect(publishSheet.getByText('作答身份', { exact: true })).toBeVisible();
+    await expect(publishSheet.getByRole('button', { name: /保存并发布|保存设置/ })).toBeVisible();
   });
 
   test('P07 模板页：卡片按钮常显，「⋯」不在窄屏', async ({ page }, testInfo) => {

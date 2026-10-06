@@ -36,7 +36,21 @@ import { runPreflight, type PreflightTone } from '../lib/preflight';
  * 右边清单立刻跟着变。服务端发布时用同一份规则再拦一次 ——
  * 界面只是提前把问题显示出来，最终拦截在服务端。
  */
-export function PublishSettings({ data, canEdit }: { data: PublishPageData; canEdit: boolean }) {
+export function PublishSettings({
+  data,
+  canEdit,
+  /**
+   * `page`：独立页面（自带顶栏与滚动容器）
+   * `sheet`：装进 P08-d 的底部弹层 —— **字段与顺序完全同一份**，只是壳不同。
+   * 这正是「不发明新交互，只做形态转换」：不另写一套移动端表单，
+   * 所以不可能出现「桌面上能设的、手机上设不了」。
+   */
+  variant = 'page',
+}: {
+  data: PublishPageData;
+  canEdit: boolean;
+  variant?: 'page' | 'sheet';
+}) {
   const [startsAt, setStartsAt] = useState(data.startsAt);
   const [endsAt, setEndsAt] = useState(data.endsAt);
   const [responseLimit, setResponseLimit] = useState(data.responseLimit);
@@ -84,6 +98,140 @@ export function PublishSettings({ data, canEdit }: { data: PublishPageData; canE
     });
   };
 
+  const submitButton = canEdit ? (
+    <Button type="button" disabled={pending || (isDraft && !preflight.canPublish)} onClick={submit}>
+      {isDraft ? '保存并发布' : '保存设置'}
+    </Button>
+  ) : null;
+
+  /*
+   * 版面本体。**窄屏纵向堆叠**是必须的：原来是 `flex` 横排 + `aside w-[300px] shrink-0`，
+   * 375px 下主列会被挤到几十像素宽，标签只能一个字一行 —— 那正是发布设置在手机上
+   * 「必须修改」的那个样子。
+   */
+  const body = (
+    <div className="mx-auto flex w-full max-w-[1020px] flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
+      <div className="min-w-0 flex-1 space-y-5">
+        {message ? <Alert tone={message.tone} text={message.text} /> : null}
+
+        <SettingCard
+          icon={<CalendarIcon className="size-4" />}
+          title="回收时间"
+          hint="不设置则长期开放，直到你手动截止。"
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <DateTimeField
+              id="starts-at"
+              label="开始时间"
+              value={startsAt}
+              disabled={!canEdit}
+              onChange={setStartsAt}
+            />
+            <DateTimeField
+              id="ends-at"
+              label="结束时间"
+              value={endsAt}
+              disabled={!canEdit}
+              onChange={setEndsAt}
+            />
+          </div>
+
+          {/* 设计稿这里是一个勾选框。做成勾选框就得回答「不勾的时候结束时间算什么」，
+                  而两种答案都别扭：存了不生效是骗人，清空则丢掉用户刚填的东西。
+                  结束时间的后果本来就只有一种，所以改成一句说明。 */}
+          <p className="text-ink-500 mt-4 text-[12.5px] leading-5">
+            到结束时间会自动截止回收、作答链接失效；两项都留空则长期开放，直到你手动截止。
+          </p>
+        </SettingCard>
+
+        <SettingCard
+          icon={<ClockIcon className="size-4" />}
+          title="回收份数上限"
+          hint="达到上限后自动截止，避免超收。留空表示不限制。"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex w-40 items-center">
+              <Input
+                type="number"
+                min={1}
+                aria-label="回收份数上限"
+                placeholder="不限制"
+                value={responseLimit}
+                disabled={!canEdit}
+                onChange={(event) => setResponseLimit(event.target.value)}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="mb-1.5 flex items-center justify-between text-[11.5px]">
+                <span className="text-ink-500">当前已回收 {data.responseCount} 份</span>
+                <span className="text-ink-500 font-mono">
+                  {limitRatio(responseLimit, data.responseCount)}
+                </span>
+              </div>
+              <ProgressBar ratio={limitRatioValue(responseLimit, data.responseCount)} />
+            </div>
+          </div>
+        </SettingCard>
+
+        <SettingCard
+          icon={<UserIcon className="size-4" />}
+          title="作答身份"
+          hint="决定谁能填写、以及是否需要登录。"
+        >
+          <RadioGroup
+            value={identityMode}
+            onValueChange={(next) => setIdentityMode(next as IdentityMode)}
+            disabled={!canEdit}
+            className="space-y-2.5"
+            aria-label="作答身份"
+          >
+            {(Object.keys(IDENTITY_MODE_LABEL) as IdentityMode[]).map((mode) => (
+              <RadioCard
+                key={mode}
+                value={mode}
+                title={IDENTITY_MODE_LABEL[mode].title}
+                description={IDENTITY_MODE_LABEL[mode].description}
+                badge={mode === 'ANONYMOUS' ? <RadioCardBadge>推荐</RadioCardBadge> : undefined}
+              />
+            ))}
+          </RadioGroup>
+
+          {identityMode === 'PASSWORD' ? (
+            <div className="mt-4">
+              <Label htmlFor="access-password">访问口令</Label>
+              <Input
+                id="access-password"
+                type="password"
+                autoComplete="new-password"
+                placeholder={data.hasPassword ? '留空则沿用上次设置的口令' : '至少 4 位'}
+                value={password}
+                disabled={!canEdit}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </div>
+          ) : null}
+        </SettingCard>
+        {/* 弹层里顶栏不存在，保存按钮就跟着内容走（桌面页面里它在顶栏） */}
+        {variant === 'sheet' && submitButton ? (
+          <div className="pt-1 pb-2">{submitButton}</div>
+        ) : null}
+      </div>
+
+      <aside className="space-y-4 lg:w-[300px] lg:shrink-0">
+        <PreflightCard preflight={preflight} />
+
+        <div className="bg-brand-50 border-brand-200 rounded-xl border p-4 lg:p-5">
+          <div className="text-brand-800 mb-2 text-[12.5px] font-semibold">发布即冻结结构</div>
+          <p className="text-brand-700 text-[12px] leading-5">
+            发布后题目结构不可再修改，如需调整请复制为新问卷。这是为了保证历史答卷与统计口径的一致性。
+          </p>
+        </div>
+      </aside>
+    </div>
+  );
+
+  if (variant === 'sheet') return body;
+
   return (
     <>
       <QuestionnaireTopbar
@@ -92,134 +240,10 @@ export function PublishSettings({ data, canEdit }: { data: PublishPageData; canE
         }
       >
         {!isDraft ? <StatusPill data={data} /> : null}
-
-        {canEdit ? (
-          <Button
-            type="button"
-            disabled={pending || (isDraft && !preflight.canPublish)}
-            onClick={submit}
-          >
-            {isDraft ? '保存并发布' : '保存设置'}
-          </Button>
-        ) : null}
+        {submitButton}
       </QuestionnaireTopbar>
 
-      <main className="flex-1 overflow-y-auto p-7">
-        <div className="mx-auto flex max-w-[1020px] items-start gap-6">
-          <div className="min-w-0 flex-1 space-y-5">
-            {message ? <Alert tone={message.tone} text={message.text} /> : null}
-
-            <SettingCard
-              icon={<CalendarIcon className="size-4" />}
-              title="回收时间"
-              hint="不设置则长期开放，直到你手动截止。"
-            >
-              <div className="grid grid-cols-2 gap-4">
-                <DateTimeField
-                  id="starts-at"
-                  label="开始时间"
-                  value={startsAt}
-                  disabled={!canEdit}
-                  onChange={setStartsAt}
-                />
-                <DateTimeField
-                  id="ends-at"
-                  label="结束时间"
-                  value={endsAt}
-                  disabled={!canEdit}
-                  onChange={setEndsAt}
-                />
-              </div>
-
-              {/* 设计稿这里是一个勾选框。做成勾选框就得回答「不勾的时候结束时间算什么」，
-                  而两种答案都别扭：存了不生效是骗人，清空则丢掉用户刚填的东西。
-                  结束时间的后果本来就只有一种，所以改成一句说明。 */}
-              <p className="text-ink-500 mt-4 text-[12.5px] leading-5">
-                到结束时间会自动截止回收、作答链接失效；两项都留空则长期开放，直到你手动截止。
-              </p>
-            </SettingCard>
-
-            <SettingCard
-              icon={<ClockIcon className="size-4" />}
-              title="回收份数上限"
-              hint="达到上限后自动截止，避免超收。留空表示不限制。"
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex w-40 items-center">
-                  <Input
-                    type="number"
-                    min={1}
-                    aria-label="回收份数上限"
-                    placeholder="不限制"
-                    value={responseLimit}
-                    disabled={!canEdit}
-                    onChange={(event) => setResponseLimit(event.target.value)}
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1.5 flex items-center justify-between text-[11.5px]">
-                    <span className="text-ink-500">当前已回收 {data.responseCount} 份</span>
-                    <span className="text-ink-500 font-mono">
-                      {limitRatio(responseLimit, data.responseCount)}
-                    </span>
-                  </div>
-                  <ProgressBar ratio={limitRatioValue(responseLimit, data.responseCount)} />
-                </div>
-              </div>
-            </SettingCard>
-
-            <SettingCard
-              icon={<UserIcon className="size-4" />}
-              title="作答身份"
-              hint="决定谁能填写、以及是否需要登录。"
-            >
-              <RadioGroup
-                value={identityMode}
-                onValueChange={(next) => setIdentityMode(next as IdentityMode)}
-                disabled={!canEdit}
-                className="space-y-2.5"
-                aria-label="作答身份"
-              >
-                {(Object.keys(IDENTITY_MODE_LABEL) as IdentityMode[]).map((mode) => (
-                  <RadioCard
-                    key={mode}
-                    value={mode}
-                    title={IDENTITY_MODE_LABEL[mode].title}
-                    description={IDENTITY_MODE_LABEL[mode].description}
-                    badge={mode === 'ANONYMOUS' ? <RadioCardBadge>推荐</RadioCardBadge> : undefined}
-                  />
-                ))}
-              </RadioGroup>
-
-              {identityMode === 'PASSWORD' ? (
-                <div className="mt-4">
-                  <Label htmlFor="access-password">访问口令</Label>
-                  <Input
-                    id="access-password"
-                    type="password"
-                    autoComplete="new-password"
-                    placeholder={data.hasPassword ? '留空则沿用上次设置的口令' : '至少 4 位'}
-                    value={password}
-                    disabled={!canEdit}
-                    onChange={(event) => setPassword(event.target.value)}
-                  />
-                </div>
-              ) : null}
-            </SettingCard>
-          </div>
-
-          <aside className="w-[300px] shrink-0 space-y-4">
-            <PreflightCard preflight={preflight} />
-
-            <div className="bg-brand-50 border-brand-200 rounded-xl border p-5">
-              <div className="text-brand-800 mb-2 text-[12.5px] font-semibold">发布即冻结结构</div>
-              <p className="text-brand-700 text-[12px] leading-5">
-                发布后题目结构不可再修改，如需调整请复制为新问卷。这是为了保证历史答卷与统计口径的一致性。
-              </p>
-            </div>
-          </aside>
-        </div>
-      </main>
+      <main className="flex-1 overflow-y-auto p-5 lg:p-7">{body}</main>
     </>
   );
 }

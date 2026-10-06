@@ -4,6 +4,7 @@ import {
   DndContext,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   closestCorners,
   useSensor,
   useSensors,
@@ -21,8 +22,10 @@ import { FileTextIcon, PlusIcon } from '@/components/icons/ui-icons';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
+import { cn } from '@/utils/cn';
 
 import { useEditorDraft } from './editor-draft';
+import { EditorPreviewDialog } from './editor-preview-dialog';
 import { EditorLeftPanel } from './editor-left-panel';
 import { PropertyPanel } from './property-panel';
 import { QuestionCard } from './question-card';
@@ -44,11 +47,18 @@ export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
   const isDesktop = useIsDesktop('(min-width: 1024px)');
   const [typeSheetOpen, setTypeSheetOpen] = useState(false);
   const [propertySheetOpen, setPropertySheetOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const sensors = useSensors(
     // distance 约束：手柄上的一次「点击」不该被当成拖拽
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    /*
+     * 触摸端**长按才拖**（设计稿 P08-a 原话：「左侧点阵手柄是长按拖拽排序」）。
+     * 没有它时指针传感器在手机上会先被页面滚动吃掉，表现就是「题目拖不动」。
+     * 手柄上还配了 `touch-none`（见 question-card），两者缺一不可。
+     */
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
 
   const onDragEnd = (event: DragEndEvent) => {
@@ -78,7 +88,8 @@ export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
   };
 
   return (
-    <div className="flex min-h-0 flex-1">
+    // 桌面是三栏（横排）；窄屏是「画布 + 底部操作条」的纵向两段
+    <div className={cn('flex min-h-0 flex-1', !isDesktop && 'flex-col')}>
       {isDesktop ? (
         <EditorLeftPanel
           questions={questions}
@@ -165,16 +176,46 @@ export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
       */}
       {isDesktop ? null : (
         <>
-          {!readOnly ? (
+          {/*
+            底部操作条（P08-a）：左边「预览」、右边「＋ 添加题目」。
+            原来是右下角一个圆形悬浮钮 —— 设计稿给的是一条**常驻底栏**，
+            拇指够得着，也不会挡住最后一题。
+          */}
+          <div className="border-ink-100 flex shrink-0 items-center gap-2 border-t bg-white px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             <button
               type="button"
-              aria-label="添加题目"
-              onClick={() => setTypeSheetOpen(true)}
-              className="bg-brand-500 shadow-fab fixed right-5 bottom-6 z-30 flex size-[52px] items-center justify-center rounded-full text-white"
+              aria-label="预览"
+              onClick={() => setPreviewOpen(true)}
+              className="border-ink-200 text-ink-500 flex h-11 w-[54px] shrink-0 items-center justify-center rounded-[14px] border"
             >
-              <PlusIcon className="size-5" strokeWidth={2.6} />
+              <svg
+                viewBox="0 0 24 24"
+                className="size-[18px]"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.9}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
             </button>
-          ) : null}
+
+            {!readOnly ? (
+              <button
+                type="button"
+                onClick={() => setTypeSheetOpen(true)}
+                className="bg-brand-500 flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[14px] text-[14px] font-semibold text-white"
+              >
+                <PlusIcon className="size-4" strokeWidth={2.6} />
+                添加题目
+              </button>
+            ) : null}
+          </div>
+
+          <EditorPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} />
 
           <Sheet open={typeSheetOpen} onOpenChange={setTypeSheetOpen}>
             <SheetContent title="题型" description="点一个题型，它就加到画布末尾">
