@@ -22,7 +22,13 @@ async function signIn(page: Page) {
 }
 
 test.describe('外壳版式与根路由', () => {
-  test('侧栏高亮只认当前页：进子页面时「问卷列表」不再亮着', async ({ page }, testInfo) => {
+  /*
+   * 「问卷列表」会在两种地方亮：工作台本身 `/app`，以及问卷的**工作区** `/app/q/**`
+   * （编辑 / 发布设置 / 分享 / 数据 / 答卷）—— 后者由 `NAV_ITEMS` 的 `matchPrefixes`
+   * 逐条登记，**不是**前缀匹配（`/app` 一旦按前缀匹配，模板中心、我的、成员页全会跟着亮）。
+   * 这条用例验的是另一半：**不相关的子页面不许亮**。
+   */
+  test('侧栏高亮不越界：进模板中心 / 我的时「问卷列表」不再亮着', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', '侧栏是桌面形态；窄屏见 mobile-shell.spec');
 
     await signIn(page);

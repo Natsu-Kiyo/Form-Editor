@@ -19,8 +19,19 @@ import { formatDisplayDate } from '@/utils/format';
  * 在那之前画出来就是「点了 404」的假入口，宁可先少几项。
  */
 const NAV_ITEMS: SidebarNavItem[] = [
-  // `exact`：`/app` 是所有管理台页面的前缀，按前缀匹配会让它在下属页面上一直亮着
-  { href: '/app', label: '问卷列表', icon: <FileTextIcon />, exact: true },
+  /*
+   * `exact`：`/app` 是所有管理台页面的前缀，按前缀匹配会让它在下属页面上一直亮着。
+   * `matchPrefixes`：但问卷的**工作区**（`/app/q/**` —— 编辑 / 发布设置 / 分享 / 数据 /
+   * 答卷）得算在它名下。只写 `exact` 的话，一进编辑器侧栏一个亮着的项都没有，
+   * 看上去像导航坏了（用户实测报过）。
+   */
+  {
+    href: '/app',
+    label: '问卷列表',
+    icon: <FileTextIcon />,
+    exact: true,
+    matchPrefixes: ['/app/q'],
+  },
   // 模板中心两端都有（移动端是底部导航三格之一，见 P07），所以不加 desktopOnly
   { href: '/app/templates', label: '模板中心', icon: <GridIcon /> },
   // 设计稿标了移动端隐藏，窄屏抽屉里不出现这两项（见 `SidebarNavItem.desktopOnly`）
