@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react';
 
-import { AlertCircleIcon } from '@/components/icons/ui-icons';
+import { AlertTriangleIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalContent } from '@/components/ui/modal';
 
@@ -31,10 +31,15 @@ export function DeleteQuestionnaireDialog({
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      {/* 危险操作对话框的标题画在正文里（设计稿如此），所以头部标题视觉隐藏，仅保留给读屏 */}
-      <ModalContent title="确定删除这份问卷？" hideTitle width="sm">
+      {/*
+        危险操作对话框的标题画在正文里（设计稿如此），所以头部标题视觉隐藏，仅保留给读屏。
+        `p-6` 补在这层：`hideTitle` 分支里的正文容器本身没有内边距，不补的话图标会顶着
+        弹窗左上角（设计稿那张卡是 `p-6`）。
+      */}
+      <ModalContent title="确定删除这份问卷？" hideTitle width="sm" className="p-6">
+        {/* 三角告警而不是圆形：设计稿的危险确认样本用的是三角 */}
         <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-rose-50">
-          <AlertCircleIcon className="size-5 text-rose-500" />
+          <AlertTriangleIcon className="size-5 text-rose-500" />
         </div>
 
         <h3 className="text-ink-900 mb-2 text-[16px] font-semibold">确定删除这份问卷？</h3>

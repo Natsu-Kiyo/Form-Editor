@@ -183,6 +183,22 @@ export function AlertCircleIcon(props: IconProps) {
   );
 }
 
+/**
+ * 三角告警（`alert-triangle`）。
+ *
+ * 危险操作确认弹窗用的是**这一个**，不是上面的圆形告警 —— 设计稿的
+ * 「二次确认对话框」样本（覆盖删除问卷 / 移除成员 / 撤回邀请 / 删除模板）
+ * 里画的就是三角。之前这里只有圆形，于是那些弹窗都拿了圆形的凑合。
+ */
+export function AlertTriangleIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" />
+      <path d="M12 9v4M12 17h.01" />
+    </Icon>
+  );
+}
+
 export function InfoIcon(props: IconProps) {
   return (
     <Icon {...props}>

@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState, useTransition } from 'react';
 
-import { DotsIcon, TrashIcon } from '@/components/icons/ui-icons';
+import { AlertTriangleIcon, DotsIcon, TrashIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -154,19 +154,31 @@ function DeleteTemplateDialog({
 
   return (
     <Modal open onOpenChange={(next) => !next && onClose()}>
-      <ModalContent title="删除模板" description={`确定删除「${title}」吗？`} width="sm">
-        <p className="text-ink-500 text-[12.5px] leading-6">
-          删除后模板库里不再有它。
-          <b className="text-ink-700 font-medium">用它创建过的问卷不受影响</b>
-          —— 那些问卷是独立的一份，与模板再无关系。
+      {/* 与另外三处危险确认同一套卡（设计稿把它们收在一个样本里） */}
+      <ModalContent title="确定删除这个模板？" hideTitle width="sm" className="p-6">
+        <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-rose-50">
+          <AlertTriangleIcon className="size-5 text-rose-500" />
+        </div>
+
+        <h3 className="text-ink-900 mb-2 text-[16px] font-semibold">确定删除这个模板？</h3>
+        <p className="text-ink-500 mb-5 text-[12.5px] leading-5">
+          「{title}」将从模板库中删除，此操作不可撤销。
         </p>
 
-        <div className="mt-5 flex gap-2.5">
+        <div className="bg-ink-50 border-ink-100 mb-5 rounded-[10px] border p-3">
+          <div className="text-ink-500 text-[11.5px] leading-5">
+            <b className="text-ink-700 font-medium">用它创建过的问卷不受影响</b>
+            —— 那些问卷是独立的一份，与模板再无关系。
+          </div>
+        </div>
+
+        <div className="flex gap-2.5">
           <Button variant="outline" className="flex-1" onClick={onClose}>
             取消
           </Button>
           <Button
-            className="flex-1 bg-rose-600 hover:bg-rose-700"
+            variant="danger"
+            className="flex-1"
             disabled={pending}
             onClick={() =>
               startTransition(async () => {

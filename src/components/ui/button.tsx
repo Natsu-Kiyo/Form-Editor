@@ -30,7 +30,14 @@ const buttonVariants = cva(
         outline: 'border border-ink-200 bg-white text-ink-700 hover:border-ink-300 hover:bg-ink-50',
         /** 纯文字，用于「取消」 */
         ghost: 'text-ink-600 hover:bg-ink-100',
-        danger: 'border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100',
+        /**
+         * 危险动作（删除 / 移除 / 撤回 / 截止 / 放弃修改）。
+         *
+         * **实心 rose-500 + 白字**，与设计稿的危险确认样本一致（`bg-rose-500 text-white`）。
+         * 原先写的是浅底描边（rose-50 + rose-600 文字），设计稿里没有这个样式 ——
+         * 那个样子看起来像「次要按钮」，而这类动作恰恰是最需要一眼看出不可撤销的。
+         */
+        danger: 'bg-rose-500 text-white hover:bg-rose-600',
       },
       size: {
         sm: 'h-8 rounded-lg px-3.5 text-label',

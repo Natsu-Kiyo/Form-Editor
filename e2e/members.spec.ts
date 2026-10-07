@@ -173,4 +173,85 @@ test.describe('成员与权限', () => {
     // 卡片标题也按角色换：查看者没有「可编辑问卷」这回事
     await expect(page.getByText('可查看问卷')).toBeVisible();
   });
+
+  test('撤回邀请：要二次确认，确认后那条链接立刻打不开', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '要写数据库，只在一个 project 跑');
+    test.setTimeout(180_000);
+
+    const invitedEmail = `e2e.revoke.${Date.now()}@example.com`;
+
+    /*
+     * 先给这个邮箱注册好账号。
+     *
+     * 撤回本身在界面上「看起来」已经是成功的（那一行消失），但**链接是否真的失效**只有
+     * 用受邀人本人去开一次才验得出来 —— 拿别人的账号去开，都会因为「邮箱不符」404，
+     * 那样测不出撤回有没生效。
+     */
+    await page.goto('/register');
+    await page.getByLabel('姓名', { exact: true }).fill('E2E 待撤回');
+    await page.getByLabel('邮箱', { exact: true }).fill(invitedEmail);
+    await page.getByLabel('设置密码', { exact: true }).fill('demo1234');
+    await page.getByLabel('确认密码', { exact: true }).fill('demo1234');
+    await page.getByRole('button', { name: '创建账号' }).click();
+    await expect(page).not.toHaveURL(/\/register$/);
+
+    // ---- 所有者生成那条邀请 ----
+    await page.getByRole('button', { name: '账号菜单' }).click();
+    await page.getByRole('menuitem', { name: '退出登录' }).click();
+    await signIn(page, DEMO_ACCOUNTS.owner);
+    await openMembers(page);
+
+    await page.getByRole('button', { name: '邀请成员' }).click();
+    await page.getByLabel('邮箱').fill(invitedEmail);
+    await page.getByRole('button', { name: '生成邀请链接' }).click();
+
+    const link = page.getByText(/\/invite\/[\w-]+/);
+    await expect(link).toBeVisible();
+    const invitePath = new URL((await link.textContent()) ?? '').pathname;
+    await page.getByRole('button', { name: '完成' }).click();
+
+    // 列表里那一条（`<li>` —— 按邮箱定位，避免命中别的邀请）
+    const invitation = page.getByRole('listitem').filter({ hasText: invitedEmail });
+    const revokeButton = invitation.getByRole('button', { name: '撤回' });
+
+    // ---- 点「撤回」：先出确认层 ----
+    await revokeButton.click();
+    await expect(page.getByRole('heading', { level: 3, name: '确定撤回这个邀请？' })).toBeVisible();
+
+    /*
+     * ---- 取消 → 一切照旧 ----
+     *
+     * 断言放在**关闭之后**：弹层开着时 Radix 会把背景整块设为 `aria-hidden`，
+     * 按角色（`listitem`）是找不到背景元素的 —— 那是它的正确行为，不是缺陷。
+     */
+    await page.getByRole('button', { name: '取消' }).click();
+    await expect(page.getByRole('heading', { level: 3, name: '确定撤回这个邀请？' })).toHaveCount(
+      0,
+    );
+    await expect(invitation).toBeVisible();
+
+    // ---- 再来一次，这回确认 ----
+    await revokeButton.click();
+    await page.getByRole('button', { name: '确认撤回' }).click();
+    await expect(page.getByRole('listitem').filter({ hasText: invitedEmail })).toHaveCount(0);
+
+    // ---- 换回那位受邀人：他手里那条链接现在应当打不开 ----
+    await page.getByRole('button', { name: '账号菜单' }).click();
+    await page.getByRole('menuitem', { name: '退出登录' }).click();
+
+    // 不用 `signIn` helper：这位用户还没有工作区，登录后不一定落在 /app
+    await page.getByLabel('邮箱', { exact: true }).fill(invitedEmail);
+    await page.getByLabel('密码', { exact: true }).fill('demo1234');
+    await page.getByRole('button', { name: '登录' }).click();
+    await expect(page).not.toHaveURL(/\/login$/);
+
+    await page.goto(invitePath);
+    /*
+     * 这里说的是「已撤回、不能接受」，**不是**「这个地址打不开」——
+     * 后者是「邮箱不符」那条 404 的文案（G6）。拿它来断言，会验不出撤回有没有生效：
+     * 换成任何一个不是受邀邮箱的账号来开，都会看到那句话。
+     */
+    await expect(page.getByText(/这份邀请的状态是「已撤回」/)).toBeVisible();
+    await expect(page.getByRole('button', { name: /接受邀请/ })).toHaveCount(0);
+  });
 });

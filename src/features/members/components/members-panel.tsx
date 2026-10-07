@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 
-import { MailIcon, UsersIcon } from '@/components/icons/ui-icons';
+import { AlertTriangleIcon, MailIcon, UsersIcon } from '@/components/icons/ui-icons';
 import { Topbar } from '@/components/layout/topbar';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,8 @@ export function MembersPanel({
 }) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
+  // 待撤回的邀请。与 `removing` 同形：**先记下目标、弹层确认后才动它**
+  const [revoking, setRevoking] = useState<{ id: string; email: string } | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -52,14 +54,6 @@ export function MembersPanel({
     setPendingId(membershipId);
     startTransition(async () => {
       await changeMemberRoleAction(membershipId, role);
-      setPendingId(null);
-    });
-  };
-
-  const revoke = (invitationId: string) => {
-    setPendingId(invitationId);
-    startTransition(async () => {
-      await revokeInvitationAction(invitationId);
       setPendingId(null);
     });
   };
@@ -195,9 +189,15 @@ export function MembersPanel({
             {data.invitations.length === 0 ? (
               <p className="text-ink-400 px-6 py-6 text-[12.5px]">没有等待接受的邀请。</p>
             ) : (
-              <div className="divide-ink-100 divide-y">
+              <ul role="list" className="divide-ink-100 divide-y">
+                {/*
+                  用 `<ul>` / `<li>`：邀请本来就是一份列表，也让「一条邀请」可按角色定位。
+                  `role="list"` 不能省：Tailwind 的 preflight 把 `ul` 的 list-style 去掉了，
+                  而 Chrome / Safari 遇到 `list-style: none` 会**连列表语义一起丢掉**
+                  （读屏与 `getByRole('listitem')` 都会看不到它）。
+                */}
                 {data.invitations.map((invitation) => (
-                  <div
+                  <li
                     key={invitation.id}
                     className="flex flex-wrap items-center justify-between gap-3 px-6 py-4"
                   >
@@ -221,16 +221,19 @@ export function MembersPanel({
                         <button
                           type="button"
                           disabled={pendingId === invitation.id}
-                          onClick={() => revoke(invitation.id)}
+                          // 撤回也不再有直接动作：先记下目标，弹层确认后才真的撤回
+                          onClick={() =>
+                            setRevoking({ id: invitation.id, email: invitation.email })
+                          }
                           className="text-ink-500 text-[12.5px] transition-colors duration-150 hover:text-rose-600 disabled:opacity-45"
                         >
                           {pendingId === invitation.id ? '撤回中…' : '撤回'}
                         </button>
                       ) : null}
                     </div>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
 
@@ -241,23 +244,32 @@ export function MembersPanel({
 
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
 
+      {/* 危险确认走设计稿那一套卡（三角告警 + 标题 + 说明 + 浅灰提示块 + 两枚等宽按钮） */}
       <Modal open={removing !== null} onOpenChange={(next) => !next && setRemoving(null)}>
-        <ModalContent
-          title="移除成员"
-          description={`确定把「${removing?.name ?? ''}」移出这个工作区吗？`}
-          width="sm"
-        >
-          <p className="text-ink-500 text-[12.5px] leading-6">
-            移出后对方立刻失去这个工作区的全部访问权（问卷、数据、日志）。
-            他的账号还在，其他工作区不受影响；之后可以重新邀请。
+        <ModalContent title="确定移除这位成员？" hideTitle width="sm" className="p-6">
+          <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-rose-50">
+            <AlertTriangleIcon className="size-5 text-rose-500" />
+          </div>
+
+          <h3 className="text-ink-900 mb-2 text-[16px] font-semibold">确定移除这位成员？</h3>
+          <p className="text-ink-500 mb-5 text-[12.5px] leading-5">
+            把「{removing?.name ?? ''}」移出这个工作区，此操作不可撤销。
           </p>
 
-          <div className="mt-5 flex gap-2.5">
+          <div className="bg-ink-50 border-ink-100 mb-5 rounded-[10px] border p-3">
+            <div className="text-ink-500 text-[11.5px] leading-5">
+              移出后对方立刻失去这个工作区的全部访问权（问卷、数据、日志）。
+              他的账号还在，其他工作区不受影响；之后可以重新邀请。
+            </div>
+          </div>
+
+          <div className="flex gap-2.5">
             <Button variant="outline" className="flex-1" onClick={() => setRemoving(null)}>
               取消
             </Button>
             <Button
-              className="flex-1 bg-rose-600 hover:bg-rose-700"
+              variant="danger"
+              className="flex-1"
               disabled={pendingId === removing?.id}
               onClick={() => {
                 const target = removing;
@@ -272,6 +284,55 @@ export function MembersPanel({
               }}
             >
               确认移除
+            </Button>
+          </div>
+        </ModalContent>
+      </Modal>
+
+      {/*
+        撤回邀请也走危险确认那一套卡（设计稿把「撤回邀请」与删除 / 移除归在同一组）。
+        加这一层的理由与移除成员相同：它**立刻作废对方手里那条链接**，而发出去的链接
+        可能已经在微信群里传过几手了 —— 那不是点错一次就能撤回的事。
+      */}
+      <Modal open={revoking !== null} onOpenChange={(next) => !next && setRevoking(null)}>
+        <ModalContent title="确定撤回这个邀请？" hideTitle width="sm" className="p-6">
+          <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-rose-50">
+            <AlertTriangleIcon className="size-5 text-rose-500" />
+          </div>
+
+          <h3 className="text-ink-900 mb-2 text-[16px] font-semibold">确定撤回这个邀请？</h3>
+          <p className="text-ink-500 mb-5 text-[12.5px] leading-5">
+            发给「{revoking?.email ?? ''}」的那条邀请链接会立刻失效，此操作不可撤销。
+          </p>
+
+          <div className="bg-ink-50 border-ink-100 mb-5 rounded-[10px] border p-3">
+            <div className="text-ink-500 text-[11.5px] leading-5">
+              对方再点原来的链接，会看到这份邀请「已撤回、不能接受」，并提示联系管理员重新邀请。
+              需要时重新生成一条发给对方即可 —— 同一个邮箱可以再次邀请。
+            </div>
+          </div>
+
+          <div className="flex gap-2.5">
+            <Button variant="outline" className="flex-1" onClick={() => setRevoking(null)}>
+              取消
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              disabled={pendingId === revoking?.id}
+              onClick={() => {
+                const target = revoking;
+                if (!target) return;
+
+                setPendingId(target.id);
+                startTransition(async () => {
+                  await revokeInvitationAction(target.id);
+                  setPendingId(null);
+                  setRevoking(null);
+                });
+              }}
+            >
+              {pendingId === revoking?.id ? '撤回中…' : '确认撤回'}
             </Button>
           </div>
         </ModalContent>
