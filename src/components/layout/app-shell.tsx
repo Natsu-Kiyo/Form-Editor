@@ -29,10 +29,19 @@ export type AppShellProps = {
 export function AppShell({ sidebar, children }: AppShellProps) {
   return (
     <SidebarContext.Provider value={sidebar}>
-      <div className="bg-ink-50 flex min-h-full flex-1">
-        <div className="hidden lg:flex">{sidebar}</div>
+      {/*
+        「整页不超过视口」就落在这一层：
+        - 外层 `h-dvh overflow-hidden` 把高度**箍死在视口上**，于是页面级滚动条只可能
+          出现在下面第二列里的滚动容器上（各页面的 `<main className="flex-1 overflow-y-auto">`）。
+        - 第二列必须写 `min-h-0`：flex 子项默认 `min-height: auto`，不写它的话长内容会把
+          这一列**撑高**，`overflow` 随之失效 —— 这是这类布局最常见的坑。
+        - 侧栏自己 `h-full` 且不参与滚动，所以它底部那行账号永远在视口内。
+          原先这里是 `min-h-full`：整页高度跟着主区内容长，滚到最下面才看得见账号行。
+      */}
+      <div className="bg-ink-50 flex h-dvh overflow-hidden">
+        <div className="hidden min-h-0 lg:flex">{sidebar}</div>
 
-        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
       </div>
     </SidebarContext.Provider>
   );

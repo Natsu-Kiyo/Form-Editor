@@ -12,8 +12,10 @@ import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
  * 分享页是状态徽章 + 暂停/截止），硬塞进 layout 就要引入一层插槽机制，
  * 而那一层机制换来的只是少写一个共用组件 —— 不值。
  *
- * 高度用 `100dvh` 而不是靠父级撑开：编辑器是三栏各自独立滚动的工作台，
- * 需要一条**被约束住的高度链**；用 `min-h-*` 那种自由高度会让 overflow 失效或裁切内容。
+ * 高度用 `h-full` 接住外层给的高度：`AppShell` 那一列已经是「整页 `h-dvh` + `overflow-hidden`」，
+ * 编辑器是三栏各自独立滚动的工作台，需要一条**被约束住的高度链**，
+ * 用 `min-h-*` 那种自由高度会让 overflow 失效或裁切内容。
+ * （原先这里写死 `100dvh`：那时外壳没箍高度，只能自己撑；现在再写 100dvh 反而会超出那一列。）
  */
 export default async function QuestionnaireLayout({
   children,
@@ -33,7 +35,7 @@ export default async function QuestionnaireLayout({
   if (!editor) notFound();
 
   return (
-    <div className="flex h-[100dvh] flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <QuestionnaireTabs questionnaireId={id} />
       {children}
     </div>

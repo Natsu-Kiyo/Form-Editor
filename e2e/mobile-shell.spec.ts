@@ -52,7 +52,10 @@ test.describe('移动外壳', () => {
 
     // 铃铛 → 真通知面板（读的是库里的通知，不是写死的列表）
     await header.getByRole('button', { name: /通知/ }).click();
-    await expect(page.getByText('欢迎使用轻问卷')).toBeVisible();
+    // 断言「面板里有内容」（内容来自库，不是写死的列表），**不指定具体某条**：
+    // 通知会随 E2E 累积，而面板只取最近 20 条 —— seed 那几条已被挤出窗口（见 app-shell.spec）
+    await expect(page.getByText('通知', { exact: true })).toBeVisible();
+    await expect(page.getByText('暂时没有通知。')).toHaveCount(0);
     await page.keyboard.press('Escape');
 
     // 悬浮「＋」：编辑者才看得到，点了直接建一份空白问卷进编辑器
@@ -83,7 +86,10 @@ test.describe('移动外壳', () => {
 
     // 消息通知 → 与顶栏铃铛**同一份列表**（抽出的 NotificationList 就是为这件事）
     await page.getByRole('button', { name: /消息通知/ }).click();
-    await expect(page.getByText('欢迎使用轻问卷')).toBeVisible();
+    // 断言「面板里有内容」（内容来自库，不是写死的列表），**不指定具体某条**：
+    // 通知会随 E2E 累积，而面板只取最近 20 条 —— seed 那几条已被挤出窗口（见 app-shell.spec）
+    await expect(page.getByText('通知', { exact: true })).toBeVisible();
+    await expect(page.getByText('暂时没有通知。')).toHaveCount(0);
     await page.keyboard.press('Escape');
 
     // 帮助与反馈 → 真的帮助弹层（有常见问题）

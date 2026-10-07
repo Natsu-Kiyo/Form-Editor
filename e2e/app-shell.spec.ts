@@ -51,8 +51,15 @@ test('通知面板可以打开并列出通知', async ({ page }) => {
 
   await page.getByRole('button', { name: /^通知/ }).click();
 
-  // seed 里有一条欢迎通知，任何一次运行都该看到它
-  await expect(page.getByText('欢迎使用轻问卷')).toBeVisible();
+  /*
+   * 只断言「面板里有内容」，**不指定某一条**。
+   *
+   * 原先断言的是 seed 的「欢迎使用轻问卷」，R43 这轮它被打红了：通知会随着 E2E
+   * 一轮轮累积（每次「成员加入」都写两条），而面板只取**最近 20 条** —— 数了一下，
+   * 所有者名下已经 23 条，seed 那三条早被挤出窗口。用例不该依赖会被挤掉的种子数据。
+   */
+  await expect(page.getByText('通知', { exact: true })).toBeVisible();
+  await expect(page.getByText('暂时没有通知。')).toHaveCount(0);
 });
 
 test('账号菜单可以打开账号设置与帮助与反馈', async ({ page }, testInfo) => {

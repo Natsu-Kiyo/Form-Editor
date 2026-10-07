@@ -138,8 +138,12 @@ export default async function DashboardHomePage({
         />
       </div>
 
-      {/* 移动端底部三格是固定条，内容要留出它的高度（否则最后一张卡被压在下面） */}
-      <main className="mx-auto w-full max-w-[1180px] px-6 pt-6 pb-28 lg:py-7">
+      {/*
+        移动端底部三格是固定条，内容要留出它的高度（否则最后一张卡被压在下面）。
+        `flex-1 overflow-y-auto`：外壳把整页箍在视口内了，滚动只发生在这一块 ——
+        于是顶栏与侧栏都不动（原先整页一起滚，侧栏底部那行账号得滚到底才看得见）。
+      */}
+      <main className="mx-auto min-h-0 w-full max-w-[1180px] flex-1 overflow-y-auto px-6 pt-6 pb-28 lg:py-7">
         {/* 窄屏没有顶栏搜索（P04 把搜索放在统计卡上方，通栏） */}
         <div className="mb-5 md:hidden">
           <SearchField

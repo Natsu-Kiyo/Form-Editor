@@ -11,6 +11,14 @@ export type SidebarNavItem = {
   label: string;
   icon: React.ReactNode;
   /**
+   * 只认**路径完全相等**，不做前缀匹配。
+   *
+   * 必须给 `/app` 加上：它是所有管理台页面的共同前缀，按前缀匹配的话，
+   * 进「模板中心」「我的」这些子路由时「问卷列表」会一直亮着 ——
+   * 用户第一眼就会以为导航坏了。
+   */
+  exact?: boolean;
+  /**
    * 只在桌面端出现。
    *
    * 「成员与权限」与「操作日志」都属设计稿标了**移动端隐藏**的页面（M10 复核项），
@@ -34,7 +42,9 @@ export function SidebarNav({ items }: { items: SidebarNavItem[] }) {
       {items
         .filter((item) => isDesktop || !item.desktopOnly)
         .map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = item.exact
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
             <Link

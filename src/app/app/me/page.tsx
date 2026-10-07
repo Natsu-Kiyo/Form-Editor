@@ -47,7 +47,7 @@ export default async function MePage() {
   return (
     <>
       {/* 桌面端也可以直接打开这一页（侧栏没有入口，但 URL 是稳定的） */}
-      <main className="mx-auto w-full max-w-[560px] px-5 pt-6 pb-28 lg:pb-10">
+      <main className="mx-auto min-h-0 w-full max-w-[560px] flex-1 overflow-y-auto px-5 pt-6 pb-28 lg:pb-10">
         <h1 className="text-ink-900 mb-5 text-[17px] font-semibold">我的</h1>
 
         <MePanel

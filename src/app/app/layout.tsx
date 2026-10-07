@@ -19,7 +19,8 @@ import { formatDisplayDate } from '@/utils/format';
  * 在那之前画出来就是「点了 404」的假入口，宁可先少几项。
  */
 const NAV_ITEMS: SidebarNavItem[] = [
-  { href: '/app', label: '问卷列表', icon: <FileTextIcon /> },
+  // `exact`：`/app` 是所有管理台页面的前缀，按前缀匹配会让它在下属页面上一直亮着
+  { href: '/app', label: '问卷列表', icon: <FileTextIcon />, exact: true },
   // 模板中心两端都有（移动端是底部导航三格之一，见 P07），所以不加 desktopOnly
   { href: '/app/templates', label: '模板中心', icon: <GridIcon /> },
   // 设计稿标了移动端隐藏，窄屏抽屉里不出现这两项（见 `SidebarNavItem.desktopOnly`）

@@ -33,7 +33,7 @@ export function MobileWorkbenchHeader({
   userName: string;
 }) {
   return (
-    <header className="flex items-center justify-between gap-2 px-5 pt-4 pb-3 lg:hidden">
+    <header className="flex shrink-0 items-center justify-between gap-2 px-5 pt-4 pb-3 lg:hidden">
       {/* 切换器在侧栏里是通栏的，这里收窄到内容宽度 */}
       <div className="max-w-[62%] min-w-0">
         <WorkspaceSwitcher workspaces={workspaces} activeId={activeWorkspaceId} />
