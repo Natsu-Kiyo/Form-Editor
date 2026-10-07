@@ -168,3 +168,193 @@
 @utility tnum {
   font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================================
+ * 加载态（设计稿 `design/补充.html` L00 的参数表）
+ *
+ * 一套全项目共用的动效，**不逐页发明**：时长与缓动都照 L00 的表写死，
+ * 改这里等于改全项目的观感。
+ * ========================================================================== */
+
+@keyframes qw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 骨架扫光：高光从左扫到右。1500ms ease-in-out（L00） */
+@keyframes qw-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* 「减少动态效果」时用它替扫光：低频呼吸 */
+@keyframes qw-pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.42;
+  }
+}
+
+/* 全屏启动标记上那道高光 */
+@keyframes qw-sweep {
+  0% {
+    transform: translateX(-140%);
+  }
+  58%,
+  100% {
+    transform: translateX(140%);
+  }
+}
+
+@keyframes qw-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.03);
+  }
+}
+
+/* 「加载更多」的三点：1200ms 循环、各错开 160ms（错开由内联 delay 给） */
+@keyframes qw-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* 不确定进度条：爬到 ~90% 就停住，**不跑满** —— 跑满还在等就是在骗用户（L02） */
+@keyframes qw-indeterminate {
+  0% {
+    width: 0;
+  }
+  16% {
+    width: 33%;
+  }
+  44% {
+    width: 61%;
+  }
+  70% {
+    width: 80%;
+  }
+  88% {
+    width: 90%;
+  }
+  100% {
+    width: 90%;
+  }
+}
+
+@keyframes qw-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.qw-spinner {
+  animation: qw-spin 0.72s linear infinite;
+}
+
+.qw-spinner-dark {
+  border-color: rgb(255 255 255 / 0.34);
+  border-top-color: #fff;
+}
+
+.qw-skeleton {
+  position: relative;
+  overflow: hidden;
+}
+
+.qw-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0) 0%,
+    rgb(255 255 255 / 0.92) 50%,
+    rgb(255 255 255 / 0) 100%
+  );
+  animation: qw-shimmer 1.5s ease-in-out infinite;
+}
+
+.qw-float {
+  animation: qw-float 2.4s ease-in-out infinite;
+}
+
+.qw-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2rem;
+  background: rgb(255 255 255 / 0.3);
+  filter: blur(6px);
+  animation: qw-sweep 2.6s ease-in-out infinite;
+}
+
+.qw-indeterminate {
+  animation: qw-indeterminate 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.qw-dot {
+  animation: qw-dot 1.2s ease-in-out infinite;
+}
+
+.qw-fade-up {
+  animation: qw-fade-up 180ms ease-out both;
+}
+
+/* 顶部路由进度条：宽度靠内联 style 控制，只在这里给它过渡曲线 */
+.qw-progress-bar {
+  transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/*
+ * 「减少动态效果」的**例外**：上面 `@layer base` 里那条全局规则会把所有动画停掉，
+ * 但**加载态停掉等于什么信号都没有**（用户会以为页面死了）。
+ * 设计稿的处理是：扫光与浮动关掉，旋转放慢（1.9s）—— 这里按它的原样实现。
+ * 必须带 !important：全局那条规则是 `*` + !important。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .qw-spinner {
+    animation: qw-spin 1.9s linear infinite !important;
+  }
+
+  .qw-skeleton::after {
+    animation: none !important;
+  }
+
+  .qw-skeleton {
+    animation: qw-pulse-soft 2.4s ease-in-out infinite !important;
+  }
+
+  .qw-float,
+  .qw-sweep,
+  .qw-dot {
+    animation: none !important;
+  }
+
+  .qw-indeterminate {
+    animation: none !important;
+    width: 90%;
+  }
+}

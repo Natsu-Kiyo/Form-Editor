@@ -3,6 +3,8 @@ import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '@/utils/cn';
 
+import { Spinner } from './spinner';
+
 /**
  * 按钮（设计系统稿 §06）
  *
@@ -53,18 +55,74 @@ export type ButtonProps = React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
     /** 渲染成子元素（例如包一层 Link），保持按钮外观 */
     asChild?: boolean;
+    /**
+     * 图标（可选）。
+     *
+     * 单独给它一个 prop，是为了**加载态能原样顶掉它**（设计稿 L06）：
+     * 「spinner 占据的正是原图标的位置，所以图标不会被挤走、文字起点也不会移动」。
+     * 如果调用方自己把图标塞进 children，加载时就会变成「图标 + spinner + 文案」三样挤一排。
+     */
+    icon?: React.ReactNode;
+    /**
+     * 正在做这件事（提交中 / 保存中）。
+     *
+     * 与普通 `disabled` 的区别是**外观**：加载态**不降低不透明度**（L10 反例：
+     * 「降低不透明度看起来像不可用，而不是正在工作」），只把指针变成 `not-allowed`，
+     * 并把内容换成「spinner + 文案」。文案由调用方给（必须说清在做什么，见 L00 无障碍）。
+     */
+    loading?: boolean;
   };
 
-export function Button({ className, variant, size, asChild = false, ...props }: ButtonProps) {
+export function Button({
+  className,
+  variant,
+  size,
+  asChild = false,
+  icon,
+  loading = false,
+  children,
+  disabled,
+  ...props
+}: ButtonProps) {
   const Comp = asChild ? Slot : 'button';
 
   return (
     <Comp
-      className={cn(buttonVariants({ variant, size }), className)}
+      className={cn(
+        buttonVariants({ variant, size }),
+        // 加载态：保持原色原尺寸，只换内容
+        loading && 'cursor-not-allowed disabled:opacity-100',
+        className,
+      )}
       // 非 asChild 时默认 button 类型，避免在 form 里意外触发提交
       {...(asChild ? {} : { type: 'button' as const })}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
-    />
+    >
+      {/*
+        `asChild` 时**只能有一个子元素** —— Radix 的 `Slot` 要把 props 合并到那个孩子上，
+        给两个就会抛「Slot failed to slot onto its children」（这轮 E2E 实测撞上的就是这个：
+        全项目所有 `<Button asChild><Link/></Button>` 一起炸）。
+        所以这条路径只透传 children：图标 / spinner 是「按钮自己的装饰」，
+        而 asChild 的用法是「包一层 Link」，装饰由那个元素自己承担。
+      */}
+      {asChild ? (
+        children
+      ) : (
+        <>
+          {loading ? (
+            <Spinner
+              size="sm"
+              tone={variant === 'primary' || variant === 'danger' ? 'onDark' : 'default'}
+            />
+          ) : (
+            icon
+          )}
+          {children}
+        </>
+      )}
+    </Comp>
   );
 }
 

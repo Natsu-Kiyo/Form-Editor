@@ -128,7 +128,7 @@ export function InviteMemberDialog({
             >
               完成
             </Button>
-            <Button type="submit" className="flex-1" disabled={pending}>
+            <Button loading={pending} type="submit" className="flex-1" disabled={pending}>
               {pending ? '生成中…' : '生成邀请链接'}
             </Button>
           </div>

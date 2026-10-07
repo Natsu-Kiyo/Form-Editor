@@ -165,6 +165,7 @@ export function CollectionControls({
               取消
             </Button>
             <Button
+              loading={pending}
               variant="danger"
               className="flex-1"
               disabled={pending}

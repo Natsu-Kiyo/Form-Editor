@@ -70,7 +70,7 @@ function ImportJsonForm({
         <Button type="button" variant="ghost" onClick={onDone}>
           取消
         </Button>
-        <Button type="submit" disabled={pending}>
+        <Button loading={pending} type="submit" disabled={pending}>
           {pending ? '导入中…' : '确认导入'}
         </Button>
       </div>

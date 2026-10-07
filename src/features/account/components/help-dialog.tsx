@@ -142,7 +142,7 @@ function FeedbackForm() {
 
       <div className="mt-3 flex items-center justify-between gap-3">
         <span className="text-caption text-emerald-600">{state.success ?? ''}</span>
-        <Button type="submit" size="sm" disabled={pending}>
+        <Button loading={pending} type="submit" size="sm" disabled={pending}>
           {pending ? '提交中…' : '提交反馈'}
         </Button>
       </div>

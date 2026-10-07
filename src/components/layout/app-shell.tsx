@@ -2,6 +2,8 @@
 
 import { createContext, useContext } from 'react';
 
+import { NavigationProgress } from './navigation-progress';
+
 /**
  * 把侧栏内容放进 context，供顶栏在窄屏下取出、塞进左侧抽屉。
  *
@@ -29,6 +31,9 @@ export type AppShellProps = {
 export function AppShell({ sidebar, children }: AppShellProps) {
   return (
     <SidebarContext.Provider value={sidebar}>
+      {/* 路由切换的顶部进度条（L02）：挂在最外层，压在旧页面之上 */}
+      <NavigationProgress />
+
       {/*
         「整页不超过视口」就落在这一层：
         - 外层 `h-dvh overflow-hidden` 把高度**箍死在视口上**，于是页面级滚动条只可能

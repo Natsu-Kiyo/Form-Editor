@@ -128,7 +128,7 @@ export function VersionDrawer({
             <Button variant="outline" className="flex-1" onClick={() => setTarget(null)}>
               取消
             </Button>
-            <Button className="flex-1" disabled={pending} onClick={rollback}>
+            <Button loading={pending} className="flex-1" disabled={pending} onClick={rollback}>
               {pending ? '回滚中…' : '确认回滚'}
             </Button>
           </div>

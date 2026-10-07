@@ -82,7 +82,7 @@ export function RegisterForm() {
 
         {state.message ? <AuthAlert>{state.message}</AuthAlert> : null}
 
-        <Button type="submit" size="lg" className="w-full" disabled={pending}>
+        <Button loading={pending} type="submit" size="lg" className="w-full" disabled={pending}>
           {pending ? '创建中…' : '创建账号'}
         </Button>
       </form>

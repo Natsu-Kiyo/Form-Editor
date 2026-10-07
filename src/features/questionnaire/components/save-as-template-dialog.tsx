@@ -94,7 +94,7 @@ function SaveAsTemplateForm({
         <Button type="button" variant="ghost" onClick={onDone}>
           取消
         </Button>
-        <Button type="submit" disabled={pending}>
+        <Button loading={pending} type="submit" disabled={pending}>
           {pending ? '保存中…' : '保存模板'}
         </Button>
       </div>

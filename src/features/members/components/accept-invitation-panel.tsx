@@ -56,7 +56,7 @@ export function AcceptInvitationPanel({
       {acceptable && !state.success ? (
         <form action={formAction} className="mt-5">
           <input type="hidden" name="token" value={token} />
-          <Button type="submit" className="w-full" disabled={pending}>
+          <Button loading={pending} type="submit" className="w-full" disabled={pending}>
             {pending ? '加入中…' : `接受邀请，以「${ROLE_LABEL[invitation.role]}」身份加入`}
           </Button>
         </form>

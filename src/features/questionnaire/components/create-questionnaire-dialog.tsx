@@ -165,7 +165,7 @@ function CreateQuestionnaireForm({
         <Button type="button" variant="outline" className="flex-1" onClick={onDone}>
           取消
         </Button>
-        <Button type="submit" className="flex-1" disabled={pending}>
+        <Button loading={pending} type="submit" className="flex-1" disabled={pending}>
           {pending ? '创建中…' : '创建'}
         </Button>
       </div>

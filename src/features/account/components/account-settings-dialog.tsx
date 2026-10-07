@@ -136,7 +136,7 @@ function ProfileForm({
         <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>
           取消
         </Button>
-        <Button type="submit" className="flex-1" disabled={pending}>
+        <Button loading={pending} type="submit" className="flex-1" disabled={pending}>
           {pending ? '保存中…' : '保存'}
         </Button>
       </div>
@@ -258,7 +258,7 @@ function ChangePasswordForm() {
       {state.success ? <p className="text-caption text-emerald-600">{state.success}</p> : null}
       {state.message ? <p className="text-caption text-rose-500">{state.message}</p> : null}
 
-      <Button type="submit" size="sm" disabled={pending}>
+      <Button loading={pending} type="submit" size="sm" disabled={pending}>
         {pending ? '提交中…' : '确认修改'}
       </Button>
     </form>

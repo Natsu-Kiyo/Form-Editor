@@ -64,6 +64,7 @@ export function DeleteQuestionnaireDialog({
             取消
           </Button>
           <Button
+            loading={pending}
             type="button"
             variant="danger"
             className="flex-1"

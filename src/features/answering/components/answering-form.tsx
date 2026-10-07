@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { AlertCircleIcon, CheckIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { RATING_SCALE } from '@/config/constants';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 import { cn } from '@/utils/cn';
@@ -278,6 +279,7 @@ export function AnsweringForm({
 
           <div className="mt-6 flex flex-col items-center gap-3">
             <Button
+              loading={pending}
               size="lg"
               className="h-12 w-full px-8 sm:w-auto"
               disabled={pending}
@@ -376,9 +378,38 @@ export function AnsweringForm({
       {/* 窄屏：提交固定在底部，翻到哪都能点 */}
       {!isDesktop ? (
         <div className="border-ink-200 fixed inset-x-0 bottom-0 border-t bg-white/95 p-3 backdrop-blur">
-          <Button size="lg" className="h-12 w-full" disabled={pending} onClick={submit}>
+          <Button
+            loading={pending}
+            size="lg"
+            className="h-12 w-full"
+            disabled={pending}
+            onClick={submit}
+          >
             {pending ? '提交中…' : `提交答卷（已答 ${answeredCount}/${questions.length}）`}
           </Button>
+        </div>
+      ) : null}
+
+      {/*
+        L08：提交是全流程里唯一「数据不能丢」的动作，所以它比其他 loading 更重 ——
+        整页轻遮罩 + 中心卡片，明确阻断重复点击与中途改答。
+        文案是「正在提交…」+「请稍候，不要关闭这个页面」：访客是陌生人，
+        没有人会告诉他数据到底存没存上，必须直说（不是笼统的「加载中」）。
+      */}
+      {pending ? (
+        <div
+          aria-busy="true"
+          className="bg-ink-900/45 fixed inset-0 z-[70] flex items-center justify-center px-6"
+        >
+          <div className="qw-fade-up shadow-pop w-full max-w-[320px] rounded-2xl bg-white p-6 text-center">
+            <Spinner size="lg" className="mx-auto" />
+            <p role="status" className="text-ink-900 mt-4 text-[14px] font-medium">
+              正在提交…
+            </p>
+            <p className="text-ink-500 mt-1.5 text-[12.5px] leading-5">
+              请稍候，不要关闭这个页面。
+            </p>
+          </div>
         </div>
       ) : null}
     </div>

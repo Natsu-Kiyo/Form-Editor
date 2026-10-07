@@ -159,7 +159,7 @@ function CreateWorkspaceForm({ onDone }: { onDone: () => void }) {
         <Button type="button" variant="ghost" onClick={onDone}>
           取消
         </Button>
-        <Button type="submit" disabled={pending}>
+        <Button loading={pending} type="submit" disabled={pending}>
           {pending ? '创建中…' : '创建'}
         </Button>
       </div>

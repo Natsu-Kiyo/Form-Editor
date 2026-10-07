@@ -73,6 +73,7 @@ export function UnlockCard({ slug, title }: { slug: string; title: string }) {
         ) : null}
 
         <Button
+          loading={pending}
           type="submit"
           size="lg"
           className="h-12 w-full"

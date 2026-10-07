@@ -62,7 +62,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
           </label>
         </div>
 
-        <Button type="submit" size="lg" className="w-full" disabled={pending}>
+        <Button loading={pending} type="submit" size="lg" className="w-full" disabled={pending}>
           {pending ? '登录中…' : '登录'}
         </Button>
       </form>

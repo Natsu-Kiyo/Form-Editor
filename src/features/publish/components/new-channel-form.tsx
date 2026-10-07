@@ -80,7 +80,12 @@ export function NewChannelForm({ questionnaireId }: { questionnaireId: string })
               <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>
                 取消
               </Button>
-              <Button className="flex-1" disabled={pending || name.trim() === ''} onClick={submit}>
+              <Button
+                loading={pending}
+                className="flex-1"
+                disabled={pending || name.trim() === ''}
+                onClick={submit}
+              >
                 {pending ? '创建中…' : '创建'}
               </Button>
             </div>

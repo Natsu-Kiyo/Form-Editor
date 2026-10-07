@@ -131,7 +131,7 @@ function RenameTemplateDialog({
             <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
               取消
             </Button>
-            <Button type="submit" className="flex-1" disabled={pending}>
+            <Button loading={pending} type="submit" className="flex-1" disabled={pending}>
               {pending ? '保存中…' : '保存'}
             </Button>
           </div>
@@ -177,6 +177,7 @@ function DeleteTemplateDialog({
             取消
           </Button>
           <Button
+            loading={pending}
             variant="danger"
             className="flex-1"
             disabled={pending}

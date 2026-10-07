@@ -120,8 +120,8 @@ export function PublishSettings({
    * 已发布的问卷就能在一个必然被服务端拒的状态下把按钮点下去（用户实测报过）。
    */
   const submitButton = canEdit ? (
-    <Button type="button" disabled={pending || !preflight.canPublish} onClick={submit}>
-      {isDraft ? '保存并发布' : '保存设置'}
+    <Button type="button" loading={pending} disabled={!preflight.canPublish} onClick={submit}>
+      {pending ? (isDraft ? '发布中…' : '保存中…') : isDraft ? '保存并发布' : '保存设置'}
     </Button>
   ) : null;
 

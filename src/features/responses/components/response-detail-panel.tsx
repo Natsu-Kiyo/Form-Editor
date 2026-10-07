@@ -106,6 +106,7 @@ export function ResponseDetailPanel({
             ) : (
               <>
                 <Button
+                  loading={pending}
                   variant="outline"
                   className="w-full"
                   disabled={pending}
