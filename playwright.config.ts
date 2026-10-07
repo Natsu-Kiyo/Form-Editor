@@ -17,7 +17,21 @@ import { defineConfig, devices } from '@playwright/test';
  *   pnpm exec playwright install chromium
  */
 const e2ePort = Number(process.env.E2E_PORT || 3100);
-const baseURL = `http://localhost:${e2ePort}`;
+
+/**
+ * 指向**已部署的站点**时设这个（生产冒烟用）。
+ *
+ * 设了它就当 baseURL，并且**不再自己起服务**（见下面的 `webServer`）。
+ * 用途只有一个：在部署后的域名上跑**只读**用例（登录 / 列表 / 模板 / 公开作答），
+ * 而不是整套 —— 整套会写库，生产库不该被测试数据污染（何况 `pnpm e2e` 开头还会清残留）。
+ *
+ * ```bash
+ * $env:E2E_BASE_URL='https://<你的域名>'
+ * pnpm exec playwright test e2e/auth.spec.ts e2e/smoke.spec.ts --project=desktop
+ * ```
+ */
+const remoteBaseURL = process.env.E2E_BASE_URL?.trim() || null;
+const baseURL = remoteBaseURL ?? `http://localhost:${e2ePort}`;
 
 /**
  * 默认跑 `next dev`（改代码即生效，日常用）。
@@ -85,12 +99,19 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
-    command: useBuildOutput
-      ? `pnpm exec next start --port ${e2ePort}`
-      : `pnpm exec next dev --port ${e2ePort}`,
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  /*
+   * 指向远端时**不自起服务**：远端站点已经在了，再起一个本地服务只会让人以为在测生产、
+   * 其实测的是本地（这正是这套配置最怕的「静默测错对象」）。这是 `E2E_BASE_URL`
+   * 唯一需要在这里配合的地方。
+   */
+  webServer: remoteBaseURL
+    ? undefined
+    : {
+        command: useBuildOutput
+          ? `pnpm exec next start --port ${e2ePort}`
+          : `pnpm exec next dev --port ${e2ePort}`,
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
 });

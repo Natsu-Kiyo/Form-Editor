@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 import { ToastProvider } from '@/components/ui/toast';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -24,6 +26,14 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
         <TooltipProvider delayDuration={300}>
           <ToastProvider>{children}</ToastProvider>
         </TooltipProvider>
+
+        {/*
+          Vercel 的访问统计与真实用户性能指标（M11）。
+          两者都只在部署到 Vercel 时才有接收端，本地开发与自托管下不会真正上报 ——
+          所以不需要按环境条件渲染，放最外层即可。
+        */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
