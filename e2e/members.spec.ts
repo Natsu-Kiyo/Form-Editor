@@ -55,6 +55,37 @@ test.describe('成员与权限', () => {
     await expect(page.getByLabel('王嘉禾的角色')).toHaveValue('EDITOR');
   });
 
+  test('邀请链接只对受邀邮箱有效（转发给别人打不开）', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '要写数据库，只在一个 project 跑');
+
+    const invitedEmail = `e2e.not.mine.${Date.now()}@example.com`;
+
+    await signIn(page, DEMO_ACCOUNTS.owner);
+    await openMembers(page);
+
+    await page.getByRole('button', { name: '邀请成员' }).click();
+    await page.getByLabel('邮箱').fill(invitedEmail);
+    await page.getByRole('button', { name: '生成邀请链接' }).click();
+    const link = page.getByText(/\/invite\/[\w-]+/);
+    await expect(link).toBeVisible();
+    // 只取路径：链接域名来自 NEXT_PUBLIC_APP_URL，而 E2E 跑在 3100（见另一条用例的说明）
+    const invitePath = new URL((await link.textContent()) ?? '').pathname;
+    await page.getByRole('button', { name: '完成' }).click();
+
+    // ---- 换成另一个账号（陈默）去开这个链接 ----
+    await page.getByRole('button', { name: '账号菜单' }).click();
+    await page.getByRole('menuitem', { name: '退出登录' }).click();
+    await signIn(page, DEMO_ACCOUNTS.viewer);
+
+    await page.goto(invitePath);
+
+    // 邮箱不符 → **一视同仁地 404**：不透露这份邀请存在，也不透露它发给了谁
+    await expect(page.getByText('这个地址打不开')).toBeVisible();
+    await expect(page.getByRole('button', { name: /接受邀请/ })).toHaveCount(0);
+    // 那条受邀邮箱**一个字都不该出现在页面上**（这正是以前泄露出去的东西）
+    await expect(page.getByText(invitedEmail)).toHaveCount(0);
+  });
+
   test('邀请 → 链接能打开 → 新用户加入 → 所有者移除', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', '要写数据库，只在一个 project 跑');
 
