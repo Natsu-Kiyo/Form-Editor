@@ -1,4 +1,7 @@
+import { redirect } from 'next/navigation';
+
 import { BrandPanel, BrandPanelCompact } from '@/features/auth/components/brand-panel';
+import { getCurrentUser } from '@/lib/auth/dal';
 
 /**
  * W01 两态（登录 / 注册）共用的版式：
@@ -11,7 +14,16 @@ import { BrandPanel, BrandPanelCompact } from '@/features/auth/components/brand-
  * 窄屏（<1024px）收起品牌面板，改用顶部的紧凑 logo 头部 ——
  * 设计稿说「移动端复用同一套响应式版式」，所以这里不另起一套页面。
  */
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  /*
+   * 「已登录就别再看登录页」在这里做，**不在 proxy 里** —— 两者的信息源不同：
+   * proxy 只认 Cookie 在不在，而 Cookie 可能比库里的会话活得更久；这里查的是真会话，
+   * 判断一定准，也就不会出现「`/login` 送去 `/app`、`/app` 又送回 `/login`」那种死循环
+   * （详见 `src/proxy.ts` 顶部的说明）。
+   */
+  const user = await getCurrentUser();
+  if (user) redirect('/app');
+
   return (
     <div className="flex min-h-full flex-1 bg-white">
       <BrandPanel />

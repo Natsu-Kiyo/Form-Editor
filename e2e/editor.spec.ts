@@ -25,6 +25,16 @@ const M3B_TITLE = 'E2E M3b 用例';
 async function clearLeftovers(page: Page, title: string) {
   const menu = page.getByRole('button', { name: `「${title}」更多操作` });
 
+  /*
+   * 先等列表**渲染出来**再数。
+   *
+   * 少了这一句，`count()` 会在卡片出现之前返回 0 —— 于是这里安静地什么都不做，
+   * 直到用例收尾那一步「列表里不该再有它」才炸，报的是 `toHaveCount` 期望 0 实际 1，
+   * **看上去像收尾写错，其实是开头少等了一步**（`questionnaire-list.spec.ts` 的清理
+   * 踩的是同一个坑，两处都已修）。
+   */
+  await expect(page.getByRole('button', { name: '新建问卷' }).first()).toBeVisible();
+
   let remaining = await menu.count();
   while (remaining > 0) {
     await menu.first().click();

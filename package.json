@@ -13,6 +13,7 @@
     "format:check": "prettier --check .",
     "typecheck": "next typegen && tsc --noEmit",
     "db:check": "node --env-file-if-exists=.env --import tsx --conditions=react-server scripts/check-db.ts",
+    "db:purge-e2e": "node --env-file-if-exists=.env --import tsx --conditions=react-server scripts/purge-e2e-data.ts",
     "db:prune-logs": "node --env-file-if-exists=.env --import tsx --conditions=react-server scripts/prune-logs.ts",
     "db:prune-invitations": "node --env-file-if-exists=.env --import tsx --conditions=react-server scripts/prune-invitations.ts",
     "db:generate": "prisma generate",
@@ -22,7 +23,7 @@
     "db:seed": "prisma db seed",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test",
+    "e2e": "pnpm db:purge-e2e && playwright test",
     "prepare": "husky"
   },
   "dependencies": {

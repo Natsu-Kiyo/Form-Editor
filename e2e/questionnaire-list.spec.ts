@@ -105,6 +105,15 @@ test('全链路：新建 → 复制 → 归档 → 恢复 → 删除', async ({ 
     // 正则匹配**所有变体**：失败的那一轮可能停在「复制」之后，留下的是「未命名问卷（副本）」
     const leftovers = page.getByRole('button', { name: /^「未命名问卷/ });
 
+    /*
+     * 先等列表**渲染出来**再数残留。
+     *
+     * 少了这一句，`count()` 会在卡片出现之前返回 0 —— 函数安静地什么都不做，
+     * 几十行之后的同名断言才炸，而且报的是「命中 2 个元素」，
+     * **看上去像断言写错，其实是这里少等了一步**（我们为此查了两轮）。
+     */
+    await expect(page.getByRole('button', { name: '新建问卷' }).first()).toBeVisible();
+
     for (let remaining = await leftovers.count(); remaining > 0; remaining -= 1) {
       await leftovers.first().click();
       await page.getByRole('menuitem', { name: '删除问卷' }).click();

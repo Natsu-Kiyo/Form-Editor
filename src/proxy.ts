@@ -8,8 +8,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 const SESSION_COOKIE = 'qw_session';
 
 const PROTECTED_PREFIXES = ['/app', '/me'];
-/** 已登录用户不该再看到这些页 */
-const GUEST_ONLY_PATHS = ['/login', '/register'];
 
 /**
  * 乐观鉴权（Next 16 起 Middleware 更名为 Proxy）。
@@ -18,6 +16,21 @@ const GUEST_ONLY_PATHS = ['/login', '/register'];
  * 真正的授权判断在每个数据函数与 Server Action 里（见 src/lib/auth/dal.ts）。
  * 之所以这么切：proxy 会在每次请求（含预取的路由）上运行，查库会直接拖垮性能。
  * 详见 Next 16 文档 guides/authentication → "Optimistic checks with Proxy"。
+ *
+ * **这里只做「拦住未登录」，不做「赶走已登录」** —— 曾经有一条
+ * `if (pathname === '/login' && hasSessionCookie) redirect('/app')`，
+ * 它制造了一个**解不开的死循环**：
+ *
+ * - Cookie 在、库里的会话已失效（退出登录时 Cookie 的清理由响应头带出，
+ *   那一步没落地就会留下这个孤儿 Cookie）
+ * - `/login` 看 Cookie → 送去 `/app`；`/app` 查库发现没有会话 → 送回 `/login`
+ * - 两边互相踢，浏览器在 `/login` ↔ `/app` 之间无限跳，页面永远出不来
+ *   （E2E 里表现为「等元素等到 240 秒超时」，且导航日志来回两页）
+ *
+ * 为什么只有这一侧能留在 proxy：「拦住未登录」在 Cookie 缺失时**顶多多拦一次**，
+ * 用户再登一次就好；而「赶走已登录」在信号不准时会**绕不出来**。
+ * 「已登录就别看登录页」这条体验改到了 `(auth)/layout.tsx` 里做，
+ * 那里能查库、判断一定准。
  */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -33,15 +46,9 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const isGuestOnly = GUEST_ONLY_PATHS.some((path) => pathname === path);
-
-  if (isGuestOnly && hasSessionCookie) {
-    return NextResponse.redirect(new URL('/app', request.url));
-  }
-
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/me', '/login', '/register'],
+  matcher: ['/app/:path*', '/me'],
 };
