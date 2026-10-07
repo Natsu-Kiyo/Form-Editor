@@ -59,11 +59,11 @@ pnpm dev           # http://localhost:3000
 
 ### 环境变量
 
-| 变量                  | 说明                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------ |
-| `DATABASE_URL`        | **池化**连接串：Neon 控制台里带 `-pooler` 的主机名。应用运行时走它                   |
-| `DIRECT_URL`          | **直连**连接串（不带 `-pooler`）。迁移与 `db:*` 脚本走它——DDL 不适合经连接池转发     |
-| `NEXT_PUBLIC_APP_URL` | 站点的公开地址（本地 `http://localhost:3000`）。邀请链接、渠道链接与二维码都按它拼接 |
+| 变量                  | 说明                                                                                                                                                                         |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`        | **池化**连接串：Neon 控制台里带 `-pooler` 的主机名。应用运行时走它                                                                                                           |
+| `DIRECT_URL`          | **直连**连接串（不带 `-pooler`）。迁移与 `db:*` 脚本走它——DDL 不适合经连接池转发                                                                                             |
+| `NEXT_PUBLIC_APP_URL` | 站点的公开地址（本地 `http://localhost:3000`）。邀请链接、渠道链接与二维码都按它拼接。**部署到 Vercel 时可以留空**——没配就自动取平台注入的生产域名（预览部署取本次部署域名） |
 
 > 三个值都在 Neon 的 **Connection Details** 面板里，切换「Pooled / Direct」各复制一次即可。项目**没有**其它密钥（会话令牌随机生成、库里只存哈希）。
 
@@ -139,4 +139,4 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm db:check && pnpm 
 
 ## 部署
 
-`vercel-build` 脚本已就绪（`prisma migrate deploy && prisma generate && next build`）。生产环境需在 Vercel 里配好上表三个环境变量（**`DIRECT_URL` 别漏**，迁移要走直连主机），然后 `pnpm db:seed` 灌演示数据。进度与待办见 `docs/PLAN.md` 的 M11 一节。
+`vercel-build` 脚本已就绪（`prisma migrate deploy && prisma generate && next build`）。生产环境只需在 Vercel 里配好 `DATABASE_URL` 与 `DIRECT_URL`（**`DIRECT_URL` 别漏**，迁移要走直连主机）——`NEXT_PUBLIC_APP_URL` 可以留空，会自动取平台注入的生产域名。演示数据随 Neon 分支一起复制过去，不必重新 seed。进度与待办见 `docs/PLAN.md` 的 M11 一节。

@@ -11,6 +11,7 @@ import {
   ROLE_LABEL,
   type Role,
 } from '@/config/constants';
+import { env } from '@/config/env';
 import { requireActiveWorkspace } from '@/lib/auth/active-workspace';
 import { prisma } from '@/lib/db';
 import { writeOperationLog } from '@/lib/operation-log';
@@ -135,7 +136,12 @@ export async function revokeInvitationAction(invitationId: string) {
   revalidatePath('/app/members');
 }
 
-/** 邀请链接的站点前缀。只在服务端取 —— 客户端组件拿不到这个变量（见 AGENTS.md） */
+/**
+ * 邀请链接的站点前缀。只在服务端取 —— 客户端组件拿不到这个变量（见 AGENTS.md）。
+ *
+ * 经 `@/config/env` 读、而不是直接读 `process.env`：那里有一档「没显式配置就取平台域名」
+ * 的回退（部署到 Vercel 时不必先知道域名）。绕过它的话，链接会拼成一个**空前缀**。
+ */
 function appOrigin() {
-  return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ?? '';
+  return env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, '');
 }
