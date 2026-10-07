@@ -316,6 +316,21 @@ export const LOG_RETENTION_DAYS = 180;
 /** 邀请链接的有效期（天）。设计稿 W09 原话：「邀请链接 7 天后失效」 */
 export const INVITATION_EXPIRES_DAYS = 7;
 
+/**
+ * 已经**结束**的邀请（已过期 / 已撤回 / 已接受）在库里保留多少天。
+ *
+ * 与链接本身的有效期一样是 7 天，理由是一条链：链接活 7 天 → 结束后再留 7 天可追溯
+ * → 之后就没有任何消费方了（页面上根本不显示已结束的邀请，事件本身另在操作日志里）。
+ *
+ * 定这个数的起因是用户实测：**过期的链接在库里越攒越多，而页面上看不见、也没有入口能删**
+ * （「标成 EXPIRED」只让列表不再显示它，不会让它消失）。保留期太长等于没解决问题 ——
+ * 演示库里那些测试建出来的邀请，一个星期内就该自己消失了。
+ *
+ * 两个清理入口：成员页读取时顺手清（`features/members/api/members.ts`），
+ * 以及 `pnpm db:prune-invitations`（给没人打开过那个页面的部署兜底）。
+ */
+export const INVITATION_RETENTION_DAYS = 7;
+
 export const INVITATION_STATUS = {
   PENDING: 'PENDING',
   ACCEPTED: 'ACCEPTED',

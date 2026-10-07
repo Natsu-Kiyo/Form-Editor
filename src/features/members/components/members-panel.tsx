@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { Modal, ModalContent } from '@/components/ui/modal';
+import { useToast } from '@/components/ui/toast';
 import {
   INVITATION_EXPIRES_DAYS,
   INVITATION_STATUS_LABEL,
@@ -56,6 +57,34 @@ export function MembersPanel({
       await changeMemberRoleAction(membershipId, role);
       setPendingId(null);
     });
+  };
+
+  const { toast } = useToast();
+
+  /**
+   * 复制某条邀请的链接。
+   *
+   * 用 `window.location.origin` 而不是 `NEXT_PUBLIC_APP_URL`：后者只在服务端可读
+   * （见 AGENTS.md），而管理员此刻就在这个站点上 —— 他复制的理应是他正打开的这个地址。
+   * token 本来就在页面数据里（`InvitationRow.token`），所以这一步不必再问一次服务端。
+   */
+  const copyInviteLink = async (invitation: { token: string; email: string }) => {
+    const link = `${window.location.origin}/invite/${invitation.token}`;
+
+    try {
+      await navigator.clipboard.writeText(link);
+      toast({ title: '邀请链接已复制', description: invitation.email, variant: 'success' });
+    } catch {
+      /*
+       * 剪贴板只在安全上下文（https / localhost）可用，失败**必须说出来** ——
+       * 静默无反应的按钮和假入口没有区别（与 `CopyButton` 同一条理由）。
+       */
+      toast({
+        title: '复制失败',
+        description: '浏览器拒绝了剪贴板访问（需要 https 或 localhost），请手动复制',
+        variant: 'error',
+      });
+    }
   };
 
   return (
@@ -218,17 +247,30 @@ export function MembersPanel({
                         {INVITATION_STATUS_LABEL.PENDING}
                       </span>
                       {canManage ? (
-                        <button
-                          type="button"
-                          disabled={pendingId === invitation.id}
-                          // 撤回也不再有直接动作：先记下目标，弹层确认后才真的撤回
-                          onClick={() =>
-                            setRevoking({ id: invitation.id, email: invitation.email })
-                          }
-                          className="text-ink-500 text-[12.5px] transition-colors duration-150 hover:text-rose-600 disabled:opacity-45"
-                        >
-                          {pendingId === invitation.id ? '撤回中…' : '撤回'}
-                        </button>
+                        <>
+                          {/*
+                            复制链接：与「撤回」同级、同字号，用品牌色把它标成可点的动作。
+                            链接要能随时再拿一次 —— 邀请发出去之后对方很可能找不到消息了。
+                          */}
+                          <button
+                            type="button"
+                            onClick={() => void copyInviteLink(invitation)}
+                            className="text-brand-500 hover:text-brand-600 text-[12.5px] transition-colors duration-150"
+                          >
+                            复制链接
+                          </button>
+                          <button
+                            type="button"
+                            disabled={pendingId === invitation.id}
+                            // 撤回也不再有直接动作：先记下目标，弹层确认后才真的撤回
+                            onClick={() =>
+                              setRevoking({ id: invitation.id, email: invitation.email })
+                            }
+                            className="text-ink-500 text-[12.5px] transition-colors duration-150 hover:text-rose-600 disabled:opacity-45"
+                          >
+                            {pendingId === invitation.id ? '撤回中…' : '撤回'}
+                          </button>
+                        </>
                       ) : null}
                     </div>
                   </li>

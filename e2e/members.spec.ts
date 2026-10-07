@@ -174,6 +174,48 @@ test.describe('成员与权限', () => {
     await expect(page.getByText('可查看问卷')).toBeVisible();
   });
 
+  test('复制链接：复制到剪贴板的就是那条邀请的链接', async ({ page, context }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '要写数据库，只在一个 project 跑');
+    test.setTimeout(120_000);
+
+    // 读回剪贴板要显式授权（Playwright 默认不给）
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+    const invitedEmail = `e2e.copy.${Date.now()}@example.com`;
+
+    await signIn(page, DEMO_ACCOUNTS.owner);
+    await openMembers(page);
+
+    await page.getByRole('button', { name: '邀请成员' }).click();
+    await page.getByLabel('邮箱').fill(invitedEmail);
+    await page.getByRole('button', { name: '生成邀请链接' }).click();
+
+    // 弹层里展示的那条链接是「标准答案」
+    const dialogLink = (await page.getByText(/\/invite\/[\w-]+/).textContent()) ?? '';
+    expect(dialogLink).toContain('/invite/');
+    await page.getByRole('button', { name: '完成' }).click();
+
+    const row = page.getByRole('listitem').filter({ hasText: invitedEmail });
+
+    // ---- 行内「复制链接」----
+    await row.getByRole('button', { name: '复制链接' }).click();
+    // `.first()`：Radix 的 toast 会把标题同时渲染进 aria-live 区（读屏用），DOM 里有两份
+    await expect(page.getByText('邀请链接已复制').first()).toBeVisible();
+
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+
+    // 域名可能不同：弹层那条由服务端的 `NEXT_PUBLIC_APP_URL` 拼（演示环境是 :3000），
+    // 而行内复制用的是**管理员此刻打开的地址**（E2E 跑在 :3100）。所以要验的是
+    // 「同一条邀请的路径」+「用的是当前站点」这两件事
+    expect(new URL(copied).pathname).toBe(new URL(dialogLink).pathname);
+    expect(new URL(copied).origin).toBe(new URL(page.url()).origin);
+
+    // ---- 收尾：撤回这一条（顺便不让「待接受」里残留）----
+    await row.getByRole('button', { name: '撤回' }).click();
+    await page.getByRole('button', { name: '确认撤回' }).click();
+    await expect(page.getByRole('listitem').filter({ hasText: invitedEmail })).toHaveCount(0);
+  });
+
   test('撤回邀请：要二次确认，确认后那条链接立刻打不开', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', '要写数据库，只在一个 project 跑');
     test.setTimeout(180_000);
