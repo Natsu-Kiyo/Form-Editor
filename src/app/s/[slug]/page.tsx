@@ -5,7 +5,7 @@ import { cookies, headers } from 'next/headers';
 import { Button } from '@/components/ui/button';
 import { IDENTITY_MODE_LABEL } from '@/config/constants';
 import {
-  getAccessPasswordHash,
+  getAccessPassword,
   getPublicQuestionnaire,
   recordQuestionnaireView,
 } from '@/features/answering/api/public-questionnaire';
@@ -48,8 +48,13 @@ export default async function PublicQuestionnairePage({
   // 与提交时用的是同一个函数：页面判「已提交过」与实际拦截的依据必须一致
   const fingerprint = clientId || userAgent ? buildFingerprint(clientId, userAgent) : null;
 
-  const access = await getAccessPasswordHash(slug);
-  const unlocked = access ? await isUnlocked(access.id, access.accessPasswordHash) : false;
+  /*
+   * 「要不要先解锁」的判据：口令模式的问卷必须有口令、且已被解开。
+   * 口令模式但库里没有口令（迁移之后 / 口令被清空）时 `isUnlocked` 返回 false，
+   * 页面于是停在「需要口令」而不是直接放行 —— 那是刻意的，见 unlock action 里的说明。
+   */
+  const access = await getAccessPassword(slug);
+  const unlocked = access ? await isUnlocked(access.id, access.accessPassword) : false;
 
   const view = await getPublicQuestionnaire(
     slug,

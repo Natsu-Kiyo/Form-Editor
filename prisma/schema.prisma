@@ -215,7 +215,13 @@ model Questionnaire {
   /// 回收上限。列表卡片的「128 / 200」用它的分母
   responseLimit Int?
   identityMode  IdentityMode        @default(ANONYMOUS)
-  accessPasswordHash String?
+  /// 口令访问的**口令原文**（`identityMode = PASSWORD` 时才有值）。
+  ///
+  /// 存原文而不是哈希，是为了让发起人**还能看到它**：这是要发给作答者的访问码，
+  /// 忘掉之后只能重设，而重设会让已经发出去的那串码当场失效。代价是拿到数据库的人
+  /// 也能读到它 —— 这一版接受这个代价（见 `docs/PLAN.md` R40 的取舍），
+  /// 要收紧就在这一列上做静态加密（应用密钥加密后再存）。
+  accessPassword String?
   closeReason   CloseReason?
   publishedAt   DateTime?
   closedAt      DateTime?

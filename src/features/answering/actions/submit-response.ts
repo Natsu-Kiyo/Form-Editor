@@ -59,7 +59,7 @@ export async function submitResponseAction(input: {
 
   if (
     context.identityMode === 'PASSWORD' &&
-    !(await isUnlocked(context.id, context.accessPasswordHash))
+    !(await isUnlocked(context.id, context.accessPassword))
   ) {
     return { ok: false, kind: 'ERROR', message: '请先输入访问口令' };
   }

@@ -58,7 +58,14 @@ export default async function SubmittedPage({
           <div className="min-w-0">
             <dt className="text-ink-400 mb-1 text-[11.5px]">答复方式</dt>
             <dd className="text-ink-800 text-[13px]">
-              {response.identityMode === 'ANONYMOUS' ? '匿名提交' : '登录提交'}
+              {/* 三种作答身份各有各的说法。原先只有「匿名 / 否则登录」两路，
+                  于是**口令访问的问卷被写成了「登录提交」** —— 那是错的，而且很具体地错：
+                  提交者根本没登录 */}
+              {response.identityMode === 'ANONYMOUS'
+                ? '匿名提交'
+                : response.identityMode === 'PASSWORD'
+                  ? '口令提交'
+                  : '登录提交'}
             </dd>
           </div>
           <div className="col-span-2 min-w-0">
@@ -66,7 +73,11 @@ export default async function SubmittedPage({
             <dd className="text-ink-800 text-[13px] leading-5">
               {response.identityMode === 'ANONYMOUS'
                 ? '本问卷为匿名收集，不会记录你的身份信息。如需撤回，请联系发布者。'
-                : '本次作答与你的账号关联。如需撤回或修改，请联系发布者。'}
+                : response.identityMode === 'PASSWORD'
+                  ? // 只说确定的事：口令用于进入填写，它本身不随答卷保存。
+                    // 「是否与账号关联」取决于提交时有没有登录，这里不替用户下结论
+                    '本问卷用口令控制访问，口令仅用于进入填写、不随答卷保存。如需撤回，请联系发布者。'
+                  : '本次作答与你的账号关联。如需撤回或修改，请联系发布者。'}
             </dd>
           </div>
         </dl>

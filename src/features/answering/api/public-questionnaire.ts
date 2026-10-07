@@ -85,7 +85,7 @@ export async function getPublicQuestionnaire(
       responseLimit: true,
       closeReason: true,
       identityMode: true,
-      accessPasswordHash: true,
+      accessPassword: true,
       owner: { select: { name: true } },
       workspace: { select: { name: true } },
       questions: {
@@ -353,11 +353,17 @@ export async function recordQuestionnaireView(slug: string) {
   });
 }
 
-/** 口令是否已被这道题的访客解开过（哈希存在 Cookie 里，见 `lib/unlock.ts`） */
-export async function getAccessPasswordHash(slug: string) {
+/**
+ * 公开页判「要不要先输口令」时要的那一份数据。
+ *
+ * 一并返回 `identityMode` 是必须的：**「口令模式但没有口令」与「非口令模式」是两回事**
+ * —— 前者必须当作**打不开**（迁移后、或口令被清空后可能出现），后者才是不需要解锁。
+ * 只看 `accessPassword` 是否为空会把前者放行，等于让问卷悄悄对所有人敞开。
+ */
+export async function getAccessPassword(slug: string) {
   return prisma.questionnaire.findUnique({
     where: { slug },
-    select: { id: true, accessPasswordHash: true },
+    select: { id: true, identityMode: true, accessPassword: true },
   });
 }
 
@@ -380,7 +386,7 @@ export async function loadSubmissionContext(slug: string) {
       endsAt: true,
       responseLimit: true,
       identityMode: true,
-      accessPasswordHash: true,
+      accessPassword: true,
       _count: { select: { responses: { where: { status: 'VALID' } } } },
       questions: {
         orderBy: { order: 'asc' },

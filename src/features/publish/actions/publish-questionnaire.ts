@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache';
 
 import { OPERATION_TYPE, formatVersion, type IdentityMode } from '@/config/constants';
-import { hashPassword } from '@/lib/auth/password';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
 import { writeOperationLog } from '@/lib/operation-log';
@@ -23,18 +22,21 @@ type NormalizedSettings = {
   endsAt: Date | null;
   responseLimit: number | null;
   identityMode: IdentityMode;
-  accessPasswordHash: string | null;
+  accessPassword: string | null;
 };
 
 /**
  * 校验并把输入框的值落成库里的字段。
  *
- * 口令的两种「留空」要分开：**从没设过** → 保持为空（发布前检查会拦住口令访问）；
- * **设过但现在留空** → 沿用旧口令。后者是常见操作（改个结束时间不该被逼着重设口令）。
+ * 口令存的是**原文**（见 `schema.prisma` 那一列），所以「要不要留口令」只剩一条规则：
+ * 口令访问必须有口令、换回匿名或登录作答一律清掉。
+ *
+ * 这条规则写在 `schemas.ts` 的 `superRefine` 里，这里**不再自己判一遍** ——
+ * 界面（`lib/preflight.ts` 的 `hasPassword`）、schema、action 三处只要有一处另发明判断，
+ * 用户就会看到「检查说没问题、点下去却说不行」。
  */
-async function normalizeSettings(
+function normalizeSettings(
   input: unknown,
-  existingPasswordHash: string | null,
 ): Promise<
   | { ok: true; settings: NormalizedSettings }
   | { ok: false; message: string; fieldErrors?: Record<string, string[]> }
@@ -42,31 +44,26 @@ async function normalizeSettings(
   const parsed = publishSettingsSchema.safeParse(input);
 
   if (!parsed.success) {
-    return {
+    return Promise.resolve({
       ok: false,
       message: parsed.error.issues[0].message,
       fieldErrors: toFieldErrors(parsed.error),
-    };
+    });
   }
 
   const value = parsed.data;
-  const accessPasswordHash =
-    value.identityMode !== 'PASSWORD'
-      ? null
-      : value.password
-        ? await hashPassword(value.password)
-        : existingPasswordHash;
 
-  return {
+  return Promise.resolve({
     ok: true,
     settings: {
       startsAt: parseDateTimeLocal(value.startsAt),
       endsAt: parseDateTimeLocal(value.endsAt),
       responseLimit: value.responseLimit === '' ? null : Number(value.responseLimit),
       identityMode: value.identityMode,
-      accessPasswordHash,
+      // 非口令模式时把口令清掉：留着它意味着「改回匿名作答之后，口令还挂在库里」
+      accessPassword: value.identityMode === 'PASSWORD' ? value.password : null,
     },
-  };
+  });
 }
 
 async function getPublishContext(questionnaireId: string) {
@@ -75,7 +72,7 @@ async function getPublishContext(questionnaireId: string) {
     select: {
       title: true,
       status: true,
-      accessPasswordHash: true,
+      accessPassword: true,
       questions: { orderBy: { order: 'asc' }, select: { title: true, required: true } },
       _count: { select: { responses: { where: { status: 'VALID' } } } },
     },
@@ -98,7 +95,7 @@ export async function savePublishSettingsAction(
   }
 
   const context = await getPublishContext(questionnaireId);
-  const normalized = await normalizeSettings(input, context?.accessPasswordHash ?? null);
+  const normalized = await normalizeSettings(input);
   if (!normalized.ok) return normalized;
 
   const { settings } = normalized;
@@ -121,7 +118,7 @@ export async function savePublishSettingsAction(
       endsAt: settings.endsAt,
       responseLimit: settings.responseLimit,
       identityMode: settings.identityMode,
-      accessPasswordHash: settings.accessPasswordHash,
+      accessPassword: settings.accessPassword,
     },
   });
 
@@ -162,7 +159,7 @@ export async function publishQuestionnaireAction(
   const context = await getPublishContext(questionnaireId);
   if (!context) return { ok: false, message: '问卷不存在' };
 
-  const normalized = await normalizeSettings(input, context.accessPasswordHash);
+  const normalized = await normalizeSettings(input);
   if (!normalized.ok) return normalized;
 
   const { settings } = normalized;
@@ -175,7 +172,7 @@ export async function publishQuestionnaireAction(
     responseLimit: settings.responseLimit,
     responseCount: context._count.responses,
     identityMode: settings.identityMode,
-    hasPassword: settings.accessPasswordHash !== null,
+    hasPassword: settings.accessPassword !== null,
     now,
   });
 
@@ -201,7 +198,7 @@ export async function publishQuestionnaireAction(
       endsAt: settings.endsAt,
       responseLimit: settings.responseLimit,
       identityMode: settings.identityMode,
-      accessPasswordHash: settings.accessPasswordHash,
+      accessPassword: settings.accessPassword,
     },
   });
 

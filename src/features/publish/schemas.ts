@@ -28,8 +28,14 @@ export const publishSettingsSchema = z
     identityMode: z.enum(['ANONYMOUS', 'LOGIN_REQUIRED', 'PASSWORD'], {
       error: '请选择作答身份',
     }),
-    // 口令留空不算错：已经设过口令的问卷改别的设置时不必重填（服务端沿用旧口令）。
-    // 「选了口令访问却一个口令都没有」由发布前检查拦（它才知道库里已有口令没）
+    /*
+     * 口令存的是**原文**（见 `schema.prisma` 那一列），所以这里能管的比原来多：
+     * 「口令能不能为空」取决于**作答身份** —— 换回匿名作答时它本来就该被清掉，
+     * 而选着「口令访问」时空口令必须当场报错。
+     *
+     * 规则写在 schema 里，界面与服务端就没有第二份实现；`preflight.ts` 里
+     * `hasPassword` 用的也是同一个判断（字段非空），所以两处说法必然一致。
+     */
     password: z
       .string()
       .trim()
@@ -42,6 +48,10 @@ export const publishSettingsSchema = z
 
     if (startsAt && endsAt && endsAt.getTime() <= startsAt.getTime()) {
       ctx.addIssue({ code: 'custom', path: ['endsAt'], message: '结束时间必须晚于开始时间' });
+    }
+
+    if (value.identityMode === 'PASSWORD' && value.password.length === 0) {
+      ctx.addIssue({ code: 'custom', path: ['password'], message: '口令访问必须设置一个口令' });
     }
   });
 

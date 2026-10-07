@@ -3,10 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 
-import { verifyPassword } from '@/lib/auth/password';
 import { createRateLimiter } from '@/lib/rate-limit';
 
-import { getAccessPasswordHash } from '../api/public-questionnaire';
+import { getAccessPassword } from '../api/public-questionnaire';
+import { verifyAccessCode } from '../lib/access-code';
 import { markUnlocked } from '../lib/unlock';
 
 export type UnlockResult = { ok: true } | { ok: false; message: string };
@@ -36,20 +36,31 @@ async function clientKey() {
 /**
  * 口令访问的解锁。
  *
- * 口令**只在服务端比对**（bcrypt），比中之后只在浏览器里放一个不可伪造的标记
- * （`lib/unlock.ts`），后续提交凭它放行 —— 口令本身不会被写进任何地方。
+ * 口令**只在服务端比对**（等时比较，见 `lib/access-code.ts`），比中之后只在浏览器里
+ * 放一个「已解锁」的标记（`lib/unlock.ts`）。
  */
 export async function unlockQuestionnaireAction(
   slug: string,
   password: unknown,
 ): Promise<UnlockResult> {
-  const questionnaire = await getAccessPasswordHash(slug);
+  const questionnaire = await getAccessPassword(slug);
   if (!questionnaire) return { ok: false, message: '问卷不存在' };
 
-  // 没设口令的问卷不需要解锁（也避免有人拿它当作「探测接口」）
-  if (!questionnaire.accessPasswordHash) return { ok: true };
+  // 非口令模式的问卷不需要解锁（也避免有人拿它当作「探测接口」）
+  if (questionnaire.identityMode !== 'PASSWORD') return { ok: true };
 
-  const value = typeof password === 'string' ? password : '';
+  /*
+   * 口令模式、但库里没有口令：迁移之后会出现的一种状态。
+   *
+   * **不能放行** —— 放行等于把一份「设了口令却丢了口令」的问卷公开出去。
+   * 拦住它，发起人在设置页会看到发布前检查的报错，重设一个口令即可。
+   */
+  if (!questionnaire.accessPassword) {
+    return { ok: false, message: '这份问卷的口令还没设置好，请联系发起人' };
+  }
+
+  // 口令前后可能有粘贴带进来的空格，先 trim（库里那份也是 trim 过的）
+  const value = typeof password === 'string' ? password.trim() : '';
   if (value.length === 0) return { ok: false, message: '请输入访问口令' };
 
   const key = `${questionnaire.id}:${await clientKey()}`;
@@ -62,7 +73,7 @@ export async function unlockQuestionnaireAction(
     return { ok: false, message: `试错次数过多，请 ${minutes} 分钟后再试` };
   }
 
-  if (!(await verifyPassword(questionnaire.accessPasswordHash, value))) {
+  if (!verifyAccessCode(questionnaire.accessPassword, value)) {
     return {
       ok: false,
       message: gate.remaining > 0 ? `口令不正确，还可试 ${gate.remaining} 次` : '口令不正确',
@@ -72,7 +83,7 @@ export async function unlockQuestionnaireAction(
   // 成功即清零：之前那几次失败翻篇
   limiter.reset(key);
 
-  await markUnlocked(questionnaire.id, questionnaire.accessPasswordHash);
+  await markUnlocked(questionnaire.id, questionnaire.accessPassword);
 
   revalidatePath(`/s/${slug}`);
 

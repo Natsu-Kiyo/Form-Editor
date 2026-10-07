@@ -55,9 +55,24 @@ export function PublishSettings({
   const [endsAt, setEndsAt] = useState(data.endsAt);
   const [responseLimit, setResponseLimit] = useState(data.responseLimit);
   const [identityMode, setIdentityMode] = useState<IdentityMode>(data.identityMode);
-  const [password, setPassword] = useState('');
+  /**
+   * 口令输入框里放的是**原文**（库里存的也是原文，见 `schema.prisma` 那一列）。
+   *
+   * R38~R39 这里放的是一个掩码，因为当时库里只有哈希、服务端读不回原文；
+   * R40 起改存原文，掩码反而成了障碍 —— 发起人看不到自己设的码，
+   * 就没法把它发给要填的人（而那正是口令唯一的用途）。
+   */
+  const [password, setPassword] = useState(data.accessPassword ?? '');
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
+
+  /**
+   * 保存之后这份问卷**是否会有口令**。
+   *
+   * 与 schema（`publishSettingsSchema`）用的是**同一个判据**：字段里有没有内容。
+   * 三处只要有一处另发明判断，用户就会看到「检查说没问题、点下去却说不行」。
+   */
+  const passwordWillExist = password.trim().length > 0;
 
   const isDraft = data.status === 'DRAFT';
 
@@ -70,18 +85,17 @@ export function PublishSettings({
         responseLimit: responseLimit === '' ? null : Number(responseLimit),
         responseCount: data.responseCount,
         identityMode,
-        hasPassword: data.hasPassword || password.length > 0,
+        hasPassword: passwordWillExist,
         now: new Date(),
       }),
     [
       data.questions,
       data.responseCount,
-      data.hasPassword,
+      passwordWillExist,
       startsAt,
       endsAt,
       responseLimit,
       identityMode,
-      password,
     ],
   );
 
@@ -94,12 +108,19 @@ export function PublishSettings({
         : await savePublishSettingsAction(data.id, input);
 
       setMessage({ tone: result.ok ? 'ok' : 'error', text: result.message });
-      if (result.ok) setPassword('');
+      // 成功后**不清空**字段：清掉会被读成「口令被删了」，而它只是保存过了
     });
   };
 
+  /**
+   * 保存按钮的可用性。
+   *
+   * 与发布共用 `preflight.canPublish`，**不再区分草稿与否**：像「口令访问却没填口令」
+   * 这类问题不是「不能发布」的问题，而是「不能保存」的问题 —— 原来只在草稿上拦，
+   * 已发布的问卷就能在一个必然被服务端拒的状态下把按钮点下去（用户实测报过）。
+   */
   const submitButton = canEdit ? (
-    <Button type="button" disabled={pending || (isDraft && !preflight.canPublish)} onClick={submit}>
+    <Button type="button" disabled={pending || !preflight.canPublish} onClick={submit}>
       {isDraft ? '保存并发布' : '保存设置'}
     </Button>
   ) : null;
@@ -199,15 +220,21 @@ export function PublishSettings({
           {identityMode === 'PASSWORD' ? (
             <div className="mt-4">
               <Label htmlFor="access-password">访问口令</Label>
+              {/* 明文显示：这串码是要发给作答者的，发起人必须看得见（见 schema.prisma 那一列） */}
               <Input
                 id="access-password"
-                type="password"
-                autoComplete="new-password"
-                placeholder={data.hasPassword ? '留空则沿用上次设置的口令' : '至少 4 位'}
+                type="text"
+                autoComplete="off"
+                placeholder="至少 4 位"
                 value={password}
                 disabled={!canEdit}
                 onChange={(event) => setPassword(event.target.value)}
               />
+              <p className="text-ink-400 mt-1.5 text-[11.5px] leading-4">
+                作答者需要输入这个口令才能进入 —— 请把它发给要填的人。
+                <br />
+                换成「匿名作答 / 需登录作答」保存后，口令会被清掉。
+              </p>
             </div>
           ) : null}
         </SettingCard>

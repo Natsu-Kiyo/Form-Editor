@@ -20,7 +20,13 @@ export type PublishPageData = {
   /** 输入框的值；不限制时是空串 */
   responseLimit: string;
   identityMode: IdentityMode;
-  hasPassword: boolean;
+  /**
+   * 口令**原文**（没有口令时为 null）。
+   *
+   * 给原始值而不是 `hasPassword: boolean`：发起人要能把口令念给同事、贴进群里，
+   * 所以设置页必须看得见它（取舍写在 `schema.prisma` 那一列上）。
+   */
+  accessPassword: string | null;
   publishedAtLabel: string | null;
   closedAtLabel: string | null;
   closeReason: CloseReason | null;
@@ -45,7 +51,7 @@ export async function getPublishPageData(questionnaireId: string): Promise<Publi
       endsAt: true,
       responseLimit: true,
       identityMode: true,
-      accessPasswordHash: true,
+      accessPassword: true,
       publishedAt: true,
       closedAt: true,
       closeReason: true,
@@ -67,7 +73,7 @@ export async function getPublishPageData(questionnaireId: string): Promise<Publi
     endsAt: row.endsAt ? formatDateTimeLocal(row.endsAt) : '',
     responseLimit: row.responseLimit === null ? '' : String(row.responseLimit),
     identityMode: row.identityMode as IdentityMode,
-    hasPassword: row.accessPasswordHash !== null,
+    accessPassword: row.accessPassword,
     publishedAtLabel: stamp(row.publishedAt),
     closedAtLabel: stamp(row.closedAt),
     closeReason: row.closeReason as CloseReason | null,
