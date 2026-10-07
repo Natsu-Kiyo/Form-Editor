@@ -188,6 +188,21 @@ test.describe('移动外壳', () => {
     await expect(sheet.getByRole('button', { name: /新建渠道/ })).toBeVisible();
   });
 
+  test('P04 卡片：窄屏的「编辑」直通编辑器', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', '这是 375px 的形态');
+
+    await signIn(page);
+
+    // seed 里那份草稿（已发布的进去是冻结只读，看不到可写的编辑器界面）
+    const edit = page.getByRole('link', { name: /^编辑「用户访谈招募/ });
+    await expect(edit).toBeVisible();
+    await edit.click();
+
+    await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
+    // 真的进了移动编辑器：悬浮「＋」就是它的入口（窄屏没有左栏的题型面板）
+    await expect(page.getByRole('button', { name: '添加题目' })).toBeVisible();
+  });
+
   test('P08 移动编辑器：题型与属性是弹层，且就是桌面那两块面板', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', '这是 375px 的形态');
 

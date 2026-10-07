@@ -17,7 +17,7 @@ import { RestoreButton } from './restore-button';
  *
  * | 状态 | 桌面 | 窄屏 |
  * |---|---|---|
- * | 草稿 / 回收中 / 已暂停 | 编辑 · 数据 · 分享 | 数据 · 分享 |
+ * | 草稿 / 回收中 / 已暂停 | 编辑 · 数据 · 分享 | 编辑 · 数据 · 分享 |
  * | 已截止 | **复制** · 数据 · 分享 | 数据 · 分享 |
  * | 已归档 | 恢复 · **数据** | 恢复 · 数据 |
  *
@@ -25,10 +25,12 @@ import { RestoreButton } from './restore-button';
  * - 已截止的没有「编辑」可点（发布即冻结，编辑器进去也是只读），设计稿把它换成了**复制** ——
  *   那正是冻结问卷唯一的出路。
  * - 已归档的没有「分享」（不能再回收了），只剩「恢复」与「数据」。
- * - 窄屏没有「编辑」（移动端编辑是弹层化的 P08，属 M10）与「复制」（设计稿标为移动端不做）。
- *   两处都是**完全不渲染**，不是灰显 —— 与侧栏、⋯ 菜单同一条规矩。
- * - 「数据」在窄屏可用：统计页本身能在窄屏打开，只是它的移动版式（单题图表横滑等）
- *   留在 M10 双端收口。它是个真页面，不是假入口。
+ * - **窄屏也有「编辑」**（R47）：早先不渲染是因为移动端编辑器还没落地（P08 属 M10），
+ *   现在它是可用的了，卡片上就该有直通入口 —— 从列表进编辑器不必再绕「数据 → 编辑」那一跳。
+ *   设计稿 P04 的卡片样本只画了「数据 / 分享」，这是**有意偏离**：那张图成稿时移动编辑器还不存在。
+ * - 窄屏仍然没有「复制」（设计稿标为移动端不做），所以已截止的卡片在窄屏只有两格。
+ *   缺的两处都是**完全不渲染**，不是灰显 —— 与侧栏、⋯ 菜单同一条规矩。
+ * - 「数据」在窄屏可用：统计页的移动版式已在 M10 落地。它是个真页面，不是假入口。
  */
 const BAR_ITEM =
   'flex h-8 flex-1 items-center justify-center rounded-lg text-[12.5px] font-medium transition-colors duration-150';
@@ -71,7 +73,7 @@ export function CardPrimaryActions({
     <div
       className={cn(
         'border-ink-100 flex items-center gap-1 border-t pt-3.5',
-        // 窄屏只有两枚胶囊，靠右收；桌面三个按钮平分整行
+        // 窄屏是胶囊、靠右收；桌面三个按钮平分整行
         !isDesktop && 'justify-end gap-2',
       )}
     >
@@ -84,10 +86,11 @@ export function CardPrimaryActions({
             className={cn(isDesktop ? BAR_ITEM : PILL_ITEM, TONE[shape].brand)}
           />
         ) : null
-      ) : !isDesktop ? null : closed ? (
+      ) : closed ? (
         // 已截止：结构冻结，第一个位置换成「复制」（冻结问卷唯一的出路）。
-        // 复制等于新建一份，所以要编辑者；查看者连这个按钮都不出现
-        canEdit ? (
+        // 复制等于新建一份，所以要编辑者；查看者连这个按钮都不出现。
+        // 窄屏不给「复制」（设计稿标为移动端不做），这一格就空着
+        isDesktop && canEdit ? (
           <button
             type="button"
             aria-label={`复制「${questionnaire.title}」`}

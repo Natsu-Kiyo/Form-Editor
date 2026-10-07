@@ -62,10 +62,8 @@ test('卡片底部的动作随状态换内容（W02 / P02）', async ({ page }, 
   const desktop = testInfo.project.name === 'desktop';
   await signIn(page);
 
-  // 回收中：编辑 · 数据 · 分享
-  await expect(page.getByRole('link', { name: '编辑「2026 秋季社团招新报名」' })).toHaveCount(
-    desktop ? 1 : 0,
-  );
+  // 回收中：编辑 · 数据 · 分享 —— R47 起**两端都有「编辑」**（移动端编辑器已经可用了）
+  await expect(page.getByRole('link', { name: '编辑「2026 秋季社团招新报名」' })).toHaveCount(1);
   await expect(page.getByRole('link', { name: '数据「2026 秋季社团招新报名」' })).toBeVisible();
   await expect(page.getByRole('link', { name: '分享「2026 秋季社团招新报名」' })).toBeVisible();
 
@@ -74,7 +72,7 @@ test('卡片底部的动作随状态换内容（W02 / P02）', async ({ page }, 
     page.getByRole('link', { name: '数据「课程作业互评 · 用户体验设计」' }),
   ).toBeVisible();
 
-  // 已截止：结构冻结，第一个位置换成「复制」（窄屏下「编辑」与「复制」都不渲染）
+  // 已截止：结构冻结，第一个位置换成「复制」（「复制」窄屏不渲染；「编辑」此时两端都没有）
   await expect(page.getByRole('button', { name: '复制「团建活动时间意愿投票」' })).toHaveCount(
     desktop ? 1 : 0,
   );
