@@ -9,7 +9,7 @@ import { Topbar } from '@/components/layout/topbar';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SearchField } from '@/components/ui/search-field';
-import { TEMPLATE_CATEGORIES } from '@/config/constants';
+
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 import { cn } from '@/utils/cn';
 
@@ -25,7 +25,10 @@ import { TemplateCard } from './template-card';
  * - **Tab / 搜索 / 分类全部走 URL**（与其它管理页同一条规矩）：视图可分享、可后退。
  *   切 Tab 时会**清掉分类**（官方与我的两个库的分类未必重合，留着会得到一个空列表）。
  * - 「使用此模板」**不弹确认**，点下去直接建问卷并进编辑器（见 `createFromTemplateAction`）。
- * - 分类胶囊只列**计划书定下的五个**：动态去重会让「点进去是空的」这种胶囊也出现。
+ * - 分类胶囊**由页面算好传进来**（`categories`），两个 Tab 是两套口径：官方模板列计划书
+ *   定下的五个常量；「我的模板」列**该工作区实际用过的分类**（含用户自建的新分类）。
+ *   之所以不在这里动态去重也不在这里写常量：胶囊必须与「另存为模板」里能选的分类一致，
+ *   而那份清单要查库（见 `templates/page.tsx`）。
  * - 「我的模板」卡上的按钮常显，官方卡悬浮才出现（设计稿如此）—— 前者是用户要去改的，
  *   后者只是浏览。
  */
@@ -34,6 +37,7 @@ export function TemplateGallery({
   scope,
   keyword,
   category,
+  categories,
   mineCount,
   templates,
   canCreate,
@@ -42,6 +46,8 @@ export function TemplateGallery({
   scope: TemplateScope;
   keyword: string;
   category: string | null;
+  /** 分类胶囊的清单（页面按 Tab 的口径算好传进来，见文件顶部说明） */
+  categories: string[];
   /** 「我的模板」Tab 上的角标 */
   mineCount: number;
   /** 给「新建问卷」弹层用 */
@@ -154,7 +160,7 @@ export function TemplateGallery({
             <CategoryPill active={category === null} onClick={() => push({ category: null })}>
               全部
             </CategoryPill>
-            {TEMPLATE_CATEGORIES.map((item) => (
+            {categories.map((item) => (
               <CategoryPill
                 key={item}
                 active={category === item}

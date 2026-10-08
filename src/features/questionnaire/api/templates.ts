@@ -210,3 +210,22 @@ export function findWorkspaceTemplateByTitle(workspaceId: string, title: string)
     select: { id: true },
   });
 }
+
+/**
+ * 本工作区自建模板**实际用过的分类**（去重，按名称排）。
+ *
+ * 两处要用，而且必须是同一份口径：
+ * - 模板中心的分类胶囊（「我的模板」Tab 只列真有模板的分类，避免点进去空无一物）
+ * - 「另存为模板」的下拉与**新增分类的重名校验** —— 判断「这个分类是否已存在」
+ *   不能只看常量，用户自己建过的分类同样算存在
+ */
+export async function listWorkspaceTemplateCategories(workspaceId: string): Promise<string[]> {
+  const rows = await prisma.template.findMany({
+    where: { workspaceId, isOfficial: false },
+    select: { category: true },
+    distinct: ['category'],
+    orderBy: { category: 'asc' },
+  });
+
+  return rows.map((row) => row.category);
+}

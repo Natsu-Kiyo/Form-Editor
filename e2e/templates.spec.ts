@@ -87,6 +87,13 @@ test.describe('模板中心', () => {
 
     await signIn(page);
 
+    /*
+     * 分类是**必填**的（这个字段出现之前，自建模板被写死成一个旧分类）。
+     * 这里走「新增分类」支路，顺带验它建完能被筛出来。
+     * 名字带时间戳：分类名在同一工作区内不可重复，固定的名字第二次跑就撞了。
+     */
+    const newCategory = `E2E 分类 ${Date.now()}`;
+
     // ---- 造一张自己的模板：列表卡片的「⋯」→ 另存为模板 ----
     await page
       .getByRole('button', { name: /更多操作/ })
@@ -94,6 +101,11 @@ test.describe('模板中心', () => {
       .click();
     await page.getByRole('menuitem', { name: '另存为模板' }).click();
     await page.getByLabel('模板名称').fill(created);
+
+    // 选「新增分类」→ 多出一个输入框
+    await page.getByRole('combobox', { name: '模板分类' }).click();
+    await page.getByRole('option', { name: /新增分类/ }).click();
+    await page.getByLabel('新分类名称').fill(newCategory);
     await page.getByRole('button', { name: '保存模板' }).click();
 
     // ---- 它出现在「我的模板」里（tab 上还有数量角标）----
@@ -103,6 +115,32 @@ test.describe('模板中心', () => {
     await expect(previewButton(page, created)).toBeVisible();
     // seed 造的三张也在（两态都有内容）
     await expect(previewButton(page, '面试评分表')).toBeVisible();
+
+    // ---- 刚建的新分类成了这一页的胶囊，而且真的能筛出东西 ----
+    // （改之前胶囊是写死的五个常量，用户自建的分类无处可点）
+    await page.getByRole('button', { name: newCategory }).click();
+    await expect(previewButton(page, created)).toBeVisible();
+    await expect(previewButton(page, '面试评分表')).toHaveCount(0);
+
+    // ---- 「新增分类」与现有分类重名时当场报错（借一个必有的常量分类名）----
+    await page.goto('/app');
+    await page
+      .getByRole('button', { name: /更多操作/ })
+      .first()
+      .click();
+    await page.getByRole('menuitem', { name: '另存为模板' }).click();
+    await page.getByLabel('模板名称').fill(`${created} 重复分类`);
+    await page.getByRole('combobox', { name: '模板分类' }).click();
+    await page.getByRole('option', { name: /新增分类/ }).click();
+    await page.getByLabel('新分类名称').fill('报名登记');
+    await page.getByRole('button', { name: '保存模板' }).click();
+    await expect(page.getByText('这个分类已经存在，直接从下拉里选它')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // 回「我的模板」继续重命名 / 删除（上面为了试重名跳回了列表页，得先回模板中心）
+    await openTemplates(page);
+    await page.getByRole('button', { name: /^我的模板/ }).click();
+    await expect(page.getByRole('button', { name: `更多操作「${created}」` })).toBeVisible();
 
     // ---- 重命名 ----
     await page.getByRole('button', { name: `更多操作「${created}」` }).click();

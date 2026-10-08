@@ -8,7 +8,7 @@
  * 一次失败之后，那几条用例就再也跑不过，直到手工清库。
  *
  * 两条边界，刻意收紧：
- * - 只删**能确定属于 E2E** 的东西：标题以 `E2E ` 开头的问卷、邮箱含 `e2e.` 的账号与邀请、
+ * - 只删**能确定属于 E2E** 的东西：标题以 `E2E ` 开头的问卷与模板、邮箱含 `e2e.` 的账号与邀请、
  *   正文含 `E2E ` 的通知。演示数据（`prisma/seed.ts` 的那批）一条都不碰。
  * - 「未命名问卷」是**唯一**靠标题认不出归属的一类（它就是空白新建的默认标题）。
  *   一开始写成「留最早的一份、其余删掉」，结果**留的那一份正好把它搞红**：
@@ -48,6 +48,11 @@ async function main() {
     where: { title: { startsWith: '未命名问卷' } },
   });
 
+  // 7) 模板：与问卷同理 —— 「另存为模板」那条用例失败时，它造出来的模板会留在「我的模板」里
+  const templates = await prisma.template.deleteMany({
+    where: { OR: [{ title: { startsWith: 'E2E ' } }, { title: { startsWith: '「E2E ' } }] },
+  });
+
   const summary: Array<[string, number]> = [
     ['通知', notifications.count],
     ['邀请', invitations.count],
@@ -55,6 +60,7 @@ async function main() {
     ['账号', users.count],
     ['E2E 问卷', questionnaires.count],
     ['未命名问卷', unnamedRemoved.count],
+    ['E2E 模板', templates.count],
   ];
 
   const touched = summary.filter(([, count]) => count > 0);

@@ -390,6 +390,22 @@ export const TEMPLATE_CATEGORIES = [
 
 export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
 
+/**
+ * 「另存为模板」里选中**新增分类**时，分类下拉提交的哨兵值。
+ *
+ * 用哨兵而不是「下拉留空 + 另一个字段」：`formData` 里始终只有 `category` 一个来源，
+ * 服务端判断分支就一处。前后端认同一个常量，和口令那个掩码同一套做法。
+ */
+export const TEMPLATE_CATEGORY_NEW = '__NEW_CATEGORY__';
+
+/**
+ * **早期**的自建模板分类。
+ *
+ * 分类选择器出现之前，「另存为模板」把自建模板一律写成这个值。它不再出现在下拉里，
+ * 也不作为分类胶囊 —— 那些老模板只在「全部」里可见，重新另存一次即可归入正式分类。
+ */
+export const LEGACY_TEMPLATE_CATEGORY = '我的模板';
+
 /** 操作对象的类型。操作日志页按它过滤 */
 export const OPERATION_TARGET_LABEL = {
   QUESTIONNAIRE: '问卷',
