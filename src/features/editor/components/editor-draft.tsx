@@ -11,6 +11,9 @@ import {
   useState,
 } from 'react';
 
+import { MATRIX_DEFAULT_COLUMNS, MATRIX_LIMITS } from '@/config/constants';
+import { hasOptionList } from '@/lib/questionnaire-structure';
+
 import { saveEditorDraftAction } from '../actions/save-draft';
 import type { EditorQuestion, EditableQuestionType, QuestionConfig } from '../api/questionnaires';
 
@@ -66,18 +69,29 @@ function tempKey(prefix: string) {
   return `${prefix}-tmp-${tempCounter}`;
 }
 
-/** 新建选择题先给两个选项 —— 一个没有选项的单选题没法作答 */
+/** 新建选择题先给两个选项 —— 一个没有选项的单选题没法作答（矩阵的「行」同理，见 addQuestion） */
 const DEFAULT_OPTION_COUNT = 2;
+
+/**
+ * 草稿里的矩阵列，**原样返回、不过滤空串**。
+ *
+ * 与 `constants.matrixColumns()`（读取侧：收敛上限 + 丢掉空值）**刻意分开**：
+ * 编辑器里那一格可能正被清空、还没重新输入，它必须留在数组里 ——
+ * 用读取侧那份过滤一下，清空一格就等于当场把那一列删掉，
+ * 连着下限校验的基数一起变（列能被删到少于 2）。
+ * 与选项编辑同一条规矩：**为空只是空着，失焦时才补一个占位文案**。
+ */
+export function draftMatrixColumns(config: QuestionConfig) {
+  return config.columns ?? [];
+}
 
 function defaultConfig(type: EditableQuestionType): QuestionConfig {
   if (type === 'RATING') return { min: 1, max: 5 };
   if (type === 'SHORT_TEXT') return { maxLength: 100 };
   if (type === 'LONG_TEXT') return { maxLength: 500 };
+  // 矩阵先给一组最常见的评价列；**行**与选项共用一套初始化（在 addQuestion 里）
+  if (type === 'MATRIX') return { columns: [...MATRIX_DEFAULT_COLUMNS] };
   return {};
-}
-
-function isChoiceType(type: EditableQuestionType) {
-  return type === 'SINGLE' || type === 'MULTI' || type === 'DROPDOWN';
 }
 
 type EditorDraftValue = {
@@ -168,7 +182,8 @@ export function EditorDraftProvider({
         shuffleOptions: question.shuffleOptions,
         pageIndex: question.pageIndex,
         config: question.config,
-        options: isChoiceType(question.type) ? question.options.map((option) => option.label) : [],
+        // 矩阵的「行」存在 options 里，不能像文本题那样丢掉（见 lib/questionnaire-structure 的 hasOptionList）
+        options: hasOptionList(question.type) ? question.options.map((option) => option.label) : [],
       })),
     };
 
@@ -249,11 +264,15 @@ export function EditorDraftProvider({
             // 继承锚点那一题的页：插在第 2 页的题后面，新题自然也在第 2 页
             pageIndex: anchor?.pageIndex ?? 0,
             config: defaultConfig(type),
-            options: isChoiceType(type)
-              ? Array.from({ length: DEFAULT_OPTION_COUNT }, (_, index) => ({
-                  key: tempKey('o'),
-                  label: `选项 ${index + 1}`,
-                }))
+            // 矩阵的「行」也在这份 options 里（两者结构完全同构）：默认给下限 2 行
+            options: hasOptionList(type)
+              ? Array.from(
+                  { length: type === 'MATRIX' ? MATRIX_LIMITS.MIN_ROWS : DEFAULT_OPTION_COUNT },
+                  (_, index) => ({
+                    key: tempKey('o'),
+                    label: type === 'MATRIX' ? `行 ${index + 1}` : `选项 ${index + 1}`,
+                  }),
+                )
               : [],
           };
 

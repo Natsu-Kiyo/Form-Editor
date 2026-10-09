@@ -164,6 +164,8 @@ export type AnswerDisplay =
   | { kind: 'TEXT'; text: string }
   | { kind: 'CHOICE'; multi: boolean; options: string[] }
   | { kind: 'RATING'; score: number; max: number }
+  /** 矩阵（R62）：只列出**选了**的行，按问卷里的行顺序 */
+  | { kind: 'MATRIX'; rows: { label: string; column: string }[] }
   | { kind: 'EMPTY' };
 
 export type ResponseDetail = {
@@ -208,7 +210,14 @@ export async function getResponseDetail(
         select: {
           questions: {
             orderBy: { order: 'asc' },
-            select: { id: true, title: true, type: true, config: true },
+            select: {
+              id: true,
+              title: true,
+              type: true,
+              config: true,
+              // 矩阵的「行」在 options 里（明细的展示要按行排）
+              options: { orderBy: { order: 'asc' }, select: { label: true } },
+            },
           },
         },
       },
@@ -245,6 +254,7 @@ export async function getResponseDetail(
       display: describeAnswer(
         question.type as QuestionType,
         (question.config ?? {}) as Record<string, unknown>,
+        question.options.map((option) => option.label),
         answers.get(question.id),
       ),
     })),
@@ -256,13 +266,31 @@ export async function getResponseDetail(
  *
  * 三种形态对应三种读法（与统计页的约定一致）：选项要能一眼看清选了哪几个、
  * 评分要看到分数本身、填空要保留换行。
+ * `options` 只有矩阵题用得上（它是**行**）——其余题型传进来不用。
  */
 function describeAnswer(
   type: QuestionType,
   config: Record<string, unknown>,
+  options: string[],
   value: unknown,
 ): AnswerDisplay {
   if (value === null || value === undefined || value === '') return { kind: 'EMPTY' };
+
+  if (type === 'MATRIX') {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      return { kind: 'EMPTY' };
+    }
+
+    const source = value as Record<string, unknown>;
+    // 按问卷里的行顺序排；没选的行不显示（与「未作答的题不显示」同一条口径）
+    const rows = options.flatMap((row) => {
+      const column = source[row];
+
+      return typeof column === 'string' ? [{ label: row, column }] : [];
+    });
+
+    return rows.length > 0 ? { kind: 'MATRIX', rows } : { kind: 'EMPTY' };
+  }
 
   if (type === 'RATING') {
     const { max } = ratingBounds({

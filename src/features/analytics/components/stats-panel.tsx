@@ -479,9 +479,11 @@ function QuestionChartCard({
           ? `有效作答 ${stats.answered} 人 · 占比分母为作答人数`
           : stats.kind === 'RATING'
             ? `有效作答 ${stats.answered} 人 · 保留一位小数`
-            : `有效作答 ${stats.answered} 人 · ${
-                question.required ? '必答题' : '选填题'
-              }${stats.answerRate === null ? '' : `，作答率 ${formatPercent(stats.answerRate)}`}`}
+            : stats.kind === 'MATRIX'
+              ? `有效作答 ${stats.answered} 人 · 每行的分母是该行作答人数`
+              : `有效作答 ${stats.answered} 人 · ${
+                  question.required ? '必答题' : '选填题'
+                }${stats.answerRate === null ? '' : `，作答率 ${formatPercent(stats.answerRate)}`}`}
       </p>
 
       {stats.kind === 'CHOICE' ? (
@@ -534,6 +536,44 @@ function QuestionChartCard({
               );
             })}
           </div>
+        </div>
+      ) : null}
+
+      {stats.kind === 'MATRIX' ? (
+        <div className="space-y-6">
+          {stats.rows.map((row) => (
+            <div key={row.label}>
+              <div className="mb-2.5 flex items-center justify-between gap-3 text-[12.5px]">
+                <span className="text-ink-700 font-medium">{row.label}</span>
+                <span className="text-ink-400 shrink-0 font-mono text-[11.5px]">
+                  {row.answered} 人评价
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {row.cells.map((cell) => (
+                  <div key={cell.label} className="flex items-center gap-3">
+                    {/* 列名最长 12 字（编辑器侧的上限），放不下时截断、hover 看全文 */}
+                    <span
+                      title={cell.label}
+                      className="text-ink-500 w-16 shrink-0 truncate text-[12px]"
+                    >
+                      {cell.label}
+                    </span>
+                    <div className="bg-ink-100 h-2 flex-1 overflow-hidden rounded-full">
+                      <div
+                        className="bg-brand-500 h-full rounded-full"
+                        style={{ width: `${Math.round(cell.percent * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-ink-500 w-20 shrink-0 text-right font-mono text-[11.5px]">
+                      {cell.count} · {formatPercent(cell.percent)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : null}
 

@@ -20,11 +20,12 @@ import {
 import { useRef, useState } from 'react';
 
 import { GripIcon, TrashIcon } from '@/components/icons/ui-icons';
-import { QUESTION_TYPE_LABEL, RATING_SCALE, ratingBounds } from '@/config/constants';
+import { MATRIX_LIMITS, QUESTION_TYPE_LABEL, RATING_SCALE, ratingBounds } from '@/config/constants';
+import { hasOptionList } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
 import type { DraftQuestion } from './editor-draft';
-import { useEditorDraft } from './editor-draft';
+import { draftMatrixColumns, useEditorDraft } from './editor-draft';
 
 function isChoiceType(type: DraftQuestion['type']) {
   return type === 'SINGLE' || type === 'MULTI' || type === 'DROPDOWN';
@@ -37,6 +38,12 @@ function buildSummary(question: DraftQuestion) {
     // 与刻度用同一个来源：摘要上写的范围必须和下面画出来的方块数量一致
     const { min, max } = ratingBounds(question.config);
     parts[0] = `${QUESTION_TYPE_LABEL.RATING} ${min}–${max}`;
+  }
+
+  if (question.type === 'MATRIX') {
+    // 行列数是这道题最要紧的两个参数（R62）：行可能很长，画布上数不过来。
+    // 列数用**草稿原值**：正在清空的那一格仍然算一列（用过滤后的会当场少一列）
+    parts[0] = `${QUESTION_TYPE_LABEL.MATRIX} ${question.options.length} 行 × ${draftMatrixColumns(question.config).length} 列`;
   }
 
   parts.push(question.required ? '必填' : '选填');
@@ -154,8 +161,12 @@ export function QuestionCard({
             </span>
           </div>
 
-          {isChoice ? (
-            <OptionList question={question} readOnly={readOnly} />
+          {hasOptionList(question.type) ? (
+            <>
+              {/* 矩阵的列在右栏改（行在下面直接改，与选项一致），但它长什么样得在画布上看得见 */}
+              {question.type === 'MATRIX' ? <MatrixColumnPreview question={question} /> : null}
+              <OptionList question={question} readOnly={readOnly} />
+            </>
           ) : question.type === 'RATING' ? (
             // 网格而不是 flex 行：flex 会把放不下的方块**压窄**（固定宽高也扛不住 shrink），
             // 网格则让它换到下一行 —— 每行 5 个，6–10 分正好两行
@@ -194,6 +205,25 @@ function scoreRange(question: DraftQuestion) {
   return Array.from({ length: Math.max(0, max - min + 1) }, (_, index) => min + index);
 }
 
+/** 矩阵列的只读预览（画布上）；编辑在右栏，见 `property-panel.tsx` 的 `MatrixColumnsField` */
+function MatrixColumnPreview({ question }: { question: DraftQuestion }) {
+  /*
+   * 用草稿原值（含正在清空的那一格），空列显示成 `…` —— 与右栏那个空白输入框对应。
+   * 若用读取侧的 `matrixColumns()`（过滤空串），清空一格会让预览里那一列也消失，
+   * 坐实「清空 = 删列」的错觉（这正是 R62 修掉的那个 bug 的观感来源）。
+   */
+  const columns = draftMatrixColumns(question.config).map((column) => column.trim() || '…');
+
+  return (
+    <div className="mb-2 flex items-center gap-2 pl-8 text-[12px]">
+      <span className="text-ink-500 shrink-0">列</span>
+      <span className="text-ink-400 truncate">
+        {columns.length > 0 ? columns.join(' · ') : '（还没有列，在右栏添加）'}
+      </span>
+    </div>
+  );
+}
+
 function previewText(question: DraftQuestion) {
   if (question.type === 'DATE') return '日期选择';
 
@@ -206,6 +236,8 @@ function previewText(question: DraftQuestion) {
 /** 选项列表。内层再开一个 DndContext：手柄在哪个 context 里，拖动就归谁处理 */
 function OptionList({ question, readOnly }: { question: DraftQuestion; readOnly: boolean }) {
   const { addOption, reorderOptions } = useEditorDraft();
+  // 矩阵题的这份列表是「行」：下限 2（一格不叫矩阵）、上限 10
+  const isMatrix = question.type === 'MATRIX';
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -252,18 +284,19 @@ function OptionList({ question, readOnly }: { question: DraftQuestion; readOnly:
               optionKey={option.key}
               label={option.label}
               readOnly={readOnly}
-              canDelete={question.options.length > 1}
+              canDelete={question.options.length > (isMatrix ? MATRIX_LIMITS.MIN_ROWS : 1)}
             />
           ))}
 
-          {!readOnly ? (
+          {/* 到上限就不给加了 —— 与「删到下限不给删」同一条规矩，比加了再被 schema 拒好 */}
+          {!readOnly && (!isMatrix || question.options.length < MATRIX_LIMITS.MAX_ROWS) ? (
             <button
               type="button"
               onClick={() => addOption(question.key)}
               className="border-ink-300 hover:border-brand-400 flex h-9 w-full items-center gap-2.5 rounded-lg border border-dashed px-3 transition-colors duration-150"
             >
               <span className="size-4 shrink-0" aria-hidden="true" />
-              <span className="text-ink-400 text-[13px]">添加选项</span>
+              <span className="text-ink-400 text-[13px]">{isMatrix ? '添加行' : '添加选项'}</span>
             </button>
           ) : null}
         </div>
@@ -294,6 +327,8 @@ function OptionRow({
   const { updateOption, removeOption } = useEditorDraft();
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
+  // 矩阵题这一行是「行」，其余题型是「选项」—— 文案跟着走，无障碍名称才不会说错
+  const unit = question.type === 'MATRIX' ? '行' : '选项';
 
   const {
     attributes,
@@ -323,7 +358,7 @@ function OptionRow({
           type="button"
           {...attributes}
           {...listeners}
-          aria-label={`拖动选项「${label}」`}
+          aria-label={`拖动${unit}「${label}」`}
           // 手柄在桌面是悬浮才显形（不干扰阅读），但 375px 没有 hover 可言 —— 常显，
           // 否则手机上根本看不到这里能拖。`touch-none` 是触摸端拖得动的前提
           className="text-ink-300 hover:text-ink-500 -mr-1 shrink-0 cursor-grab touch-none transition-opacity duration-150 active:cursor-grabbing lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100"
@@ -335,7 +370,10 @@ function OptionRow({
       <span
         className={cn(
           'border-ink-300 size-4 shrink-0 border-[1.5px]',
-          question.type === 'SINGLE' ? 'rounded-full' : 'rounded-[5px]',
+          // 圆点 = 单选语义（SINGLE 与矩阵的每一行都是「选一个」）
+          question.type === 'SINGLE' || question.type === 'MATRIX'
+            ? 'rounded-full'
+            : 'rounded-[5px]',
         )}
         aria-hidden="true"
       />
@@ -347,11 +385,11 @@ function OptionRow({
         onFocus={() => setFocused(true)}
         onBlur={() => {
           setFocused(false);
-          // 失焦时把空白选项补回一个占位文案：选项为空等于这道题有个坏选项
-          if (!label.trim()) updateOption(question.key, optionKey, '选项');
+          // 失焦时把空白项补回一个占位文案：空着等于这道题有个坏选项（矩阵则是坏行）
+          if (!label.trim()) updateOption(question.key, optionKey, unit);
         }}
         readOnly={readOnly}
-        aria-label="选项文案"
+        aria-label={`${unit}文案`}
         className={cn('text-ink-700 min-w-0 flex-1 bg-transparent text-[13px] outline-none')}
         data-focused={focused || undefined}
       />
@@ -360,8 +398,14 @@ function OptionRow({
         <button
           type="button"
           disabled={!canDelete}
-          title={canDelete ? '删除这个选项' : '至少要保留一个选项'}
-          aria-label={`删除选项「${label}」`}
+          title={
+            canDelete
+              ? `删除这个${unit}`
+              : question.type === 'MATRIX'
+                ? `至少要保留 ${MATRIX_LIMITS.MIN_ROWS} 行`
+                : '至少要保留一个选项'
+          }
+          aria-label={`删除${unit}「${label}」`}
           onClick={() => removeOption(question.key, optionKey)}
           className="text-ink-300 shrink-0 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-rose-500 focus-visible:text-rose-500 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-0"
         >

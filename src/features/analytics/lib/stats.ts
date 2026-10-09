@@ -209,7 +209,7 @@ function formatBucketLabel(granularity: TrendGranularity, date: Date) {
   return zoneFormat(date, { month: '2-digit', day: '2-digit' });
 }
 
-/** 一道题的统计结果。三种形态对应三类完全不同的读法 */
+/** 一道题的统计结果。四种形态对应四类完全不同的读法 */
 export type QuestionStats =
   | {
       kind: 'CHOICE';
@@ -225,6 +225,21 @@ export type QuestionStats =
       rows: { score: number; count: number; percent: number }[];
     }
   | {
+      kind: 'MATRIX';
+      /** 作答人数：至少选了**一行**的人数 */
+      answered: number;
+      /**
+       * 每一行一条分布。`answered` 是**该行**的作答人数 ——
+       * 与选择题「没答这道题的人不摊薄占比」同一条口径：有人只选了部分行时，
+       * 用总作答人数当分母会让每一行的占比都不对。
+       */
+      rows: {
+        label: string;
+        answered: number;
+        cells: { label: string; count: number; percent: number }[];
+      }[];
+    }
+  | {
       kind: 'TEXT';
       answered: number;
       /** 作答率 = 作答人数 ÷ 有效答卷数（选填题才有意义） */
@@ -238,6 +253,8 @@ export type QuestionStats =
 export type QuestionForStats = {
   type: QuestionType;
   options: string[];
+  /** 矩阵题的列（行在 `options` 里）；其余题型为空数组 */
+  columns: string[];
   min: number | null;
   max: number | null;
   required: boolean;
@@ -278,6 +295,49 @@ export function summarizeQuestion(
         label,
         count,
         percent: answered > 0 ? count / answered : 0,
+      })),
+    };
+  }
+
+  if (question.type === 'MATRIX') {
+    // 行的顺序就是问卷里的顺序（options），列的顺序就是 config.columns —— 不重排
+    const perRow = question.options.map((row) => ({
+      row,
+      total: 0,
+      counts: new Map(question.columns.map((column) => [column, 0])),
+    }));
+    let answered = 0;
+
+    for (const value of answers) {
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) continue;
+
+      const picked = value as Record<string, unknown>;
+      let pickedAny = false;
+
+      for (const entry of perRow) {
+        const column = picked[entry.row];
+        if (typeof column === 'string' && entry.counts.has(column)) {
+          entry.counts.set(column, (entry.counts.get(column) ?? 0) + 1);
+          entry.total += 1;
+          pickedAny = true;
+        }
+      }
+
+      // 只认下真实存在的行列（与作答端的归一同一套判据）；一行都没选中的答卷不算作答
+      if (pickedAny) answered += 1;
+    }
+
+    return {
+      kind: 'MATRIX',
+      answered,
+      rows: perRow.map((entry) => ({
+        label: entry.row,
+        answered: entry.total,
+        cells: [...entry.counts.entries()].map(([label, count]) => ({
+          label,
+          count,
+          percent: entry.total > 0 ? count / entry.total : 0,
+        })),
       })),
     };
   }

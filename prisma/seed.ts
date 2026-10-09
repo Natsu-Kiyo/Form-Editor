@@ -28,12 +28,13 @@ function daysAgo(days: number) {
 }
 
 type SeededQuestion = {
-  type: 'SINGLE' | 'MULTI' | 'SHORT_TEXT' | 'LONG_TEXT' | 'RATING' | 'DROPDOWN' | 'DATE';
+  type: 'SINGLE' | 'MULTI' | 'SHORT_TEXT' | 'LONG_TEXT' | 'RATING' | 'DROPDOWN' | 'DATE' | 'MATRIX';
   title: string;
   description?: string;
   required?: boolean;
+  /** 选择类题型的选项；**矩阵题的「行」也在这里**（列在 config.columns） */
   options?: string[];
-  /** 题型差异项：评分范围、文本长度上限等 */
+  /** 题型差异项：评分范围、文本长度上限、矩阵的列等 */
   config?: Record<string, unknown>;
 };
 
@@ -256,6 +257,13 @@ const OFFICIAL_TEMPLATES: {
       },
       { type: 'RATING', title: '产品易用性', config: { min: 1, max: 5 } },
       { type: 'RATING', title: '功能满足度', config: { min: 1, max: 5 } },
+      {
+        // 矩阵（R62）：行在 options 里、列在 config.columns 里 —— 两个维度都要给全
+        type: 'MATRIX',
+        title: '请为以下环节打分',
+        options: ['注册与登录', '创建问卷', '查看统计'],
+        config: { columns: ['满意', '一般', '不满意'] },
+      },
       { type: 'LONG_TEXT', title: '还有哪里可以做得更好？' },
     ],
   },

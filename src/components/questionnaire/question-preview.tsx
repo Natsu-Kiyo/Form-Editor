@@ -1,4 +1,9 @@
-import { QUESTION_TYPE_LABEL, ratingBounds, type QuestionType } from '@/config/constants';
+import {
+  QUESTION_TYPE_LABEL,
+  matrixColumns,
+  ratingBounds,
+  type QuestionType,
+} from '@/config/constants';
 import { cn } from '@/utils/cn';
 
 /**
@@ -101,7 +106,31 @@ function QuestionPreviewShape({
   if (type === 'DATE') return <div className={readOnlyBox}>yyyy-mm-dd</div>;
 
   if (type === 'MATRIX') {
-    return <p className="text-ink-400 text-[12px]">（矩阵题属 1.1，本版本不开放）</p>;
+    const columns = matrixColumns((config ?? {}) as Record<string, unknown>);
+
+    // 行 × 列圆点的只读示意：列名只在表头出现一次，行名每行一个
+    return (
+      <div className="space-y-1.5">
+        <div className="text-ink-400 flex items-center gap-2 text-[10.5px]">
+          <span className="w-20 shrink-0" />
+          {columns.map((column) => (
+            <span key={column} className="w-10 shrink-0 truncate text-center">
+              {column}
+            </span>
+          ))}
+        </div>
+        {options.map((row) => (
+          <div key={row} className="text-ink-600 flex items-center gap-2 text-[12.5px]">
+            <span className="w-20 shrink-0 truncate">{row}</span>
+            {columns.map((column) => (
+              <span key={column} className="flex w-10 shrink-0 justify-center">
+                <span className="border-ink-300 size-3.5 rounded-full border" />
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
   }
 
   return (

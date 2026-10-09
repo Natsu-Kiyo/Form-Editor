@@ -22,13 +22,78 @@ describe('questionnairePayloadSchema', () => {
     expect(parsed.questions[0].pageIndex).toBe(0);
   });
 
-  it('拒绝矩阵题（1.1 才开放，不进 payload）', () => {
-    const result = questionnairePayloadSchema.safeParse({
+  it('接受合法的矩阵题（R62）：行在 options、列在 config.columns', () => {
+    const parsed = questionnairePayloadSchema.parse({
+      ...minimal,
+      questions: [
+        {
+          type: 'MATRIX',
+          title: '请为各个环节打分',
+          options: ['报名流程', '现场组织'],
+          config: { columns: ['满意', '一般', '不满意'] },
+        },
+      ],
+    });
+
+    expect(parsed.questions[0].options).toHaveLength(2);
+  });
+
+  it('拒绝缺行列的矩阵题（没有行列就不是一道能答的矩阵）', () => {
+    const noLines = questionnairePayloadSchema.safeParse({
       ...minimal,
       questions: [{ type: 'MATRIX', title: '矩阵题' }],
     });
+    expect(noLines.success).toBe(false);
 
-    expect(result.success).toBe(false);
+    // 只有 1 行（少于下限 2）、或只有 1 列，同样要拒
+    const oneRow = questionnairePayloadSchema.safeParse({
+      ...minimal,
+      questions: [
+        {
+          type: 'MATRIX',
+          title: '矩阵题',
+          options: ['孤零零一行'],
+          config: { columns: ['a', 'b'] },
+        },
+      ],
+    });
+    expect(oneRow.success).toBe(false);
+
+    const oneColumn = questionnairePayloadSchema.safeParse({
+      ...minimal,
+      questions: [
+        { type: 'MATRIX', title: '矩阵题', options: ['行 1', '行 2'], config: { columns: ['a'] } },
+      ],
+    });
+    expect(oneColumn.success).toBe(false);
+  });
+
+  it('拒绝超出上下限的矩阵题（列 6 个 / 行 11 个都进不来）', () => {
+    const tooManyColumns = questionnairePayloadSchema.safeParse({
+      ...minimal,
+      questions: [
+        {
+          type: 'MATRIX',
+          title: '矩阵题',
+          options: ['行 1', '行 2'],
+          config: { columns: ['1', '2', '3', '4', '5', '6'] },
+        },
+      ],
+    });
+    expect(tooManyColumns.success).toBe(false);
+
+    const tooManyRows = questionnairePayloadSchema.safeParse({
+      ...minimal,
+      questions: [
+        {
+          type: 'MATRIX',
+          title: '矩阵题',
+          options: Array.from({ length: 11 }, (_, index) => `行 ${index + 1}`),
+          config: { columns: ['a', 'b'] },
+        },
+      ],
+    });
+    expect(tooManyRows.success).toBe(false);
   });
 
   it('拒绝缺少 formatVersion 的旧结构', () => {

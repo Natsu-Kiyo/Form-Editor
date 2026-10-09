@@ -140,7 +140,7 @@ function Meta({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** 作答值的三种读法（与统计页一致：选项 / 评分 / 文本） */
+/** 作答值的四种读法（与统计页一致：选项 / 评分 / 矩阵 / 文本） */
 function AnswerView({ display }: { display: ResponseDetail['items'][number]['display'] }) {
   if (display.kind === 'EMPTY') {
     return (
@@ -148,6 +148,21 @@ function AnswerView({ display }: { display: ResponseDetail['items'][number]['dis
         <InfoIcon className="size-3.5" />
         未作答
       </span>
+    );
+  }
+
+  if (display.kind === 'MATRIX') {
+    // 一行「行名 · 选中的列」：矩阵在明细里就该竖着读，不做成表格（它是**一份**答卷的记录）
+    return (
+      <div className="space-y-1.5">
+        {display.rows.map((row) => (
+          <div key={row.label} className="flex items-baseline gap-2 text-[12.5px]">
+            <span className="text-ink-500 truncate">{row.label}</span>
+            <span className="text-ink-300 shrink-0">·</span>
+            <span className="text-ink-800 font-medium">{row.column}</span>
+          </div>
+        ))}
+      </div>
     );
   }
 

@@ -215,8 +215,8 @@ test.describe('移动外壳', () => {
     await page.getByRole('button', { name: '添加题目' }).click();
     const typeSheet = page.getByRole('dialog');
     await expect(typeSheet.getByRole('heading', { name: '题型' })).toBeVisible();
-    // 与桌面左栏是同一批题型：含 1.1 灰显的矩阵题
-    await expect(typeSheet.getByRole('button', { name: /矩阵/ })).toBeDisabled();
+    // 与桌面左栏是同一批题型：8 个全开放（R62 起矩阵也能点）
+    await expect(typeSheet.getByRole('button', { name: /矩阵/ })).toBeEnabled();
     await typeSheet.getByRole('button', { name: /评分/ }).click();
     // 加完自动收起，把画布还回来
     await expect(page.getByRole('dialog')).toHaveCount(0);

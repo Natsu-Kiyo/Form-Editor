@@ -12,7 +12,12 @@ import { cn } from '@/utils/cn';
 
 import { submitResponseAction } from '../actions/submit-response';
 import type { PublicQuestion } from '../api/public-questionnaire';
-import { describeAnswerHint, isAnswered, type AnswerValue } from '../lib/answers';
+import {
+  describeAnswerHint,
+  isAnswered,
+  isQuestionAnswered,
+  type AnswerValue,
+} from '../lib/answers';
 import {
   clearDraft,
   getDraftServerSnapshot,
@@ -146,11 +151,19 @@ export function AnsweringForm({
     setNotice(null);
 
     const missing = questions.filter(
-      (question) => question.required && !isAnswered(answers[question.id]),
+      (question) => question.required && !isQuestionAnswered(question, answers[question.id]),
     );
 
     if (missing.length > 0) {
-      setErrors(Object.fromEntries(missing.map((question) => [question.id, '这是必答题'])));
+      setErrors(
+        Object.fromEntries(
+          // 矩阵的必答口径是「每一行都要选」，提示文案跟着题型走（与服务端同一套规则）
+          missing.map((question) => [
+            question.id,
+            question.type === 'MATRIX' ? '每一行都要选' : '这是必答题',
+          ]),
+        ),
+      );
       setNotice(`还有 ${missing.length} 道必答题没填，已跳转到第一道`);
       scrollToQuestion(missing[0]!.id);
 
@@ -678,7 +691,93 @@ function AnswerControl({
         />
       );
 
+    case 'MATRIX': {
+      // 值的形态是 `{ 行文案: 列文案 }`（见 lib/answers）—— 这里只做类型收窄，不重新解释规则
+      const picked =
+        value && typeof value === 'object' && !Array.isArray(value)
+          ? (value as Record<string, string>)
+          : {};
+
+      return <MatrixControl question={question} picked={picked} onChange={onChange} />;
+    }
+
     default:
       return null;
   }
+}
+
+/**
+ * 矩阵控件（R62）：每行一道单选，列是横向的刻度。
+ *
+ * 三处刻意的处理：
+ * - **行标签钉在左侧**（`sticky left-0`）：列多到要横滑时，滑过去还得知道在看哪一行；
+ * - 圆点的形态与交互与单选完全一致（`aria-pressed`、选中即改选、不提供「取消选择」），
+ *   差别只在「一组圆点属于同一行」—— 这本来就是矩阵与单选的关系；
+ * - 表格铺满容器、列设最小宽度，**放不下才横滑**（375px 上 5 列时）：
+ *   与 P05 单题图表横滑同一条手法。
+ */
+function MatrixControl({
+  question,
+  picked,
+  onChange,
+}: {
+  question: PublicQuestion;
+  picked: Record<string, string>;
+  onChange: (value: AnswerValue) => void;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-separate border-spacing-0">
+        <thead>
+          <tr>
+            {/* 行标签那一列的列头：空格子，只为把宽度占出来与表体对齐 */}
+            <th className="min-w-[86px]" aria-hidden="true" />
+            {question.columns.map((column) => (
+              <th
+                key={column}
+                scope="col"
+                className="text-ink-400 min-w-[64px] px-1.5 pb-2 text-center text-[11.5px] font-normal"
+              >
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {question.options.map((row) => (
+            <tr key={row}>
+              <th
+                scope="row"
+                className="border-ink-100 text-ink-700 sticky left-0 z-10 border-t bg-white py-2 pr-3 text-left text-[13.5px] font-normal"
+              >
+                {row}
+              </th>
+              {question.columns.map((column) => {
+                const isOn = picked[row] === column;
+
+                return (
+                  <td key={column} className="border-ink-100 border-t py-2 text-center">
+                    <button
+                      type="button"
+                      aria-pressed={isOn}
+                      aria-label={`${row}：${column}`}
+                      onClick={() => onChange({ ...picked, [row]: column })}
+                      className={cn(
+                        'mx-auto flex size-9 items-center justify-center rounded-full border-[1.5px] transition-colors duration-150',
+                        isOn
+                          ? 'border-brand-500 bg-brand-500'
+                          : 'border-ink-300 hover:border-brand-300',
+                      )}
+                    >
+                      {isOn ? <CheckIcon className="size-3.5 text-white" /> : null}
+                    </button>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }

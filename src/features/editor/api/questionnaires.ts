@@ -2,17 +2,24 @@ import 'server-only';
 
 import { cache } from 'react';
 
-import { RATING_SCALE, type QuestionnaireStatus, type QuestionType } from '@/config/constants';
+import {
+  RATING_SCALE,
+  matrixColumns,
+  type QuestionnaireStatus,
+  type QuestionType,
+} from '@/config/constants';
 import { prisma } from '@/lib/db';
 
-/** 矩阵题是 1.1 的灰显项，库里的枚举没有它，所以编辑器可用的题型是它的补集 */
-export type EditableQuestionType = Exclude<QuestionType, 'MATRIX'>;
+/** 编辑器可用的题型 = 全部 8 个（R62 矩阵开放后不再有补集） */
+export type EditableQuestionType = QuestionType;
 
-/** 题型差异项：评分范围、文本长度上限 */
+/** 题型差异项：评分范围、文本长度上限、矩阵的列 */
 export type QuestionConfig = {
   min?: number;
   max?: number;
   maxLength?: number;
+  /** 矩阵题的列（**行**在 `options` 里，与选项同构） */
+  columns?: string[];
 };
 
 export type EditorOption = {
@@ -71,6 +78,11 @@ function parseConfig(raw: unknown, type: EditableQuestionType): QuestionConfig {
 
   if (type === 'SHORT_TEXT' || type === 'LONG_TEXT') {
     config.maxLength = typeof maxLength === 'number' && maxLength > 0 ? maxLength : undefined;
+  }
+
+  if (type === 'MATRIX') {
+    // 与 RATING 同一条思路：读进来就按当前规则收敛（上限规则后加，库里可能残留超长/超量的值）
+    config.columns = matrixColumns(source);
   }
 
   return config;

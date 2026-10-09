@@ -129,7 +129,7 @@ export const UPCOMING_BADGE = {
 
 /**
  * 题型。取值与数据库枚举一致（docs/PLAN.md §5）。
- * 8 个题型位里，`MATRIX` 属 1.1 —— 入口保留但灰显，两端都不开放。
+ * 8 个题型位全部开放 —— 矩阵题（`MATRIX`）R62 由 1.1 灰显转 A 级实现。
  */
 export type QuestionType =
   'SINGLE' | 'MULTI' | 'SHORT_TEXT' | 'LONG_TEXT' | 'RATING' | 'DROPDOWN' | 'DATE' | 'MATRIX';
@@ -145,11 +145,43 @@ export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
   MATRIX: '矩阵',
 };
 
-/** 1.0 不开放、仅灰显占位的题型 */
-export const GREYED_QUESTION_TYPES: readonly QuestionType[] = ['MATRIX'];
-
 /** 只有选择题才有「选项随机排序」 */
 export const CHOICE_QUESTION_TYPES: readonly QuestionType[] = ['SINGLE', 'MULTI'];
+
+/**
+ * 矩阵题的行列规模（R62 所有者拍板）。
+ *
+ * 行 2–10 / 列 2–5：再少不成矩阵；行再多一屏放不下，列再多 375px 就得横滑。
+ *
+ * 存储分工（两个维度各得其所）：
+ * - **行**存在题目的 `options` 里 —— 它与「选项」结构完全同构（一组有序文本项），
+ *   共用同一套列表编辑组件、同一张 `Option` 表、同一条读写/导入导出链路；
+ * - **列**存在 `config.columns`。
+ */
+export const MATRIX_LIMITS = {
+  MIN_ROWS: 2,
+  MAX_ROWS: 10,
+  MAX_ROW_LENGTH: 40,
+  MIN_COLUMNS: 2,
+  MAX_COLUMNS: 5,
+  MAX_COLUMN_LENGTH: 12,
+} as const;
+
+/** 新建矩阵题时给的默认列（最常见的评价刻度，改起来比从空白想快） */
+export const MATRIX_DEFAULT_COLUMNS = ['满意', '一般', '不满意'] as const;
+
+/**
+ * 从 config 读矩阵的列，**已按上限收敛**（与 `ratingBounds` 同一条思路：
+ * 库里可能残留过大的历史值，展示层任何时候都是对的）。
+ * 「行」不在这里 —— 它走题目的 `options`。
+ */
+export function matrixColumns(config: Record<string, unknown>) {
+  const raw = Array.isArray(config.columns) ? config.columns : [];
+
+  return raw
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .slice(0, MATRIX_LIMITS.MAX_COLUMNS);
+}
 
 /**
  * 评分题的刻度上限与每行个数。

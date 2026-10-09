@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { QuestionType, TrendGranularity } from '@/config/constants';
+import { matrixColumns, type QuestionType, type TrendGranularity } from '@/config/constants';
 import { prisma } from '@/lib/db';
 import { formatDateTimeLocal } from '@/utils/format';
 
@@ -183,6 +183,8 @@ export async function getAnalyticsData(
           {
             type: question.type as QuestionType,
             options: question.options.map((option) => option.label),
+            // 矩阵的列（行在 options 里）；与作答端/编辑器共用同一份收敛函数
+            columns: matrixColumns(config),
             min: typeof config.min === 'number' ? config.min : null,
             max: typeof config.max === 'number' ? config.max : null,
             required: question.required,

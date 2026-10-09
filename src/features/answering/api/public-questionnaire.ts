@@ -1,6 +1,11 @@
 import 'server-only';
 
-import type { CloseReason, IdentityMode, QuestionType } from '@/config/constants';
+import {
+  matrixColumns,
+  type CloseReason,
+  type IdentityMode,
+  type QuestionType,
+} from '@/config/constants';
 import { prisma } from '@/lib/db';
 import { responseSerial } from '@/lib/response-serial';
 import { daysUntil, formatDateTimeLocal } from '@/utils/format';
@@ -260,6 +265,8 @@ export async function getPublicQuestionnaire(
         options: question.shuffleOptions
           ? shuffle(question.options.map((option) => option.label))
           : question.options.map((option) => option.label),
+        // 矩阵的列（行在 options 里）。列**不参与随机** —— 随机的是选项顺序，不是评价刻度
+        columns: matrixColumns(config),
       };
     }),
   };

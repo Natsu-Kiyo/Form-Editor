@@ -3,6 +3,7 @@
 import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 
+import { matrixColumns } from '@/config/constants';
 import { getCurrentUser } from '@/lib/auth/dal';
 import { prisma } from '@/lib/db';
 import { notifyUsers } from '@/lib/notify';
@@ -118,6 +119,8 @@ export async function submitResponseAction(input: {
         max: typeof config.max === 'number' ? config.max : null,
         maxLength: typeof config.maxLength === 'number' ? config.maxLength : null,
         options: question.options.map((option) => option.label),
+        // 矩阵的列（行在 options 里）；与作答端同一份收敛函数，两边看到的列不会不同
+        columns: matrixColumns(config),
       };
     }),
     raw,

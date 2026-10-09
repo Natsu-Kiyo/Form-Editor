@@ -204,6 +204,22 @@ function ThumbnailRow({ type }: { type: QuestionType }) {
     );
   }
 
+  if (type === 'MATRIX') {
+    // 矩阵（R62）：两行「短条 + 三个小圆点」，像一张小表格
+    return (
+      <div className="flex flex-col gap-1.5">
+        {[0, 1].map((index) => (
+          <div key={index} className="flex items-center gap-1.5">
+            <div className={cn(bar, 'w-10')} />
+            {[0, 1, 2].map((dot) => (
+              <div key={dot} className="bg-brand-400 size-1.5 rounded-full" />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       <div className={cn(bar, 'w-32')} />

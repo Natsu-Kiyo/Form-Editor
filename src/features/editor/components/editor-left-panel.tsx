@@ -2,7 +2,7 @@
 
 import { QUESTION_TYPE_ICON } from '@/components/icons/question-type-icons';
 import { PlusIcon } from '@/components/icons/ui-icons';
-import { QUESTION_TYPE_LABEL, UPCOMING_BADGE, type QuestionType } from '@/config/constants';
+import { QUESTION_TYPE_LABEL, type QuestionType } from '@/config/constants';
 import { cn } from '@/utils/cn';
 
 import type { DraftQuestion } from './editor-draft';
@@ -18,9 +18,6 @@ const TYPE_ORDER: readonly QuestionType[] = [
   'DATE',
   'MATRIX',
 ];
-
-/** 1.1 才开放的题型：入口保留但灰显，两端都不给点 */
-const GREYED_TYPES: readonly QuestionType[] = ['MATRIX'];
 
 /** 左栏：题型面板 + 添加分页 + 题目结构大纲 */
 export function EditorLeftPanel({
@@ -51,8 +48,7 @@ export function EditorLeftPanel({
 
       <div className="grid grid-cols-2 gap-2">
         {TYPE_ORDER.map((type) => {
-          const greyed = GREYED_TYPES.includes(type);
-          const disabled = greyed || readOnly;
+          const disabled = readOnly;
           const Icon = QUESTION_TYPE_ICON[type];
 
           return (
@@ -60,17 +56,11 @@ export function EditorLeftPanel({
               key={type}
               type="button"
               disabled={disabled}
-              title={
-                greyed
-                  ? '矩阵题属 1.1 规划，本版本不开放'
-                  : readOnly
-                    ? '只读状态不能添加题目'
-                    : `添加${QUESTION_TYPE_LABEL[type]}题`
-              }
+              title={readOnly ? '只读状态不能添加题目' : `添加${QUESTION_TYPE_LABEL[type]}题`}
               onClick={() => {
                 // 加完立刻选中：用户接着就要改题目文本，不该还要自己去找。
                 // 插在**当前选中那道题之后**（没选中才追加到末尾）
-                onSelect(addQuestion(type as Exclude<QuestionType, 'MATRIX'>, selectedKey));
+                onSelect(addQuestion(type, selectedKey));
                 // 窄屏这块面板是弹层里的，加完就该收起来把画布还回去
                 onAfterAdd?.();
               }}
@@ -95,12 +85,6 @@ export function EditorLeftPanel({
               >
                 {QUESTION_TYPE_LABEL[type]}
               </span>
-
-              {greyed ? (
-                <span className="bg-ink-100 text-ink-400 absolute top-1 right-1 rounded px-1 text-[9px]">
-                  {UPCOMING_BADGE.V11}
-                </span>
-              ) : null}
             </button>
           );
         })}

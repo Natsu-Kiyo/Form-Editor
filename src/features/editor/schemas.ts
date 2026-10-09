@@ -1,11 +1,13 @@
 import { z } from 'zod';
 
+import { MATRIX_LIMITS } from '@/config/constants';
+
 /**
  * 编辑器改的是「一个字段」，所以用 **patch** 语义而不是整表提交：
  * 属性面板的每个控件各自保存，提交一整份表单会让「只改必填」也把标题一起覆盖回去。
  */
 
-/** 库里开放的 7 个题型；矩阵题属 1.1，不在其中 */
+/** 编辑器可用的题型。R62 起 8 个全开放（矩阵题的行在 `options`、列在 `config.columns`） */
 export const editableQuestionTypeSchema = z.enum([
   'SINGLE',
   'MULTI',
@@ -14,6 +16,7 @@ export const editableQuestionTypeSchema = z.enum([
   'RATING',
   'DROPDOWN',
   'DATE',
+  'MATRIX',
 ]);
 
 export const questionPatchSchema = z
@@ -33,6 +36,15 @@ export const questionPatchSchema = z
         min: z.number().int().min(0).max(10).optional(),
         max: z.number().int().min(1).max(10).optional(),
         maxLength: z.number().int().min(1).max(2000).optional(),
+        /**
+         * 矩阵题的列（R62）。行不在这里 —— 它走 `options`（`questionPatchSchema` 改结构，
+         * 行列由属性面板整组提交）。这里只校验形状与上下限，最终闸门在 payload schema。
+         */
+        columns: z
+          .array(z.string().trim().min(1).max(MATRIX_LIMITS.MAX_COLUMN_LENGTH))
+          .min(MATRIX_LIMITS.MIN_COLUMNS)
+          .max(MATRIX_LIMITS.MAX_COLUMNS)
+          .optional(),
       })
       .optional(),
   })

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { describeAnswerHint, isAnswered, parseAnswers, type SubmittableQuestion } from '../answers';
 
 /**
- * 提交链路上唯一复杂的地方：七种题型各有一套规则，还要判必答。
+ * 提交链路上唯一复杂的地方：八种题型各有一套规则，还要判必答。
  * 客户端用它提前提示、服务端用它最终拦截 —— 所以这里的每条规则都值得穷举。
  */
 function build(overrides: Partial<SubmittableQuestion> = {}): SubmittableQuestion {
@@ -16,6 +16,7 @@ function build(overrides: Partial<SubmittableQuestion> = {}): SubmittableQuestio
     max: null,
     maxLength: null,
     options: ['策划部', '宣传部'],
+    columns: [],
     ...overrides,
   };
 }
@@ -99,6 +100,48 @@ describe('parseAnswers', () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.answers).toHaveLength(0);
   });
+
+  // ---- 矩阵（R62）：行在 options 里、列在 columns 里，值是 `{ 行: 列 }` ----
+  const matrixQuestion = (overrides: Partial<SubmittableQuestion> = {}) =>
+    build({
+      type: 'MATRIX',
+      title: '请为各个环节打分',
+      options: ['报名流程', '现场组织'],
+      columns: ['满意', '一般', '不满意'],
+      ...overrides,
+    });
+
+  it('矩阵只收下真实存在的行列（手改请求塞进来的值进不来）', () => {
+    const result = parseAnswers([matrixQuestion()], {
+      q1: { 报名流程: '满意', 现场组织: '还行吧', 不存在的行: '满意' },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.answers[0]!.value).toEqual({ 报名流程: '满意' });
+  });
+
+  it('可选的矩阵答了一部分也收下（不能当成没答丢掉）', () => {
+    const result = parseAnswers([matrixQuestion()], { q1: { 报名流程: '满意' } });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.answers[0]!.value).toEqual({ 报名流程: '满意' });
+  });
+
+  it('必答矩阵要求每一行都选（R62 所有者拍板的口径），缺行时给出该题的错误', () => {
+    const partial = parseAnswers([matrixQuestion({ required: true })], {
+      q1: { 报名流程: '满意' },
+    });
+
+    expect(partial.ok).toBe(false);
+    if (!partial.ok) expect(partial.fieldErrors.q1).toBe('每一行都要选');
+
+    const full = parseAnswers([matrixQuestion({ required: true })], {
+      q1: { 报名流程: '满意', 现场组织: '一般' },
+    });
+
+    expect(full.ok).toBe(true);
+    if (full.ok) expect(full.answers[0]!.value).toEqual({ 报名流程: '满意', 现场组织: '一般' });
+  });
 });
 
 describe('describeAnswerHint', () => {
@@ -117,5 +160,11 @@ describe('describeAnswerHint', () => {
     expect(describeAnswerHint(build({ type: 'LONG_TEXT', maxLength: 200 }))).toContain(
       '最多 200 字',
     );
+  });
+
+  it('矩阵带上行列数', () => {
+    expect(
+      describeAnswerHint(build({ type: 'MATRIX', options: ['A', 'B', 'C'], columns: ['x', 'y'] })),
+    ).toContain('3 行 × 2 列');
   });
 });

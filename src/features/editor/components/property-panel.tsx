@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { AlertCircleIcon } from '@/components/icons/ui-icons';
+import { AlertCircleIcon, PlusIcon, TrashIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Modal, ModalContent } from '@/components/ui/modal';
@@ -16,6 +16,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  MATRIX_LIMITS,
   QUESTION_TYPE_LABEL,
   RATING_SCALE,
   UPCOMING_BADGE,
@@ -24,11 +25,10 @@ import {
 } from '@/config/constants';
 
 import type { DraftQuestion, EditableQuestionType } from './editor-draft';
-import { useEditorDraft } from './editor-draft';
+import { draftMatrixColumns, useEditorDraft } from './editor-draft';
 
-const EDITABLE_TYPES = (Object.keys(QUESTION_TYPE_LABEL) as QuestionType[]).filter(
-  (type): type is Exclude<QuestionType, 'MATRIX'> => type !== 'MATRIX',
-);
+/** 题目类型下拉的全部选项。R62 起 8 个题型全开放（顺序 = 常量里的定义顺序） */
+const EDITABLE_TYPES = Object.keys(QUESTION_TYPE_LABEL) as QuestionType[];
 
 /**
  * 右栏：题目属性（设计稿 W03 右侧面板）。
@@ -95,6 +95,10 @@ export function PropertyPanel({
 
         {question.type === 'RATING' ? (
           <ScoreRangeField question={question} readOnly={readOnly} />
+        ) : null}
+
+        {question.type === 'MATRIX' ? (
+          <MatrixColumnsField question={question} readOnly={readOnly} />
         ) : null}
 
         {isText ? <MaxLengthField question={question} readOnly={readOnly} /> : null}
@@ -247,6 +251,95 @@ function MaxLengthField({ question, readOnly }: { question: DraftQuestion; readO
           return true;
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * 矩阵的列（R62）。
+ *
+ * **行不在这里** —— 它在画布的题卡上直接改（与选项同一处、同一套列表交互），
+ * 这里只管列。列不做拖拽排序：只有 2–5 个、调整顺序的频率远低于选项，
+ * 为它引入一套「纯文本数组的稳定拖拽 id」不划算 —— 删了重加就是现成的手段。
+ */
+function MatrixColumnsField({
+  question,
+  readOnly,
+}: {
+  question: DraftQuestion;
+  readOnly: boolean;
+}) {
+  const { updateQuestion } = useEditorDraft();
+  // 草稿原值（空串保留）：正在清空的那一格要是被过滤掉，整列就会当场消失
+  const columns = draftMatrixColumns(question.config);
+  const canDelete = columns.length > MATRIX_LIMITS.MIN_COLUMNS;
+  const canAdd = columns.length < MATRIX_LIMITS.MAX_COLUMNS;
+
+  const commit = (next: string[]) =>
+    updateQuestion(question.key, { config: { ...question.config, columns: next } });
+
+  return (
+    <div>
+      <Label>列</Label>
+      <div className="space-y-2">
+        {columns.map((label, index) => (
+          <div
+            // key 用「题 + 序号」：列没有稳定 id，而重排/删除都会重建列表 —— 序号足够
+            key={`${question.key}-col-${index}`}
+            className="border-ink-200 focus-within:border-brand-500 flex h-9 items-center gap-2 rounded-lg border px-3 transition-colors duration-150"
+          >
+            <input
+              value={label}
+              maxLength={MATRIX_LIMITS.MAX_COLUMN_LENGTH}
+              disabled={readOnly}
+              aria-label={`第 ${index + 1} 列`}
+              onChange={(event) =>
+                commit(
+                  columns.map((item, position) => (position === index ? event.target.value : item)),
+                )
+              }
+              onBlur={() => {
+                // 空白列补一个占位：与画布上的选项/行同一条规矩，空文案会拖到保存时被 schema 拒
+                if (!label.trim()) {
+                  commit(
+                    columns.map((item, position) =>
+                      position === index ? `列 ${index + 1}` : item,
+                    ),
+                  );
+                }
+              }}
+              className="text-ink-700 w-full min-w-0 bg-transparent text-[13px] outline-none"
+            />
+            {!readOnly ? (
+              <button
+                type="button"
+                disabled={!canDelete}
+                title={canDelete ? '删除这一列' : `至少要保留 ${MATRIX_LIMITS.MIN_COLUMNS} 列`}
+                aria-label={`删除第 ${index + 1} 列`}
+                onClick={() => commit(columns.filter((_, position) => position !== index))}
+                className="text-ink-300 shrink-0 transition-colors duration-150 hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <TrashIcon className="size-3.5" />
+              </button>
+            ) : null}
+          </div>
+        ))}
+
+        {!readOnly ? (
+          <button
+            type="button"
+            disabled={!canAdd}
+            onClick={() => commit([...columns, `列 ${columns.length + 1}`])}
+            className="border-ink-300 hover:border-brand-400 flex h-9 w-full items-center gap-2.5 rounded-lg border border-dashed px-3 transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <PlusIcon className="text-ink-400 size-3.5" />
+            <span className="text-ink-400 text-[13px]">添加列</span>
+          </button>
+        ) : null}
+      </div>
+      <p className="text-caption text-ink-400 mt-1.5">
+        {MATRIX_LIMITS.MIN_COLUMNS}–{MATRIX_LIMITS.MAX_COLUMNS} 列，顺序即横向顺序；行在画布上直接改
+      </p>
     </div>
   );
 }

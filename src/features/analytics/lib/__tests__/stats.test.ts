@@ -189,7 +189,7 @@ describe('buildTrend', () => {
 describe('summarizeQuestion', () => {
   it('单选题按作答人数算占比（没答的人不摊薄分母）', () => {
     const stats = summarizeQuestion(
-      { type: 'SINGLE', options: ['甲', '乙'], min: null, max: null, required: true },
+      { type: 'SINGLE', options: ['甲', '乙'], columns: [], min: null, max: null, required: true },
       ['甲', '甲', '乙'],
       10,
     );
@@ -203,7 +203,14 @@ describe('summarizeQuestion', () => {
 
   it('多选题一个答案算多个选项，所以各选项占比之和会大于 100%', () => {
     const stats = summarizeQuestion(
-      { type: 'MULTI', options: ['甲', '乙', '丙'], min: null, max: null, required: false },
+      {
+        type: 'MULTI',
+        options: ['甲', '乙', '丙'],
+        columns: [],
+        min: null,
+        max: null,
+        required: false,
+      },
       [
         ['甲', '乙'],
         ['甲', '丙'],
@@ -219,7 +226,7 @@ describe('summarizeQuestion', () => {
 
   it('评分题给平均分并保留一位小数，且列出每一分的分布', () => {
     const stats = summarizeQuestion(
-      { type: 'RATING', options: [], min: 1, max: 10, required: true },
+      { type: 'RATING', options: [], columns: [], min: 1, max: 10, required: true },
       [8, 9, 10],
       3,
     );
@@ -232,7 +239,7 @@ describe('summarizeQuestion', () => {
 
   it('评分题一个人在范围外的分数不计入', () => {
     const stats = summarizeQuestion(
-      { type: 'RATING', options: [], min: 1, max: 10, required: true },
+      { type: 'RATING', options: [], columns: [], min: 1, max: 10, required: true },
       [10, 99],
       2,
     );
@@ -243,7 +250,7 @@ describe('summarizeQuestion', () => {
 
   it('填空题给出作答率（分母是有效答卷数）与最多三条示例', () => {
     const stats = summarizeQuestion(
-      { type: 'LONG_TEXT', options: [], min: null, max: null, required: false },
+      { type: 'LONG_TEXT', options: [], columns: [], min: null, max: null, required: false },
       ['一', '二', '三', '四', '  '],
       8,
     );
@@ -252,5 +259,61 @@ describe('summarizeQuestion', () => {
     expect(stats.answered).toBe(4);
     expect(stats.answerRate).toBe(0.5);
     expect(stats.samples).toHaveLength(3);
+  });
+
+  // ---- 矩阵（R62）：每行一条分布，分母是**该行**的作答人数 ----
+  it('矩阵题每行独立算占比（只选了部分行的人不摊薄其余行）', () => {
+    const stats = summarizeQuestion(
+      {
+        type: 'MATRIX',
+        options: ['报名流程', '现场组织'],
+        columns: ['满意', '不满意'],
+        min: null,
+        max: null,
+        required: false,
+      },
+      [
+        { 报名流程: '满意', 现场组织: '满意' },
+        { 报名流程: '不满意' }, // 只选了一行
+        { 现场组织: '满意' },
+      ],
+      3,
+    );
+
+    if (stats.kind !== 'MATRIX') throw new Error('应为矩阵题');
+
+    // 作答人数 = 至少选了一行的人数
+    expect(stats.answered).toBe(3);
+    expect(stats.rows[0]).toEqual({
+      label: '报名流程',
+      answered: 2,
+      cells: [
+        { label: '满意', count: 1, percent: 0.5 },
+        { label: '不满意', count: 1, percent: 0.5 },
+      ],
+    });
+    expect(stats.rows[1]!.answered).toBe(2);
+    expect(stats.rows[1]!.cells[0]).toEqual({ label: '满意', count: 2, percent: 1 });
+  });
+
+  it('矩阵题里不认识的行列不计入（手动改过的历史值不污染分布）', () => {
+    const stats = summarizeQuestion(
+      {
+        type: 'MATRIX',
+        options: ['行 1', '行 2'],
+        columns: ['甲'],
+        min: null,
+        max: null,
+        required: false,
+      },
+      [{ '行 1': '乙', 不存在的行: '甲' }, { '行 2': '甲' }],
+      2,
+    );
+
+    if (stats.kind !== 'MATRIX') throw new Error('应为矩阵题');
+
+    expect(stats.answered).toBe(1);
+    expect(stats.rows[0]!.answered).toBe(0);
+    expect(stats.rows[1]!.cells[0]!.count).toBe(1);
   });
 });

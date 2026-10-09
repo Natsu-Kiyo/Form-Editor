@@ -496,27 +496,19 @@ export function ComponentGallery() {
 
       <Panel
         title="题型图标（8 个）"
-        note="Web 左栏与移动端题型弹层共用同一套 —— 图标是两端对齐的锚点。矩阵属 1.1，灰显。"
+        note="Web 左栏与移动端题型弹层共用同一套 —— 图标是两端对齐的锚点。R62 起 8 个题型全开放。"
       >
         <div className="grid grid-cols-4 gap-2">
           {(Object.keys(QUESTION_TYPE_LABEL) as QuestionType[]).map((type) => {
             const Icon = QUESTION_TYPE_ICON[type];
-            const greyed = type === 'MATRIX';
 
             return (
               <div
                 key={type}
-                className={`flex h-[62px] flex-col items-center justify-center gap-1.5 rounded-[10px] border ${
-                  greyed ? 'border-ink-200 border-dashed' : 'border-ink-200'
-                }`}
+                className="border-ink-200 flex h-[62px] flex-col items-center justify-center gap-1.5 rounded-[10px] border"
               >
-                <Icon className={`size-4 ${greyed ? 'text-ink-300' : 'text-ink-400'}`} />
-                <span className={`text-[11.5px] ${greyed ? 'text-ink-400' : 'text-ink-600'}`}>
-                  {QUESTION_TYPE_LABEL[type]}
-                </span>
-                {greyed ? (
-                  <span className="text-ink-400 text-[9px]">{UPCOMING_BADGE.V11}</span>
-                ) : null}
+                <Icon className="text-ink-400 size-4" />
+                <span className="text-ink-600 text-[11.5px]">{QUESTION_TYPE_LABEL[type]}</span>
               </div>
             );
           })}

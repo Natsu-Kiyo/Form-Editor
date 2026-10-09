@@ -191,7 +191,8 @@ enum InvitationStatus {
   EXPIRED
 }
 
-/// 题型。矩阵题是 1.1 的灰显项，不在此列
+/// 题型。R62 起 8 个全部开放
+/// （矩阵的行 = 题目的 options，列 = 题目的 config.columns，见 docs/PLAN.md §11 R62）
 enum QuestionType {
   SINGLE
   MULTI
@@ -200,6 +201,7 @@ enum QuestionType {
   RATING
   DROPDOWN
   DATE
+  MATRIX
 }
 
 model Questionnaire {
