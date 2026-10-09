@@ -11,12 +11,7 @@ import { FilterSelect } from '@/components/ui/filter-select';
 import { Modal, ModalContent } from '@/components/ui/modal';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
-import {
-  METRIC_HINT,
-  QUESTION_TYPE_LABEL,
-  TREND_GRANULARITY_LABEL,
-  UPCOMING_BADGE,
-} from '@/config/constants';
+import { METRIC_HINT, QUESTION_TYPE_LABEL, TREND_GRANULARITY_LABEL } from '@/config/constants';
 import { cn } from '@/utils/cn';
 import { formatDurationMs } from '@/utils/format';
 
@@ -35,28 +30,9 @@ import { DateRangeFilter } from './date-range-filter';
  * 这里只把结果标出来，让人知道每个点是多久。
  */
 /**
- * 「分享报告」（生成只读外链）属 2.0。
- *
- * **灰显而不是不给**：它在计划里、用户会问，所以入口留着并明确标注版本 ——
- * 给一个能点但什么都不发生的按钮才是假入口。
- * 抽成组件是因为它有两个落点（桌面顶栏 / 窄屏底部条），样式各差一点、文案必须一致。
+ * 原来这里有一个灰显的「分享报告」（只读外链，2.0）。
+ * R61 起该项**决定不做**，入口与相关代码一并移除（见 docs/PLAN.md §11.5 B）。
  */
-function ShareReportButton({ className }: { className?: string }) {
-  return (
-    <button
-      type="button"
-      disabled
-      title={`分享报告属 ${UPCOMING_BADGE.V20} 规划，本版本不开放`}
-      className={cn(
-        'bg-brand-500/45 flex shrink-0 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg font-medium text-white',
-        className,
-      )}
-    >
-      分享报告
-      <span className="rounded bg-white/25 px-1 text-[10px]">{UPCOMING_BADGE.V20}</span>
-    </button>
-  );
-}
 
 export function StatsPanel({
   data,
@@ -120,18 +96,6 @@ export function StatsPanel({
         onChange={(next) => push({ from: next.from, to: next.to })}
       />
 
-      <button
-        type="button"
-        disabled
-        title={`交叉分析属 ${UPCOMING_BADGE.V11} 规划，本版本不开放`}
-        className="border-ink-300 text-ink-400 flex h-8 cursor-not-allowed items-center gap-1.5 rounded-lg border border-dashed px-3 text-[12.5px]"
-      >
-        交叉分析
-        <span className="bg-ink-100 text-ink-400 rounded px-1 text-[10px]">
-          {UPCOMING_BADGE.V11}
-        </span>
-      </button>
-
       <span className="text-ink-400 text-[11.5px] lg:ml-auto">
         数据更新于 {data.updatedAtLabel}
       </span>
@@ -145,7 +109,7 @@ export function StatsPanel({
           <h1 className="text-ink-900 truncate text-[15px] font-semibold">{data.title}</h1>
         }
       >
-        {/* 桌面把这两个动作放在顶栏；窄屏挪到页面底部（P05），这里就不重复渲染 */}
+        {/* 桌面把「导出」放在顶栏；窄屏挪到页面底部（P05），这里就不重复渲染 */}
         <div className="hidden items-center gap-3 lg:flex">
           {canExport ? (
             <Button variant="outline" size="sm" onClick={() => setExportOpen(true)}>
@@ -153,12 +117,13 @@ export function StatsPanel({
               导出
             </Button>
           ) : null}
-          <ShareReportButton className="h-8 px-3.5 text-[13px]" />
         </div>
       </QuestionnaireTopbar>
 
-      {/* 窄屏底部有固定的「导出 / 分享报告」条，内容要留出它的高度 */}
-      <main className="flex-1 overflow-y-auto p-6 pb-32 sm:p-7 lg:pb-7">
+      {/* 窄屏底部有固定的「导出」条（查看者没有导出、也就没有这一条），内容要留出它的高度 */}
+      <main
+        className={cn('flex-1 overflow-y-auto p-6 sm:p-7', canExport ? 'pb-32 lg:pb-7' : 'pb-6')}
+      >
         <div className="mx-auto max-w-[1020px] space-y-5">
           {/* ---- 指标卡（窄屏 2×2：四张竖排会把趋势挤到第二屏之外）---- */}
           <div className="grid grid-cols-2 gap-3 lg:gap-4 xl:grid-cols-4">
@@ -221,7 +186,7 @@ export function StatsPanel({
           {/*
             ---- 筛选 ----
             桌面是一整条常驻筛选栏；窄屏收进「筛选」弹层 —— 375px 上把渠道下拉、
-            日期区间、交叉分析、更新时间全摊开，会把趋势图挤到第二屏之外。
+            日期区间、更新时间全摊开，会把趋势图挤到第二屏之外。
             用 `isDesktop` 而不是 CSS 隐藏：隐藏的控件仍在 DOM 里，仍会被 Tab 聚焦、
             仍会被自动化匹配到（这两条都在本项目踩过）。
           */}
@@ -323,9 +288,9 @@ export function StatsPanel({
         </div>
       </main>
 
-      {/* 窄屏：P05 的底部两个按钮（桌面这两个动作在顶栏里，见上） */}
-      <div className="border-ink-100 fixed inset-x-0 bottom-0 z-30 flex gap-2.5 border-t bg-white px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
-        {canExport ? (
+      {/* 窄屏：P05 的底部条（桌面这个动作在顶栏里，见上）。查看者没有导出 → 整条不渲染 */}
+      {canExport ? (
+        <div className="border-ink-100 fixed inset-x-0 bottom-0 z-30 flex gap-2.5 border-t bg-white px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
           <Button
             variant="outline"
             className="h-[46px] flex-1 rounded-[14px]"
@@ -334,9 +299,8 @@ export function StatsPanel({
             <DownloadIcon className="size-4" />
             导出
           </Button>
-        ) : null}
-        <ShareReportButton className="h-[46px] flex-1 rounded-[14px] text-[13.5px]" />
-      </div>
+        </div>
+      ) : null}
 
       <AnswersDialog question={openQuestion} onClose={() => setOpenQuestion(null)} />
 

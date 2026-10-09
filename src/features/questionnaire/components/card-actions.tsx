@@ -10,7 +10,6 @@ import {
   GridIcon,
   TrashIcon,
   UploadIcon,
-  UsersIcon,
 } from '@/components/icons/ui-icons';
 import {
   DropdownMenu,
@@ -20,7 +19,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { UPCOMING_BADGE } from '@/config/constants';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 
 import { archiveQuestionnaireAction } from '../actions/archive-questionnaire';
@@ -35,12 +33,14 @@ type OpenDialog = 'delete' | 'template' | 'import' | null;
 /**
  * 卡片右上角「⋯」菜单。
  *
- * 三处刻意处理：
+ * 两处刻意处理：
  * - 「复制 / 导出 JSON / 导入 JSON」按设计稿是**移动端不做**，所以窄屏下**不渲染**
  *   （用视口判定真隐藏，而不是 CSS `hidden` 留一份不可见但可聚焦的 DOM）。
- * - 「问卷移交」是 2.0，按 B 级规范灰显：`disabled` + 角标，不留 hover 假反馈。
  * - 「导出 JSON」直接跳下载地址，而不是走 Server Action —— 下载需要
  *   `Content-Disposition`，而 action 的返回值只能是给 React 的数据。
+ *
+ * 菜单里的每一项都是真实现（无灰显占位）：「分享报告 / 交叉分析 / 问卷移交 / 评论」
+ * 四项已决定不做（R61），原灰显入口已整体移除。
  */
 export function CardActions({
   questionnaire,
@@ -145,15 +145,6 @@ export function CardActions({
               归档
             </DropdownMenuItem>
           ) : null}
-
-          <DropdownMenuItem
-            icon={<UsersIcon />}
-            disabled
-            badge={UPCOMING_BADGE.V20}
-            title="问卷移交属 2.0 规划，本版本不开放"
-          >
-            问卷移交
-          </DropdownMenuItem>
 
           {canManage ? (
             <>

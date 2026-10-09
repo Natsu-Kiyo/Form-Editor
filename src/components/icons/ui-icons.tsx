@@ -235,14 +235,6 @@ export function BellIcon(props: IconProps) {
   );
 }
 
-export function CommentIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.5 8.5 0 01-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 013 11.5 8.5 8.5 0 0111.5 3h.5a8.5 8.5 0 019 8.5z" />
-    </Icon>
-  );
-}
-
 export function EyeIcon(props: IconProps) {
   return (
     <Icon {...props}>

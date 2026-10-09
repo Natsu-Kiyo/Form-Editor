@@ -40,7 +40,7 @@ export type DropdownMenuItemProps = React.ComponentProps<typeof DropdownMenuPrim
 /**
  * 菜单项。
  *
- * 灰显用法（无假入口规则）：`<DropdownMenuItem disabled badge="2.0">问卷移交</DropdownMenuItem>` ——
+ * 灰显用法（无假入口规则）：`<DropdownMenuItem disabled badge="2.0">…</DropdownMenuItem>` ——
  * disabled 之后 Radix 不会给高亮底色，也就没有「看起来能点」的假反馈。
  */
 export function DropdownMenuItem({

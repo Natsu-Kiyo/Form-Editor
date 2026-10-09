@@ -19,13 +19,8 @@ import {
 } from '@dnd-kit/sortable';
 import { useRef, useState } from 'react';
 
-import { CommentIcon, GripIcon, TrashIcon } from '@/components/icons/ui-icons';
-import {
-  QUESTION_TYPE_LABEL,
-  RATING_SCALE,
-  UPCOMING_BADGE,
-  ratingBounds,
-} from '@/config/constants';
+import { GripIcon, TrashIcon } from '@/components/icons/ui-icons';
+import { QUESTION_TYPE_LABEL, RATING_SCALE, ratingBounds } from '@/config/constants';
 import { cn } from '@/utils/cn';
 
 import type { DraftQuestion } from './editor-draft';
@@ -157,15 +152,6 @@ export function QuestionCard({
             <span className="text-ink-300 mt-0.5 shrink-0 text-[15px] lg:hidden" aria-hidden="true">
               ›
             </span>
-
-            <button
-              type="button"
-              disabled
-              title={`评论 @提及属 ${UPCOMING_BADGE.V20} 规划，本版本不开放`}
-              className="text-ink-300 -mt-0.5 hidden size-6 shrink-0 items-center justify-center rounded-md disabled:cursor-not-allowed lg:flex"
-            >
-              <CommentIcon className="size-3.5" />
-            </button>
           </div>
 
           {isChoice ? (

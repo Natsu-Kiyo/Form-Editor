@@ -438,10 +438,6 @@ export function ComponentGallery() {
               <DropdownMenuItem icon={<DownloadIcon />}>导出 JSON</DropdownMenuItem>
               <DropdownMenuItem icon={<LinkIcon />}>另存为模板</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem disabled badge={UPCOMING_BADGE.V20}>
-                问卷移交
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem tone="danger" icon={<TrashIcon />}>
                 删除
               </DropdownMenuItem>

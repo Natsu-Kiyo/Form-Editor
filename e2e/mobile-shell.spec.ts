@@ -154,19 +154,17 @@ test.describe('移动外壳', () => {
     // 单题卡横向滑动（桌面是纵向堆叠，所以这行提示只在窄屏出现）
     await expect(page.getByText(/左右滑动查看全部 \d+ 题/)).toBeVisible();
 
-    // 顶栏那两个动作在窄屏挪到了底部：导出可点、分享报告是灰显 2.0
+    // 顶栏那个动作在窄屏挪到了底部（R61 起只剩「导出」：分享报告已决定不做、入口移除）
     await expect(page.getByRole('button', { name: /导出/ }).last()).toBeVisible();
-    await expect(page.getByRole('button', { name: /分享报告/ })).toBeDisabled();
 
     // 筛选收进弹层（375px 上把条件全摊开会把趋势图挤走）
     // 断言用「可点的控件」而不是标签文字：`FilterSelect` 里那个 native select 是给读屏用的，看不见
     await page.getByRole('button', { name: /^筛选/ }).click();
     const filters = page.getByRole('dialog');
     await expect(filters.getByRole('heading', { name: '筛选' })).toBeVisible();
-    // 断在真控件上：日期区间是按钮，交叉分析是灰显按钮
+    // 断在真控件上：日期区间是按钮
     // （渠道那一项是原生 select，按 role 找它得用 combobox，这里不纠缠）
     await expect(filters.getByRole('button', { name: '开始时间 - 结束时间' })).toBeVisible();
-    await expect(filters.getByRole('button', { name: /交叉分析/ })).toBeDisabled();
   });
 
   test('P06 分享页：大字二维码 + 渠道链接进底部 Sheet', async ({ page }, testInfo) => {
