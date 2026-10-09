@@ -16,6 +16,7 @@ import { cn } from '@/utils/cn';
 import { setResponseValidityAction } from '../actions/invalidate-response';
 import type { ResponseDetail, ResponsesPageData } from '../api/responses';
 import { ResponseDetailPanel } from './response-detail-panel';
+import { ResponseDetailSkeleton } from './response-detail-skeleton';
 
 /**
  * 答卷明细（W07）。
@@ -26,6 +27,12 @@ import { ResponseDetailPanel } from './response-detail-panel';
  * - **表格是服务端渲染的**，客户端只负责改 URL 与调 action —— 数字与时间文案都在
  *   服务端按展示时区格式化好了（放客户端会在水合时对不上）。
  * - 详情是**右栏**而不是弹层：看明细时人一直在上下比对本份答卷与列表。
+ *
+ * **两种等待态，刻意做得不一样**（R68）：
+ * - **打开**（初始 → 查看、以及 A → B 切换）：右栏立起**骨架** —— 「这一栏马上有内容」；
+ * - **关闭**：面板**变淡并停止交互**（关闭按钮原位换 spinner）—— 「这一栏正在走」，
+ *   摆骨架就反了：关闭之后那里什么都不该来。
+ * 反馈都落在**原地**：被点的行立刻高亮、链接变「查看中」，列表与筛选保持在场。
  */
 export function ResponsesPanel({
   data,
@@ -53,6 +60,27 @@ export function ResponsesPanel({
   const [exportOpen, setExportOpen] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  /**
+   * 右栏这次导航的意图：**打开**（含从一份切到另一份）摆骨架、**关闭**给「正在离开」态。
+   * 它只由点击设置，由**数据落地**清除（见下面的渲染期同步）—— 不用计时器：
+   * 定时清是在猜导航要多久，而新 props 到达是它真的完成了。
+   */
+  const [detailIntent, setDetailIntent] = useState<
+    { type: 'open'; id: string } | { type: 'close' } | null
+  >(null);
+
+  /*
+   * 意图的清除看 `detail` 变没变（「渲染期根据 prop 调整 state」，React 官方写法，
+   * 与 SearchField 同步 URL 同一个模式）：换成新的一份、或关闭后变 null，
+   * 都说明刚才那次导航已经完成，等待态该退场了。
+   */
+  const detailId = detail?.id ?? null;
+  const [seenDetailId, setSeenDetailId] = useState(detailId);
+  if (seenDetailId !== detailId) {
+    setSeenDetailId(detailId);
+    setDetailIntent(null);
+  }
 
   const basePath = `/app/q/${questionnaireId}/responses`;
   const filterActive = Boolean(channelId || search || !includeInvalid);
@@ -93,6 +121,16 @@ export function ResponsesPanel({
 
     return `${basePath}?${params.toString()}`;
   };
+
+  /** 摆出「正在打开」：导航仍由 `<Link>` / `router.push` 正常走，这里只管等待期的样子 */
+  const openDetail = (responseId: string) => {
+    // 点的就是当前这一份：不会有新导航，别摆骨架（摆了就永远等不到「数据落地」）
+    if (detail?.id === responseId) return;
+    setDetailIntent({ type: 'open', id: responseId });
+  };
+
+  /** 摆出「正在关闭」：新数据（没有 `selected` 的那一份）一到，面板就退场 */
+  const closeDetail = () => setDetailIntent({ type: 'close' });
 
   const restore = (responseId: string) => {
     setPendingId(responseId);
@@ -202,22 +240,38 @@ export function ResponsesPanel({
                     <tbody className="divide-ink-100 divide-y">
                       {data.rows.map((row) => {
                         const selected = detail?.id === row.id;
+                        // 等待期里的那一行也当作选中来画：点下去立刻高亮，
+                        // 数据落地后无缝换成正式选中态（颜色不在两者之间跳）
+                        const opening = detailIntent?.type === 'open' && detailIntent.id === row.id;
+                        const active = selected || opening;
 
                         return (
                           <tr
                             key={row.id}
                             // 整行可点（设计稿的样子），但键盘用户用的是操作列里那个真按钮，
                             // 所以无障碍不依赖 onClick
-                            onClick={() => push({ selected: row.id }, false)}
+                            onClick={(event) => {
+                              // 新标签页打开（⌘/Ctrl/Shift + 点击）：那个页面不归这里管，别摆等待态
+                              if (
+                                event.metaKey ||
+                                event.ctrlKey ||
+                                event.shiftKey ||
+                                event.altKey
+                              ) {
+                                return;
+                              }
+                              openDetail(row.id);
+                              push({ selected: row.id }, false);
+                            }}
                             className={cn(
                               'cursor-pointer transition-colors duration-150',
-                              selected ? 'bg-brand-50/60' : 'hover:bg-ink-50/60',
+                              active ? 'bg-brand-50/60' : 'hover:bg-ink-50/60',
                             )}
                           >
                             <td
                               className={cn(
                                 'px-5 py-3.5 font-mono',
-                                selected ? 'text-brand-600' : 'text-ink-400',
+                                active ? 'text-brand-600' : 'text-ink-400',
                               )}
                             >
                               {row.serial}
@@ -259,13 +313,33 @@ export function ResponsesPanel({
                               {row.valid ? (
                                 <Link
                                   href={selectHref(row.id)}
+                                  /*
+                                   * 不开 prefetch：这 10 行都在视口里，默认预取会在打开列表时
+                                   * 就逐行各发一次完整 RSC 请求（每次都重查列表 + 详情）——
+                                   * 「查看」还没点，服务端已经跑了十遍。关掉之后点谁请谁，
+                                   * 等待态也因此是真实的，不是被预取掩盖的一瞬。
+                                   */
+                                  prefetch={false}
                                   aria-label={`查看答卷 #${row.serial}`}
+                                  onClick={(event) => {
+                                    if (
+                                      event.metaKey ||
+                                      event.ctrlKey ||
+                                      event.shiftKey ||
+                                      event.altKey
+                                    ) {
+                                      return;
+                                    }
+                                    // 阻止冒泡：行上还有一个 onClick，别让同一次点击走两遍
+                                    event.stopPropagation();
+                                    openDetail(row.id);
+                                  }}
                                   className={cn(
                                     'text-[12.5px] font-medium transition-colors duration-150',
-                                    selected ? 'text-brand-500' : 'text-ink-500 hover:text-ink-800',
+                                    active ? 'text-brand-500' : 'text-ink-500 hover:text-ink-800',
                                   )}
                                 >
-                                  {selected ? '查看中' : '查看'}
+                                  {active ? '查看中' : '查看'}
                                 </Link>
                               ) : canEdit ? (
                                 <button
@@ -341,9 +415,19 @@ export function ResponsesPanel({
               ) : null}
             </div>
 
-            {/* ---- 详情 ---- */}
-            {detail ? (
-              <ResponseDetailPanel detail={detail} closeHref={closeHref} canEdit={canEdit} />
+            {/* ---- 详情 ----
+                分支顺序即优先级：**打开中**（骨架顶掉旧内容，哪怕是 A → B 切换）→
+                **已打开**（含「正在关闭」的变淡态）→ 无。 */}
+            {detailIntent?.type === 'open' ? (
+              <ResponseDetailSkeleton />
+            ) : detail ? (
+              <ResponseDetailPanel
+                detail={detail}
+                closeHref={closeHref}
+                canEdit={canEdit}
+                closing={detailIntent?.type === 'close'}
+                onClose={closeDetail}
+              />
             ) : null}
           </div>
         </div>

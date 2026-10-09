@@ -107,10 +107,20 @@ test.describe('答卷明细', () => {
     // seed 的这份问卷有 6 道题，且都答过（选项 / 评分 / 填空三种形态）
     await expect(detail.getByText(/^Q1 · /)).toBeVisible();
 
-    // 关闭 = 去掉 URL 上的 selected（不是返回上一页），列表本身不动
+    // 关闭 = 去掉 URL 上的 selected（不是返回上一页），列表本身不动。
+    //
+    // 判据是「没有发生整页导航」：这里曾经是一个原生 `<a>`，点下去浏览器重新下整份文档，
+    // 于是「只差右栏一栏」的开合会闪出启动加载态（「正在准备工作区」）。
+    // `load` 只在文档级导航时触发，客户端路由切换不会碰它 —— 计数为零就是证据。
+    let documentLoads = 0;
+    page.on('load', () => {
+      documentLoads += 1;
+    });
+
     await page.getByRole('link', { name: '关闭详情' }).click();
     await expect(detail).toHaveCount(0);
     await expect(firstRow).toBeVisible();
+    expect(documentLoads).toBe(0);
 
     // 再打开一次 —— 后面要在详情里点那颗按钮
     await firstRow.getByRole('link', { name: /^查看答卷 #/ }).click();
@@ -156,5 +166,69 @@ test.describe('答卷明细', () => {
 
     await openStats(page);
     await expect(page.getByText('暂无无效答卷')).toBeVisible();
+  });
+
+  test('详情开合的等待态：打开摆骨架、关闭变淡着走', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '答卷明细只在桌面形态有（窄屏是 C 级隐藏）');
+
+    await signIn(page);
+    await openStats(page);
+    await openResponses(page);
+    await restoreLeftovers(page);
+
+    const firstRow = page.getByRole('row').nth(1);
+    const secondRow = page.getByRole('row').nth(2);
+    await expect(firstRow.getByRole('link', { name: /^查看答卷 #/ })).toBeVisible();
+
+    /*
+     * 与模板中心那条同款手法：把这次导航的 RSC 请求按住 1.2 秒。
+     * 真实环境里等待态只闪一两百毫秒，直接断言会时有时无 —— 它验的是「时序存在」。
+     * 「查看」开着 prefetch 的话这一招会失灵（数据早躺在缓存里），所以开合两处链接
+     * 都显式关了 prefetch（产品上也有理由：10 行都在视口里，默认预取会让服务端
+     * 在打开列表时就跑十遍详情）。
+     */
+    await page.route('**/responses*', async (route) => {
+      if (route.request().url().includes('_rsc')) {
+        await new Promise((resolve) => setTimeout(resolve, 1_200));
+      }
+      await route.continue();
+    });
+
+    // 骨架与真实面板共用同一个名字 —— 它们争的就是「答卷详情」这一栏的位置
+    const detail = page.getByRole('complementary', { name: '答卷详情' });
+
+    // ---- ① 初始 → 查看：右栏立起骨架；被点的行原地给反馈（链接变「查看中」） ----
+    await firstRow.getByRole('link', { name: /^查看答卷 #/ }).click();
+
+    await expect(detail).toHaveAttribute('aria-busy', 'true');
+    await expect(detail.getByText('正在加载答卷…')).toBeAttached();
+    await expect(firstRow.getByRole('link', { name: /^查看答卷 #/ })).toHaveText('查看中');
+    // 只换右栏这一块：列表与筛选行保持在场
+    await expect(firstRow).toBeVisible();
+    await expect(page.getByLabel('搜索答卷内容')).toBeVisible();
+
+    // 落地：骨架退场，真实那一栏出现
+    await expect(detail).not.toHaveAttribute('aria-busy', 'true');
+    await expect(detail.getByText('渠道', { exact: true })).toBeVisible();
+
+    // ---- ② 查看到另一个：右栏从 A 换成 B 的骨架（不是留着 A 等 B） ----
+    await secondRow.getByRole('link', { name: /^查看答卷 #/ }).click();
+
+    await expect(detail).toHaveAttribute('aria-busy', 'true');
+    await expect(detail.getByText('渠道', { exact: true })).toHaveCount(0); // A 的内容已被顶掉
+
+    await expect(detail.getByText('渠道', { exact: true })).toBeVisible(); // B 落地
+
+    // ---- ③ 关闭：整栏变淡 + 关闭按钮原位换 spinner，落地后消失 ----
+    await page.getByRole('link', { name: '关闭详情' }).click();
+
+    await expect(detail).toHaveAttribute('aria-busy', 'true');
+    await expect(detail.locator('.qw-spinner')).toHaveCount(1);
+    await expect(detail.getByText('正在关闭…')).toBeAttached();
+    await expect(firstRow).toBeVisible();
+
+    await expect(detail).toHaveCount(0);
+
+    await page.unroute('**/responses*');
   });
 });

@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useTransition } from 'react';
 
 import { CheckCircleIcon, CloseIcon, InfoIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/utils/cn';
 
 import { setResponseValidityAction } from '../actions/invalidate-response';
@@ -15,6 +17,15 @@ import type { ResponseDetail } from '../api/responses';
  * 它是**一栏而不是弹层**：看明细时人一直在上下比对本份答卷与列表，
  * 弹层会把列表挡住。关闭 = 去掉 URL 上的 `selected`（列表本身还在）。
  *
+ * 关闭用 `<Link>` 而不是原生 `<a>`（R67 修）：这是**页内**的 URL 变化
+ * （只差右栏一栏），原生 `<a>` 会让浏览器走整页导航 —— 重下整份文档、
+ * 闪出启动加载态（「正在准备工作区」），与点开时的客户端导航也不一致。
+ * 站内导航一律交给 Next 的客户端路由；只有下载类链接才该用原生 `<a>`。
+ *
+ * 关闭中（`closing`）：整栏变淡并停止交互，关闭按钮**原位**换成 spinner
+ * （`Button` 的规矩：加载态顶掉原图标，位置不跳），另用 sr-only 的「正在关闭…」
+ * 承担状态文字。打开则是另一套 —— 骨架，见 `ResponseDetailSkeleton`。
+ *
  * 三种作答形态的呈现与统计页同一套读法：选项看清选了哪几个、评分看分数本身、
  * 填空保留换行。
  */
@@ -22,10 +33,16 @@ export function ResponseDetailPanel({
   detail,
   closeHref,
   canEdit,
+  closing = false,
+  onClose,
 }: {
   detail: ResponseDetail;
   closeHref: string;
   canEdit: boolean;
+  /** 正在关闭（URL 已改、新数据还没到）：整栏变淡并停止交互 —— 回给「× 点没点上」一个答复 */
+  closing?: boolean;
+  /** 点关闭时通知外层摆出等待态 —— 导航仍由下面那个 `<Link>` 正常走 */
+  onClose?: () => void;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -39,7 +56,13 @@ export function ResponseDetailPanel({
     // 有了这个名字，「哪一块是答卷详情」才有一个可指认的说法
     <aside
       aria-label="答卷详情"
-      className="border-ink-200 w-[360px] shrink-0 self-start overflow-hidden rounded-xl border bg-white"
+      aria-busy={closing || undefined}
+      className={cn(
+        'border-ink-200 w-[360px] shrink-0 self-start overflow-hidden rounded-xl border bg-white transition-opacity duration-150',
+        // 关闭中：变淡 + 不再接受交互（防重复点，也让「正在离开」一眼可见）。
+        // 摆骨架就反了 —— 关闭之后那一栏什么都不该来
+        closing && 'pointer-events-none opacity-60',
+      )}
     >
       <div className="border-ink-100 flex items-start justify-between gap-2 border-b px-5 py-4">
         <div>
@@ -57,14 +80,28 @@ export function ResponseDetailPanel({
           </div>
         </div>
 
-        <a
+        <Link
           href={closeHref}
+          /* 与「查看」同一条理由：不为一次导航把整个页面（列表 + 详情）预取一遍 */
+          prefetch={false}
           aria-label="关闭详情"
+          onClick={(event) => {
+            // 新标签页打开（⌘/Ctrl/Shift + 点击）：本页面不会导航，别摆「正在关闭」
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            onClose?.();
+          }}
           className="text-ink-400 hover:bg-ink-100 flex size-7 shrink-0 items-center justify-center rounded-md transition-colors duration-150"
         >
-          <CloseIcon className="size-4" />
-        </a>
+          {closing ? <Spinner /> : <CloseIcon className="size-4" />}
+        </Link>
       </div>
+
+      {/* 状态不能只靠动画传达（L00）：读屏听到的是这句话 */}
+      {closing ? (
+        <span role="status" className="sr-only">
+          正在关闭…
+        </span>
+      ) : null}
 
       <div className="space-y-4 p-5">
         <Meta label="渠道" value={detail.channelName ?? '无渠道标记'} />
