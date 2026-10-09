@@ -20,7 +20,6 @@ import {
   QUESTION_TYPE_LABEL,
   RATING_SCALE,
   SHOW_IF_SOURCE_TYPES,
-  UPCOMING_BADGE,
   ratingBounds,
   type QuestionType,
 } from '@/config/constants';
@@ -38,7 +37,8 @@ const EDITABLE_TYPES = Object.keys(QUESTION_TYPE_LABEL) as QuestionType[];
  * 所有控件都写**本地草稿**，顶栏按一次「保存」才落库 —— 所以没有防抖、没有失败态，
  * 也天然可以整段反悔（顶栏「放弃修改」）。
  *
- * 「逻辑」与「外观」按 B 级规范灰显：`disabled` + 角标 + 一行说明。
+ * 两个 Tab 都是真实现：题目属性、逻辑（R65 起 = 条件显示）。
+ * 「外观」原是本面板的第三个 Tab（灰显 2.0 占位），**R74 起决定不做、入口已移除**。
  */
 export function PropertyPanel({
   question,
@@ -73,17 +73,6 @@ export function PropertyPanel({
         <PanelTab active={tab === 'logic'} onClick={() => setTab('logic')}>
           逻辑
         </PanelTab>
-        <button
-          type="button"
-          disabled
-          title={`主题与外观属 ${UPCOMING_BADGE.V20} 规划，本版本不开放`}
-          className="text-ink-500 flex h-11 items-center gap-1.5 px-3 text-[13px] font-medium disabled:cursor-not-allowed"
-        >
-          外观
-          <span className="bg-ink-100 text-ink-400 rounded px-1 text-[9px]">
-            {UPCOMING_BADGE.V20}
-          </span>
-        </button>
       </div>
 
       {tab === 'logic' ? (

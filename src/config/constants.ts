@@ -122,14 +122,6 @@ export const TREND_GRANULARITY_LABEL: Record<TrendGranularity, string> = {
 export const ANALYTICS_RANGE = { D7: 7, D30: 30, ALL: 0 } as const;
 
 /**
- * 规划功能的灰显角标文案。现在只剩 2.0 用得上（属性面板的「外观」Tab）——
- * 1.1 的两项（矩阵题 R62、条件显示 R65）都已转 A 级实现，`V11` 随之删除。
- */
-export const UPCOMING_BADGE = {
-  V20: '2.0',
-} as const;
-
-/**
  * 题型。取值与数据库枚举一致（docs/PLAN.md §5）。
  * 8 个题型位全部开放 —— 矩阵题（`MATRIX`）R62 由 1.1 灰显转 A 级实现。
  */
