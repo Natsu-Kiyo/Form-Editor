@@ -53,6 +53,9 @@ export async function getAnalyticsData(
   questionnaireId: string,
   filter: AnalyticsFilter,
 ): Promise<AnalyticsData | null> {
+  // 渠道下拉的括号数字要跟「回收份数」同一个区间 —— 先算好边界，下面两处查询共用
+  const bounds = filterBounds(filter);
+
   const questionnaire = await prisma.questionnaire.findUnique({
     where: { id: questionnaireId },
     select: {
@@ -78,7 +81,20 @@ export async function getAnalyticsData(
         select: {
           id: true,
           name: true,
-          _count: { select: { responses: true } },
+          /**
+           * 括号里的数字 = 该渠道在**当前时间筛选**内的答卷数（含已标记无效，
+           * 与「回收份数」同口径）—— 这样它才与指标卡对得上。
+           * （原先是「全部答卷数」，筛了时间之后两边对不上，是 R73 修的。）
+           *
+           * 两处刻意不动：
+           * - **不跟随渠道筛选**：跟着选中的渠道变的话，其它渠道会全部归零，就没法切回去了；
+           * - **不排除无效答卷**：排除它就与「回收份数」对不上，而「有效」在别处有专门口径。
+           */
+          _count: {
+            select: {
+              responses: { where: { submittedAt: { gte: bounds.gte, lt: bounds.lt } } },
+            },
+          },
         },
       },
     },
@@ -87,7 +103,6 @@ export async function getAnalyticsData(
   if (!questionnaire) return null;
 
   const now = new Date();
-  const bounds = filterBounds(filter);
 
   const responses = await prisma.response.findMany({
     where: {

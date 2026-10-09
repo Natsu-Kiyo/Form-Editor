@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState, type PointerEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { DownloadIcon, HelpIcon, InfoIcon } from '@/components/icons/ui-icons';
@@ -11,7 +11,13 @@ import { FilterSelect } from '@/components/ui/filter-select';
 import { Modal, ModalContent } from '@/components/ui/modal';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
-import { METRIC_HINT, QUESTION_TYPE_LABEL, TREND_GRANULARITY_LABEL } from '@/config/constants';
+import {
+  METRIC_HINT,
+  QUESTION_TYPE_LABEL,
+  TREND_GRANULARITY,
+  TREND_GRANULARITY_LABEL,
+  type TrendGranularity,
+} from '@/config/constants';
 import { cn } from '@/utils/cn';
 import { formatDurationMs } from '@/utils/format';
 
@@ -125,6 +131,45 @@ export function StatsPanel({
         className={cn('flex-1 overflow-y-auto p-6 sm:p-7', canExport ? 'pb-32 lg:pb-7' : 'pb-6')}
       >
         <div className="mx-auto max-w-[1020px] space-y-5">
+          {/*
+            ---- 筛选 ----
+            **排在指标卡之上**（R72）：日期与渠道会改变下面每一个数字 ——
+            「先筛、再看」才是读这张页面的顺序；把筛选器放在被它改变的数字下面，
+            人得先读一遍不对的数字、再回头找条件。
+            桌面是一整条常驻筛选栏；窄屏收进「筛选」弹层 —— 375px 上把渠道下拉、
+            日期区间、更新时间全摊开，会把趋势图挤到第二屏之外。
+            用 `isDesktop` 而不是 CSS 隐藏：隐藏的控件仍在 DOM 里，仍会被 Tab 聚焦、
+            仍会被自动化匹配到（这两条都在本项目踩过）。
+          */}
+          {isDesktop ? (
+            <div className="border-ink-200 flex flex-wrap items-center gap-2 rounded-xl border bg-white px-4 py-3">
+              <span className="text-ink-500 shrink-0 text-[12px]">筛选</span>
+              {filterControls}
+            </div>
+          ) : (
+            <Sheet>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className="border-ink-200 flex w-full items-center gap-2 rounded-xl border bg-white px-4 py-3 text-left"
+                >
+                  <span className="text-ink-500 text-[12px]">筛选</span>
+                  {filterCount > 0 ? (
+                    <span className="bg-brand-50 text-brand-600 rounded-full px-2 py-0.5 text-[11px] font-medium">
+                      {filterCount} 项
+                    </span>
+                  ) : (
+                    <span className="text-ink-400 text-[12px]">全部时间 · 全部渠道</span>
+                  )}
+                  <span className="text-ink-300 ml-auto text-[13px]">›</span>
+                </button>
+              </SheetTrigger>
+              <SheetContent title="筛选" description="与桌面端是同一组条件">
+                <div className="space-y-4">{filterControls}</div>
+              </SheetContent>
+            </Sheet>
+          )}
+
           {/* ---- 指标卡（窄屏 2×2：四张竖排会把趋势挤到第二屏之外）---- */}
           <div className="grid grid-cols-2 gap-3 lg:gap-4 xl:grid-cols-4">
             <MetricCard
@@ -183,42 +228,6 @@ export function StatsPanel({
             </p>
           </div>
 
-          {/*
-            ---- 筛选 ----
-            桌面是一整条常驻筛选栏；窄屏收进「筛选」弹层 —— 375px 上把渠道下拉、
-            日期区间、更新时间全摊开，会把趋势图挤到第二屏之外。
-            用 `isDesktop` 而不是 CSS 隐藏：隐藏的控件仍在 DOM 里，仍会被 Tab 聚焦、
-            仍会被自动化匹配到（这两条都在本项目踩过）。
-          */}
-          {isDesktop ? (
-            <div className="border-ink-200 flex flex-wrap items-center gap-2 rounded-xl border bg-white px-4 py-3">
-              <span className="text-ink-500 shrink-0 text-[12px]">筛选</span>
-              {filterControls}
-            </div>
-          ) : (
-            <Sheet>
-              <SheetTrigger asChild>
-                <button
-                  type="button"
-                  className="border-ink-200 flex w-full items-center gap-2 rounded-xl border bg-white px-4 py-3 text-left"
-                >
-                  <span className="text-ink-500 text-[12px]">筛选</span>
-                  {filterCount > 0 ? (
-                    <span className="bg-brand-50 text-brand-600 rounded-full px-2 py-0.5 text-[11px] font-medium">
-                      {filterCount} 项
-                    </span>
-                  ) : (
-                    <span className="text-ink-400 text-[12px]">全部时间 · 全部渠道</span>
-                  )}
-                  <span className="text-ink-300 ml-auto text-[13px]">›</span>
-                </button>
-              </SheetTrigger>
-              <SheetContent title="筛选" description="与桌面端是同一组条件">
-                <div className="space-y-4">{filterControls}</div>
-              </SheetContent>
-            </Sheet>
-          )}
-
           {/* ---- 回收趋势 ---- */}
           <div className="border-ink-200 rounded-xl border bg-white p-6">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -229,7 +238,7 @@ export function StatsPanel({
               </span>
             </div>
 
-            <TrendChart points={data.trend.points} />
+            <TrendChart points={data.trend.points} granularity={data.trend.granularity} />
           </div>
 
           {/*
@@ -365,20 +374,42 @@ function MetricCard({
  * 不引图表库：这里只需要一条折线加一条面积，而一个图表库会带来
  * 主题、字体、SSR 三套需要对齐的东西 —— 代价比收益大。
  * 空桶也画出来（`lib/stats.ts` 保证），否则「那天是 0」看起来像「那天不存在」。
+ *
+ * 三条读图约定（R70，对齐所有者给的参考图）：
+ * - **两个轴都带刻度**：y 轴按「好看的步长」（1/2/5 × 10ⁿ）铺 4–6 条网格线，
+ *   x 轴按「标签间距 ≥ 54（viewBox 单位）」决定每隔几个点标一个 —— 30 个点每 2 天一个，
+ *   数字密一点，不用凑近数。
+ * - **精确值在 hover 里**：平时折线上不标数字（30 个点会糊成一片），
+ *   鼠标横向滑过时取**最近的那天**：竖虚线 + 实心点 + 一张浮层（日期 + 份数）。
+ *   浮层锚在数据点上、不跟着鼠标飘 —— 它说的是「这一天」的数。
+ * - **触屏同样可用**：pointer 事件天然覆盖触摸；纵向滚动时浏览器接管手势，
+ *   浮层自然收起（不抢页面的滚动）。
+ * - **浮层说清「这个点覆盖哪一段」**：按周汇总时只写起点（`08-17`）会让人问
+ *   「那 08-18 去哪了」—— 不是选不到，是它们被包在这一周里。
  */
-function TrendChart({ points }: { points: { key: string; label: string; count: number }[] }) {
+function TrendChart({
+  points,
+  granularity,
+}: {
+  points: { key: string; label: string; count: number }[];
+  granularity: TrendGranularity;
+}) {
   const width = 900;
   const height = 220;
-  const padding = { top: 16, right: 16, bottom: 28, left: 36 };
+  const padding = { top: 18, right: 18, bottom: 30, left: 44 };
   const innerWidth = width - padding.left - padding.right;
   const innerHeight = height - padding.top - padding.bottom;
 
   const max = Math.max(1, ...points.map((point) => point.count));
   const step = points.length > 1 ? innerWidth / (points.length - 1) : 0;
 
+  const { step: tickStep, upper } = niceScale(max);
+  const yTicks: number[] = [];
+  for (let value = 0; value <= upper; value += tickStep) yTicks.push(value);
+
   const coordinates = points.map((point, index) => ({
     x: padding.left + index * step,
-    y: padding.top + innerHeight - (point.count / max) * innerHeight,
+    y: padding.top + innerHeight - (point.count / upper) * innerHeight,
     ...point,
   }));
 
@@ -387,71 +418,188 @@ function TrendChart({ points }: { points: { key: string; label: string; count: n
     padding.left + innerWidth
   },${padding.top + innerHeight}`;
 
-  // x 轴只标首、中、尾：14 个标签挤在一起谁也读不出来
-  const labelIndexes = new Set([0, Math.floor((points.length - 1) / 2), points.length - 1]);
+  // x 轴标签：相邻至少隔 54（30 个点 → 每 2 个一个；14 个点 → 全标）
+  const labelEvery = Math.max(1, Math.ceil(54 / Math.max(1, step)));
+  const lastIndex = points.length - 1;
+  const labelIndexes: number[] = [];
+  for (let index = 0; index <= lastIndex; index += labelEvery) labelIndexes.push(index);
+  if (labelIndexes.at(-1) !== lastIndex) {
+    // 末尾离上一档**不足一整档**就顶掉上一档（差一格时两串日期会叠字），
+    // 留住最后一个 —— 区间末端必须可读
+    if (lastIndex - (labelIndexes.at(-1) ?? 0) < labelEvery) labelIndexes.pop();
+    labelIndexes.push(lastIndex);
+  }
+
+  // ---- hover：按鼠标横向位置取最近的点 ----
+  const [active, setActive] = useState<{ index: number; left: number; top: number } | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  const handleMove = (event: PointerEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    const matrix = svg?.getScreenCTM();
+    if (!svg || !matrix || points.length === 0) return;
+
+    const rect = svg.getBoundingClientRect();
+    // 屏幕坐标 → viewBox 坐标：`getScreenCTM` 已经把缩放与居中留白算进去了
+    const svgX = (event.clientX - matrix.e) / matrix.a;
+    const index = Math.min(lastIndex, Math.max(0, Math.round((svgX - padding.left) / (step || 1))));
+    const point = coordinates[index]!;
+
+    // 浮层不越出卡片左右边缘（锚在点上，靠边时允许偏离居中）
+    const halfTooltip = 72;
+    const left = Math.min(
+      Math.max(matrix.e + point.x * matrix.a - rect.left, halfTooltip),
+      rect.width - halfTooltip,
+    );
+
+    setActive((previous) =>
+      previous?.index === index
+        ? previous
+        : { index, left, top: matrix.f + point.y * matrix.d - rect.top },
+    );
+  };
+
+  const activePoint = active ? coordinates[active.index]! : null;
+  // 点太靠上时浮层翻到点的下方（否则会被卡片上边缘切掉）
+  const placeBelow = active ? active.top < 70 : false;
 
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="h-[220px] w-full"
-      role="img"
-      aria-label="回收趋势"
-    >
-      {[0, 0.5, 1].map((ratio) => (
-        <line
-          key={ratio}
-          x1={padding.left}
-          x2={padding.left + innerWidth}
-          y1={padding.top + innerHeight * ratio}
-          y2={padding.top + innerHeight * ratio}
-          className="stroke-ink-100"
-          strokeWidth="1"
-        />
-      ))}
+    <div className="relative">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-[220px] w-full"
+        role="img"
+        aria-label="回收趋势"
+        onPointerMove={handleMove}
+        onPointerLeave={() => setActive(null)}
+      >
+        {/* y 轴：每个刻度一条网格线 + 一个数字 */}
+        {yTicks.map((value) => {
+          const y = padding.top + innerHeight - (value / upper) * innerHeight;
 
-      <text x={4} y={padding.top + 4} className="fill-ink-400 text-[10px]">
-        {max}
-      </text>
-      <text x={4} y={padding.top + innerHeight} className="fill-ink-400 text-[10px]">
-        0
-      </text>
+          return (
+            <g key={value}>
+              <line
+                x1={padding.left}
+                x2={padding.left + innerWidth}
+                y1={y}
+                y2={y}
+                className="stroke-ink-100"
+                strokeWidth="1"
+              />
+              <text
+                x={padding.left - 8}
+                y={y + 3.5}
+                textAnchor="end"
+                className="fill-ink-400 text-[10px]"
+              >
+                {value}
+              </text>
+            </g>
+          );
+        })}
 
-      <polygon points={area} className="fill-brand-500/10" />
-      <polyline points={line} fill="none" strokeWidth="2" className="stroke-brand-500" />
+        <polygon points={area} className="fill-brand-500/10" />
+        <polyline points={line} fill="none" strokeWidth="2" className="stroke-brand-500" />
 
-      {coordinates.map((point, index) => (
-        <g key={point.key}>
-          <circle
-            cx={point.x}
-            cy={point.y}
-            r="3.5"
-            className="stroke-brand-500 fill-white"
-            strokeWidth="2"
-          />
-          {point.count > 0 ? (
+        {/* hover：竖虚线 + 实心点（画在折线之上，穿过去也看得清） */}
+        {activePoint ? (
+          <>
+            <line
+              x1={activePoint.x}
+              x2={activePoint.x}
+              y1={padding.top}
+              y2={padding.top + innerHeight}
+              className="stroke-ink-300"
+              strokeWidth="1"
+              strokeDasharray="4 4"
+            />
+            <circle cx={activePoint.x} cy={activePoint.y} r="4.5" className="fill-brand-500" />
+          </>
+        ) : null}
+
+        {coordinates.map((point, index) =>
+          labelIndexes.includes(index) ? (
             <text
+              key={point.key}
               x={point.x}
-              y={point.y - 9}
-              textAnchor="middle"
-              className="fill-ink-500 text-[10px]"
-            >
-              {point.count}
-            </text>
-          ) : null}
-          {labelIndexes.has(index) ? (
-            <text
-              x={point.x}
-              y={height - 8}
-              textAnchor={index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'}
+              y={height - 9}
+              textAnchor={index === 0 ? 'start' : index === lastIndex ? 'end' : 'middle'}
               className="fill-ink-400 text-[10px]"
             >
               {point.label}
             </text>
-          ) : null}
-        </g>
-      ))}
-    </svg>
+          ) : null,
+        )}
+      </svg>
+
+      {/*
+        浮层：`aria-hidden` 是因为它是 hover 的视觉增强（数据本身在图上有 aria-label），
+        不加只会让读屏在鼠标滑过时反复念同一件事；`pointer-events-none` 保证它不挡住取点。
+      */}
+      {activePoint ? (
+        <div
+          aria-hidden="true"
+          /*
+           * `w-max` 不能少：绝对定位元素的宽度默认被「left 到容器右缘」的可用空间
+           * 挤压（`translateX(-50%)` 是绘制期的变换，不参与布局）—— 靠右 hover 时
+           * 浮层会被压成一根竖条。
+           */
+          className="border-ink-200 pointer-events-none absolute z-10 w-max rounded-[10px] border bg-white px-3 py-2 shadow-sm"
+          style={{
+            left: active!.left,
+            top: active!.top + (placeBelow ? 14 : -14),
+            transform: `translateX(-50%)${placeBelow ? '' : ' translateY(-100%)'}`,
+          }}
+        >
+          <div className="text-ink-500 text-[11px]">{tooltipTitle(activePoint, granularity)}</div>
+          <div className="mt-1 flex items-center gap-1.5">
+            <span className="bg-brand-500 size-1.5 rounded-full" />
+            <span className="text-ink-500 text-[11.5px]">回收份数</span>
+            <span className="text-ink-900 ml-0.5 font-mono text-[12.5px] font-semibold">
+              {activePoint.count}
+            </span>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
+}
+
+/**
+ * 浮层第一行：这个点**覆盖哪一段**。
+ *
+ * 按周汇总时若只写起点（`08-17`），人会问「08-18 去哪了 —— 是不是 hover 选不到」：
+ * 不是选不到，是它们被包在这一周里。写成 `08-17 ~ 08-23` 这个疑问就没了
+ * （图表库的「吸附最近点」同样只会给这一周 —— 问题不在画图方式，在文案）。
+ * 天与月不用改：`09-24`、`2026-09` 本身就说明了覆盖范围。
+ */
+function tooltipTitle(point: { key: string; label: string }, granularity: TrendGranularity) {
+  if (granularity !== TREND_GRANULARITY.WEEK) return point.label;
+
+  // 周桶的 key 是 `W2026-08-17`（周一）：加 6 天就是周日
+  const start = new Date(`${point.key.slice(1)}T00:00:00Z`);
+  const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+  const mmdd = (date: Date) =>
+    `${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+
+  return `${mmdd(start)} ~ ${mmdd(end)}`;
+}
+
+/**
+ * y 轴的「好看的」步长与上界（1 / 2 / 5 × 10ⁿ）：目标是 4–6 条网格线 ——
+ * 太稀没有参照，太密数字自己先打起来。步长下限是 1：份数是整数，
+ * 出现「0.2」这种刻度就错了。
+ */
+function niceScale(max: number) {
+  const raw = max / 5;
+  const magnitude = 10 ** Math.floor(Math.log10(Math.max(1, raw)));
+  const normalized = raw / magnitude;
+  const factor = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  const step = Math.max(1, factor * magnitude);
+
+  return { step, upper: Math.max(step, Math.ceil(max / step) * step) };
 }
 
 function QuestionChartCard({
