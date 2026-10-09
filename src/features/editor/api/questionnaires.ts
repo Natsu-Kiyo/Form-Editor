@@ -5,21 +5,25 @@ import { cache } from 'react';
 import {
   RATING_SCALE,
   matrixColumns,
+  showIfFrom,
   type QuestionnaireStatus,
   type QuestionType,
+  type ShowIf,
 } from '@/config/constants';
 import { prisma } from '@/lib/db';
 
 /** 编辑器可用的题型 = 全部 8 个（R62 矩阵开放后不再有补集） */
 export type EditableQuestionType = QuestionType;
 
-/** 题型差异项：评分范围、文本长度上限、矩阵的列 */
+/** 题型差异项：评分范围、文本长度上限、矩阵的列、条件显示 */
 export type QuestionConfig = {
   min?: number;
   max?: number;
   maxLength?: number;
   /** 矩阵题的列（**行**在 `options` 里，与选项同构） */
   columns?: string[];
+  /** 条件显示（R65）：当**前面的**某题选了其中某个选项时才显示本题 */
+  showIf?: ShowIf;
 };
 
 export type EditorOption = {
@@ -84,6 +88,11 @@ function parseConfig(raw: unknown, type: EditableQuestionType): QuestionConfig {
     // 与 RATING 同一条思路：读进来就按当前规则收敛（上限规则后加，库里可能残留超长/超量的值）
     config.columns = matrixColumns(source);
   }
+
+  // 条件显示适用于**任何题型**（被控制的题可以是任意类型）；引用的题是不是选择类，
+  // 由 payload schema 的统一闸门判 —— 这里只做形状容错
+  const showIf = showIfFrom(source);
+  if (showIf) config.showIf = showIf;
 
   return config;
 }

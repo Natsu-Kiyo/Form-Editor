@@ -45,6 +45,17 @@ export const questionPatchSchema = z
           .min(MATRIX_LIMITS.MIN_COLUMNS)
           .max(MATRIX_LIMITS.MAX_COLUMNS)
           .optional(),
+        /**
+         * 条件显示（R65）。这里只校验形状；**跨题约束**（必须指向前面的选择类题、
+         * 选项必须存在）在 payload schema 的统一闸门里 —— patch 时结构还在改，判不了跨题。
+         * `null` = 显式清掉条件（块内的题可以被移出块）。
+         */
+        showIf: z
+          .object({
+            questionIndex: z.number().int().min(0),
+            options: z.array(z.string().trim().min(1).max(100)).min(1),
+          })
+          .nullish(),
       })
       .optional(),
   })

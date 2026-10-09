@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeAnswerHint, isAnswered, parseAnswers, type SubmittableQuestion } from '../answers';
+import {
+  describeAnswerHint,
+  isAnswered,
+  parseAnswers,
+  visibleQuestions,
+  type SubmittableQuestion,
+} from '../answers';
 
 /**
  * 提交链路上唯一复杂的地方：八种题型各有一套规则，还要判必答。
@@ -17,6 +23,7 @@ function build(overrides: Partial<SubmittableQuestion> = {}): SubmittableQuestio
     maxLength: null,
     options: ['策划部', '宣传部'],
     columns: [],
+    showIf: null,
     ...overrides,
   };
 }
@@ -166,5 +173,87 @@ describe('describeAnswerHint', () => {
     expect(
       describeAnswerHint(build({ type: 'MATRIX', options: ['A', 'B', 'C'], columns: ['x', 'y'] })),
     ).toContain('3 行 × 2 列');
+  });
+});
+
+describe('条件显示（R65）', () => {
+  /** q1 单选（满意 / 不满意）→ q2 追问（在「不满意」时显示）→ q3 补充（在 q2 选「其他」时显示） */
+  const chain = (): SubmittableQuestion[] => [
+    build({ id: 'q1', type: 'SINGLE', options: ['满意', '不满意'] }),
+    build({
+      id: 'q2',
+      type: 'LONG_TEXT',
+      showIf: { questionIndex: 0, options: ['不满意'] },
+    }),
+    build({
+      id: 'q3',
+      type: 'SHORT_TEXT',
+      showIf: { questionIndex: 1, options: ['其他'] },
+    }),
+  ];
+
+  it('没有条件的题一直可见', () => {
+    const visible = visibleQuestions(chain(), {});
+
+    expect(visible.map((question) => question.id)).toEqual(['q1']);
+  });
+
+  it('命中依赖选项才可见；未答 / 未命中都不可见', () => {
+    expect(visibleQuestions(chain(), { q1: '满意' }).map((q) => q.id)).toEqual(['q1']);
+    expect(visibleQuestions(chain(), { q1: '不满意' }).map((q) => q.id)).toEqual(['q1', 'q2']);
+  });
+
+  it('多选命中其中任意一个选项即满足', () => {
+    const questions = [
+      build({ id: 'q1', type: 'MULTI', options: ['甲', '乙', '丙'] }),
+      build({ id: 'q2', type: 'SHORT_TEXT', showIf: { questionIndex: 0, options: ['甲', '丙'] } }),
+    ];
+
+    expect(visibleQuestions(questions, { q1: ['乙'] }).map((q) => q.id)).toEqual(['q1']);
+    expect(visibleQuestions(questions, { q1: ['乙', '丙'] }).map((q) => q.id)).toEqual([
+      'q1',
+      'q2',
+    ]);
+  });
+
+  it('级联：上游不可见时，只依赖它的下游也不可见', () => {
+    const questions = chain();
+    const both = { q1: '不满意', q2: '其他' } as Record<string, unknown>;
+
+    expect(visibleQuestions(questions, both).map((q) => q.id)).toEqual(['q1', 'q2', 'q3']);
+
+    // q2 从「其他」改成别的：q3 立刻消失；再把 q1 改回「满意」：两道追问都没了
+    expect(visibleQuestions(questions, { q1: '不满意', q2: '别的' }).map((q) => q.id)).toEqual([
+      'q1',
+      'q2',
+    ]);
+    expect(visibleQuestions(questions, { q1: '满意', q2: '其他' }).map((q) => q.id)).toEqual([
+      'q1',
+    ]);
+  });
+
+  it('提交时：不可见题的必答不拦、答案也不写库', () => {
+    const questions = chain().map((question) =>
+      question.showIf ? { ...question, required: true } : question,
+    );
+
+    // 选了「满意」→ 追问不可见：它即使必答也不拦，客户端塞进来的答案也不会写进去
+    const result = parseAnswers(questions, { q1: '满意', q2: '幽灵答案', q3: '幽灵答案' });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.answers).toEqual([{ questionId: 'q1', value: '满意' }]);
+    }
+  });
+
+  it('提交时：可见的必答追问照常拦', () => {
+    const questions = chain().map((question) =>
+      question.showIf ? { ...question, required: true } : question,
+    );
+
+    const result = parseAnswers(questions, { q1: '不满意' });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.fieldErrors.q2).toBe('这是必答题');
   });
 });

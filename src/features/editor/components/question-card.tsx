@@ -46,9 +46,22 @@ function buildSummary(question: DraftQuestion) {
     parts[0] = `${QUESTION_TYPE_LABEL.MATRIX} ${question.options.length} 行 × ${draftMatrixColumns(question.config).length} 列`;
   }
 
+  // 条件块里的题：摘要把这件事说出来，否则画布上只有块首那一行条件条在解释
+  if (question.showIf) parts.push('条件显示');
+
   parts.push(question.required ? '必填' : '选填');
 
   return parts;
+}
+
+/** 两份显示条件是不是「同一个块」：依赖同一道题、命中同一组选项（与勾选顺序无关） */
+function sameShowIf(a: DraftQuestion['showIf'], b: DraftQuestion['showIf']) {
+  if (!a || !b) return false;
+  if (a.dependsOnKey !== b.dependsOnKey) return false;
+
+  return (
+    a.options.length === b.options.length && a.options.every((item) => b.options.includes(item))
+  );
 }
 
 /**
@@ -80,8 +93,21 @@ export function QuestionCard({
     isDragging,
   } = useSortable({ id: question.key, disabled: readOnly });
 
+  const { questions } = useEditorDraft();
+
   const summary = buildSummary(question);
   const isChoice = isChoiceType(question.type);
+
+  /*
+   * 条件块（R65）：块 = 连续的、条件相同的题。
+   * 画布上的呈现刻意**不做真容器**（那会让 dnd-kit 变成跨组拖拽）：
+   * - 块首那张卡里加一行条件说明；
+   * - 块内每张卡左侧画一条品牌色竖线（伪元素，不动布局、不与选中态的边框打架）。
+   */
+  const showIf = question.showIf;
+  const previousShowIf = index > 0 ? questions[index - 1]?.showIf : null;
+  const isBlockStart = showIf !== null && !sameShowIf(previousShowIf, showIf);
+  const dependsOn = showIf ? questions.find((item) => item.key === showIf.dependsOnKey) : undefined;
 
   return (
     <div
@@ -96,6 +122,8 @@ export function QuestionCard({
       onFocusCapture={onSelect}
       className={cn(
         'relative rounded-xl border bg-white p-5 transition-colors duration-150',
+        showIf &&
+          'before:bg-brand-300 before:absolute before:top-4 before:bottom-4 before:-left-[2px] before:w-[3px] before:rounded-full before:content-[""]',
         isDragging ? 'shadow-pop z-10 opacity-70' : null,
         selected
           ? 'border-brand-500 ring-brand-500/10 border-2 ring-[3px]'
@@ -106,6 +134,13 @@ export function QuestionCard({
         <span className="bg-brand-500 absolute -top-2.5 left-5 flex h-5 items-center rounded-full px-2 text-[10px] font-medium text-white">
           正在编辑
         </span>
+      ) : null}
+
+      {isBlockStart ? (
+        <div className="border-brand-100 bg-brand-50 text-brand-700 mb-3 rounded-lg border px-3 py-2 text-[11.5px] leading-5">
+          当 Q{(dependsOn ? questions.indexOf(dependsOn) : 0) + 1}「
+          {dependsOn?.title.trim() || '已删除的题目'}」选了「{showIf.options.join(' / ')}」时显示
+        </div>
       ) : null}
 
       <div className="flex items-start gap-3">

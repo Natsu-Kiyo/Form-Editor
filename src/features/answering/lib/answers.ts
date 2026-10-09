@@ -1,4 +1,4 @@
-import type { QuestionType } from '@/config/constants';
+import type { QuestionType, ShowIf } from '@/config/constants';
 import { ratingBounds } from '@/config/constants';
 
 /**
@@ -27,7 +27,57 @@ export type SubmittableQuestion = {
   options: string[];
   /** 矩阵题的列（**行**在 `options` 里，与选项同构）；其余题型为空数组 */
   columns: string[];
+  /** 条件显示（R65）：依赖前面的某题 + 一组选项；空 = 一直显示 */
+  showIf: ShowIf | null;
 };
+
+/**
+ * 当前可见的题目（按原顺序）。
+ *
+ * 逐题判断：没有条件 → 可见；有条件 → 看依赖题**当前的答案**是否命中它的选项。
+ * 依赖只能指向前面的题（编辑器与 payload schema 双层保证），所以一遍扫过去就够 ——
+ * 不需要图遍历，也不可能成环。级联是自然成立的：Q2 不可见 ⇒ 依赖 Q2 的 Q3 也命中不了。
+ *
+ * 服务端提交校验也用它（答案来自请求，不可信 —— 所以参数收 `unknown` 值的映射）。
+ */
+export function visibleQuestions<T extends SubmittableQuestion>(
+  questions: T[],
+  answers: Record<string, unknown>,
+): T[] {
+  /*
+   * 逐题往下扫，记住每一题算过的可见性（`visibleFlags`）——下游要读上游的**可见性**，
+   * 而不只是它的答案：用户先选了「不满意」答完追问、又把上游改回「满意」时，
+   * 追问的答案还留在草稿里（这是刻意的，草稿保留），只看答案会让下游的题错误地冒出来。
+   *
+   * `showIf.questionIndex` 是**原数组**的序号（不是可见数组的），所以先标记、最后过滤。
+   */
+  const visibleFlags: boolean[] = [];
+
+  questions.forEach((question, index) => {
+    if (!question.showIf) {
+      visibleFlags[index] = true;
+
+      return;
+    }
+
+    const source = questions[question.showIf.questionIndex];
+    // 依赖题自己必须可见（脏数据里序号可能越界或指向自己，一并挡在 `source` 这个判断上）
+    const sourceVisible =
+      source !== undefined && visibleFlags[question.showIf.questionIndex] === true;
+
+    visibleFlags[index] = sourceVisible && matchesAny(answers[source.id], question.showIf.options);
+  });
+
+  return questions.filter((_, index) => visibleFlags[index]);
+}
+
+/** 答案命中了组里任意一个选项（多选就是「选中了其中任何一个」） */
+function matchesAny(value: unknown, options: string[]) {
+  if (typeof value === 'string') return options.includes(value);
+  if (Array.isArray(value)) return value.some((item) => options.includes(item));
+
+  return false;
+}
 
 export type ParsedAnswers =
   | { ok: true; answers: { questionId: string; value: AnswerValue }[] }
@@ -77,7 +127,9 @@ export function parseAnswers(
   const answers: { questionId: string; value: AnswerValue }[] = [];
   const fieldErrors: Record<string, string> = {};
 
-  for (const question of questions) {
+  // 条件显示（R65）：**不可见的题既不校验必答、也不写进答案**。
+  // 可见性在这里算一次就够 —— 客户端与服务端共用本函数，「提交时剔除」的口径天然只有一份。
+  for (const question of visibleQuestions(questions, raw)) {
     const value = normalize(question, raw[question.id]);
     const done = value !== null && (!question.required || isQuestionAnswered(question, value));
 

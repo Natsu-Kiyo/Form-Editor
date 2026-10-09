@@ -19,10 +19,12 @@ import {
   MATRIX_LIMITS,
   QUESTION_TYPE_LABEL,
   RATING_SCALE,
+  SHOW_IF_SOURCE_TYPES,
   UPCOMING_BADGE,
   ratingBounds,
   type QuestionType,
 } from '@/config/constants';
+import { cn } from '@/utils/cn';
 
 import type { DraftQuestion, EditableQuestionType } from './editor-draft';
 import { draftMatrixColumns, useEditorDraft } from './editor-draft';
@@ -45,6 +47,9 @@ export function PropertyPanel({
   question: DraftQuestion | null;
   readOnly: boolean;
 }) {
+  // 切题时**保留当前 Tab**：连着一串题配条件的场景里，每次切题都弹回「题目属性」很烦
+  const [tab, setTab] = useState<'basic' | 'logic'>('basic');
+
   if (!question) {
     return (
       <aside className="border-ink-200 w-[288px] shrink-0 border-l bg-white p-4">
@@ -62,20 +67,12 @@ export function PropertyPanel({
   return (
     <aside className="border-ink-200 w-[288px] shrink-0 overflow-y-auto border-l bg-white">
       <div className="border-ink-200 flex border-b px-4">
-        <span className="text-brand-500 border-brand-500 -mb-px flex h-11 items-center border-b-2 px-3 text-[13px] font-medium">
+        <PanelTab active={tab === 'basic'} onClick={() => setTab('basic')}>
           题目属性
-        </span>
-        <button
-          type="button"
-          disabled
-          title={`条件跳转属 ${UPCOMING_BADGE.V11} 规划，本版本不开放`}
-          className="text-ink-500 flex h-11 items-center gap-1.5 px-3 text-[13px] font-medium disabled:cursor-not-allowed"
-        >
+        </PanelTab>
+        <PanelTab active={tab === 'logic'} onClick={() => setTab('logic')}>
           逻辑
-          <span className="bg-ink-100 text-ink-400 rounded px-1 text-[9px]">
-            {UPCOMING_BADGE.V11}
-          </span>
-        </button>
+        </PanelTab>
         <button
           type="button"
           disabled
@@ -89,58 +86,210 @@ export function PropertyPanel({
         </button>
       </div>
 
-      <div className="space-y-5 p-4">
-        <QuestionTypeField question={question} readOnly={readOnly} />
-        <QuestionTitleField question={question} readOnly={readOnly} />
-
-        {question.type === 'RATING' ? (
-          <ScoreRangeField question={question} readOnly={readOnly} />
-        ) : null}
-
-        {question.type === 'MATRIX' ? (
-          <MatrixColumnsField question={question} readOnly={readOnly} />
-        ) : null}
-
-        {isText ? <MaxLengthField question={question} readOnly={readOnly} /> : null}
-
-        <div className="border-ink-100 space-y-3.5 border-t pt-4">
-          <SwitchRow
-            label="必填"
-            hint="未作答不允许提交"
-            checked={question.required}
-            disabled={readOnly}
-            onChange={(required) => ({ required })}
-            question={question}
-          />
-          <SwitchRow
-            label="选项随机排序"
-            hint={isChoice ? '仅选择题可用' : '当前题型不可用'}
-            checked={question.shuffleOptions && isChoice}
-            disabled={readOnly || !isChoice}
-            onChange={(shuffleOptions) => ({ shuffleOptions })}
-            question={question}
-          />
+      {tab === 'logic' ? (
+        <div className="space-y-5 p-4">
+          <ShowIfField question={question} readOnly={readOnly} />
         </div>
+      ) : (
+        <div className="space-y-5 p-4">
+          <QuestionTypeField question={question} readOnly={readOnly} />
+          <QuestionTitleField question={question} readOnly={readOnly} />
 
-        <div className="border-ink-100 border-t pt-4">
-          <div className="mb-2 flex items-center gap-1.5">
-            <span className="text-ink-500 text-[11.5px] font-medium">条件跳转</span>
-            <span className="bg-ink-100 text-ink-400 rounded px-1 text-[9px]">
-              {UPCOMING_BADGE.V11} 上线
-            </span>
+          {question.type === 'RATING' ? (
+            <ScoreRangeField question={question} readOnly={readOnly} />
+          ) : null}
+
+          {question.type === 'MATRIX' ? (
+            <MatrixColumnsField question={question} readOnly={readOnly} />
+          ) : null}
+
+          {isText ? <MaxLengthField question={question} readOnly={readOnly} /> : null}
+
+          <div className="border-ink-100 space-y-3.5 border-t pt-4">
+            <SwitchRow
+              label="必填"
+              hint="未作答不允许提交"
+              checked={question.required}
+              disabled={readOnly}
+              onChange={(required) => ({ required })}
+              question={question}
+            />
+            <SwitchRow
+              label="选项随机排序"
+              hint={isChoice ? '仅选择题可用' : '当前题型不可用'}
+              checked={question.shuffleOptions && isChoice}
+              disabled={readOnly || !isChoice}
+              onChange={(shuffleOptions) => ({ shuffleOptions })}
+              question={question}
+            />
           </div>
-          <div className="bg-ink-50 border-ink-200 text-ink-400 rounded-[10px] border border-dashed p-3 text-[11.5px] leading-5">
-            选择某个选项后跳转到指定题目。下一版本开放。
-          </div>
+
+          {!readOnly ? (
+            <div className="border-ink-100 border-t pt-4">
+              <DeleteQuestionButton question={question} />
+            </div>
+          ) : null}
         </div>
-
-        {!readOnly ? (
-          <div className="border-ink-100 border-t pt-4">
-            <DeleteQuestionButton question={question} />
-          </div>
-        ) : null}
-      </div>
+      )}
     </aside>
+  );
+}
+
+/** 右栏的 Tab。与模板页的 TabButton 同款式：激活态用品牌色下划线 */
+function PanelTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        '-mb-px flex h-11 items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition-colors duration-150',
+        active
+          ? 'border-brand-500 text-brand-500'
+          : 'text-ink-500 hover:text-ink-800 border-transparent',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * 显示条件（R65）：`当 [前面的某题] 选择了 [选项…] 时显示本题`。
+ *
+ * 四处刻意的处理：
+ * - **下拉里只列本题之前的选择类题** —— 条件只能向前看，环路与求值顺序问题
+ *   在配置阶段就不存在；
+ * - 打开开关时默认引用「上一个可引用的题」+ 它的第一个选项：一次点击就得到一个
+ *   能用的条件，而不是给个空壳让用户从零选起；
+ * - 已选项**至少留一个**（最后一个不给取消）：空条件等于这道题永远不显示，
+ *   与「选项删到下限不给删」同一条规矩（payload schema 也会再拦一次）；
+ * - 同条件的连续题在画布上算一个**条件块**（见 question-card），块内加题自动继承条件。
+ */
+function ShowIfField({ question, readOnly }: { question: DraftQuestion; readOnly: boolean }) {
+  const { questions, updateQuestion } = useEditorDraft();
+
+  const index = questions.findIndex((item) => item.key === question.key);
+  // 可引用的题：**排在本题之前**的选择类题（有选项才谈得上命中）
+  const sources = questions
+    .slice(0, index)
+    .filter((item) => SHOW_IF_SOURCE_TYPES.includes(item.type));
+
+  const { showIf } = question;
+  const dependsOn = showIf ? sources.find((item) => item.key === showIf.dependsOnKey) : undefined;
+
+  /** 换依赖题时用它做默认选中：第一个选项（选项文案都为空时给空数组，由 schema 兜底） */
+  const firstOption = (source: DraftQuestion | undefined) =>
+    source?.options[0]?.label ? [source.options[0].label] : [];
+
+  const toggleOption = (label: string) => {
+    if (!showIf) return;
+
+    // 允许勾到 0 个（中间态）：用户配条件最常见的一步就是「先取消默认勾上的那个，再勾想要的」，
+    // 若在这里拦住「最后一个」，那一步就走不通了。空条件的后果由下面的警示与
+    // payload schema 的明确报错承担（见 lib/questionnaire-structure）。
+    const picked = showIf.options.includes(label)
+      ? showIf.options.filter((item) => item !== label)
+      : [...showIf.options, label];
+
+    updateQuestion(question.key, { showIf: { ...showIf, options: picked } });
+  };
+
+  return (
+    <div className="space-y-3.5">
+      <SwitchRow
+        label="仅满足条件时显示"
+        hint="条件不满足时，这道题在作答端不会出现"
+        checked={showIf !== null}
+        disabled={readOnly || sources.length === 0}
+        onChange={(next) => {
+          const fallback = sources.at(-1);
+
+          return {
+            showIf:
+              next && fallback
+                ? { dependsOnKey: fallback.key, options: firstOption(fallback) }
+                : null,
+          };
+        }}
+        question={question}
+      />
+
+      {sources.length === 0 ? (
+        <p className="text-caption text-ink-400 leading-5">
+          前面还没有可引用的选择类题目（单选 / 多选 / 下拉）—— 显示条件只能指向排在它前面的题。
+        </p>
+      ) : null}
+
+      {showIf ? (
+        <div className="space-y-3.5">
+          <div>
+            <Label>依赖题目</Label>
+            <Select
+              value={showIf.dependsOnKey}
+              disabled={readOnly}
+              onValueChange={(key) => {
+                // 换依赖题时重置已选选项（选项文案对不上，留着就是永不满足的条件）
+                updateQuestion(question.key, {
+                  showIf: {
+                    dependsOnKey: key,
+                    options: firstOption(sources.find((item) => item.key === key)),
+                  },
+                });
+              }}
+            >
+              <SelectTrigger aria-label="依赖题目">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sources.map((item) => (
+                  <SelectItem key={item.key} value={item.key}>
+                    Q{questions.indexOf(item) + 1} · {item.title.trim() || '未命名题目'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {dependsOn ? (
+            <div>
+              <Label>命中以下任意选项时显示</Label>
+              <div className="space-y-2">
+                {dependsOn.options.map((option) => (
+                  <label
+                    key={option.key}
+                    className="flex cursor-pointer items-center gap-2 text-[12.5px]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showIf.options.includes(option.label)}
+                      disabled={readOnly}
+                      onChange={() => toggleOption(option.label)}
+                      className="accent-brand-500 size-3.5 shrink-0"
+                    />
+                    <span className="text-ink-700 truncate">{option.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              {showIf.options.length === 0 ? (
+                <p className="text-caption mt-2 leading-5 text-rose-500">
+                  至少勾选一个选项 —— 一个都不勾的话，这道题永远不会显示。
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

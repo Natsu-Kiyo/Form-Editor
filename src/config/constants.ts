@@ -121,9 +121,11 @@ export const TREND_GRANULARITY_LABEL: Record<TrendGranularity, string> = {
 /** 统计页的时间范围筛选 */
 export const ANALYTICS_RANGE = { D7: 7, D30: 30, ALL: 0 } as const;
 
-/** 1.1 / 2.0 规划功能的灰显角标文案 */
+/**
+ * 规划功能的灰显角标文案。现在只剩 2.0 用得上（属性面板的「外观」Tab）——
+ * 1.1 的两项（矩阵题 R62、条件显示 R65）都已转 A 级实现，`V11` 随之删除。
+ */
 export const UPCOMING_BADGE = {
-  V11: '1.1',
   V20: '2.0',
 } as const;
 
@@ -147,6 +149,42 @@ export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
 
 /** 只有选择题才有「选项随机排序」 */
 export const CHOICE_QUESTION_TYPES: readonly QuestionType[] = ['SINGLE', 'MULTI'];
+
+/**
+ * 条件显示（R65）：一道题的显示条件 —— 「当**前面的**某题选择了其中某个选项时才显示」。
+ *
+ * 条件只能指向**前面的**题：这一条同时消灭了环路与求值顺序问题
+ * （逐题往下扫一遍就够，不需要图遍历），用户心智也简单 —— 问过之后才知道要不要问。
+ */
+export type ShowIf = {
+  /** 依赖题在整份问卷里的序号（0 起） */
+  questionIndex: number;
+  /** 命中任意一个即视为满足（多选就是「选中了其中任意一个」） */
+  options: string[];
+};
+
+/** 能被条件引用的题型：都要有「选项」才谈得上命中 */
+export const SHOW_IF_SOURCE_TYPES: readonly QuestionType[] = ['SINGLE', 'MULTI', 'DROPDOWN'];
+
+/**
+ * 从 config 读显示条件，**形状不对就当没有**（与 `ratingBounds` / `matrixColumns`
+ * 同一条思路：库里可能残留历史值或手改值，读取侧一律容错）。
+ * 严格的合法性校验（必须指向前面的选择类题、选项必须存在）在 payload schema 里。
+ */
+export function showIfFrom(config: Record<string, unknown>): ShowIf | null {
+  const raw = config.showIf;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+
+  const { questionIndex, options } = raw as Record<string, unknown>;
+  if (!Number.isInteger(questionIndex) || (questionIndex as number) < 0) return null;
+  if (!Array.isArray(options)) return null;
+
+  const picked = options.filter(
+    (item): item is string => typeof item === 'string' && item.trim().length > 0,
+  );
+
+  return picked.length > 0 ? { questionIndex: questionIndex as number, options: picked } : null;
+}
 
 /**
  * 矩阵题的行列规模（R62 所有者拍板）。

@@ -16,6 +16,7 @@ import {
   describeAnswerHint,
   isAnswered,
   isQuestionAnswered,
+  visibleQuestions,
   type AnswerValue,
 } from '../lib/answers';
 import {
@@ -98,8 +99,15 @@ export function AnsweringForm({
   const [activeId, setActiveId] = useState<string | null>(questions[0]?.id ?? null);
   const startedAt = useRef(0);
 
-  const sections = useMemo(() => groupBySection(questions), [questions]);
-  const answeredCount = questions.filter((question) => isAnswered(answers[question.id])).length;
+  /*
+   * 条件显示（R65）：作答端只渲染**可见题**。
+   * 可见性随答案变（选了「不满意」→ 追问出现 / 改回「满意」→ 追问消失），
+   * 所以每次答案变化都重算 —— 纯函数、题量小，不值得做增量。
+   * 注意：不可见题的答案**留在草稿里**（改回来还在），只在提交时被剔除（见 lib/answers 的 parseAnswers）。
+   */
+  const visible = useMemo(() => visibleQuestions(questions, answers), [questions, answers]);
+  const sections = useMemo(() => groupBySection(visible), [visible]);
+  const answeredCount = visible.filter((question) => isAnswered(answers[question.id])).length;
 
   // 首次访问就把浏览器标识种下：**服务端渲染时要读它**判断「你已提交过」，
   // 而那时客户端 JS 还没跑，所以必须尽早写。
@@ -113,7 +121,7 @@ export function AnsweringForm({
 
   // ---- 当前题高亮（题号导航用）----
   useEffect(() => {
-    const elements = questions
+    const elements = visible
       .map((question) => document.getElementById(`q-${question.id}`))
       .filter((element): element is HTMLElement => element !== null);
 
@@ -128,7 +136,7 @@ export function AnsweringForm({
     elements.forEach((element) => observer.observe(element));
 
     return () => observer.disconnect();
-  }, [questions]);
+  }, [visible]);
 
   const setAnswer = (questionId: string, value: AnswerValue) => {
     setAnswerValue(slug, questionId, value);
@@ -150,7 +158,8 @@ export function AnsweringForm({
   const submit = () => {
     setNotice(null);
 
-    const missing = questions.filter(
+    // 必答只在**可见题**里查：被条件隐藏的题不该拦住提交（与 parseAnswers 同一口径）
+    const missing = visible.filter(
       (question) => question.required && !isQuestionAnswered(question, answers[question.id]),
     );
 
@@ -217,14 +226,14 @@ export function AnsweringForm({
           <div className="flex items-center justify-between px-4 py-2.5 text-[12px]">
             <span className="text-ink-500 truncate">{title}</span>
             <span className="text-ink-500 shrink-0 font-mono">
-              已答 {answeredCount} / {questions.length}
+              已答 {answeredCount} / {visible.length}
             </span>
           </div>
           <div className="bg-ink-100 h-1">
             <div
               className="bg-brand-500 h-full transition-all duration-300"
               style={{
-                width: `${questions.length ? (answeredCount / questions.length) * 100 : 0}%`,
+                width: `${visible.length ? (answeredCount / visible.length) * 100 : 0}%`,
               }}
             />
           </div>
@@ -241,7 +250,7 @@ export function AnsweringForm({
 
             <div className="text-ink-500 mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]">
               <span>
-                共 {questions.length} 题，
+                共 {visible.length} 题，
                 <span className="text-rose-500">*</span> 为必答
               </span>
               <span>{identityLabel}</span>
@@ -282,7 +291,7 @@ export function AnsweringForm({
                     question={question}
                     value={answers[question.id]}
                     error={errors[question.id]}
-                    index={questions.indexOf(question) + 1}
+                    index={visible.indexOf(question) + 1}
                     onChange={(value) => setAnswer(question.id, value)}
                   />
                 ))}
@@ -313,7 +322,7 @@ export function AnsweringForm({
                 题目导航
               </div>
               <ol className="space-y-0.5">
-                {questions.map((question, index) => {
+                {visible.map((question, index) => {
                   const answered = isAnswered(answers[question.id]);
                   const active = activeId === question.id;
 
@@ -366,13 +375,13 @@ export function AnsweringForm({
                 完成度
               </div>
               <div className="flex items-center gap-4">
-                <ProgressRing value={answeredCount} total={questions.length} />
+                <ProgressRing value={answeredCount} total={visible.length} />
                 <div>
                   <div className="text-ink-900 font-mono text-[20px] leading-6 font-semibold">
-                    {questions.length ? Math.round((answeredCount / questions.length) * 100) : 0}%
+                    {visible.length ? Math.round((answeredCount / visible.length) * 100) : 0}%
                   </div>
                   <div className="text-ink-400 mt-0.5 text-[11px]">
-                    已答 {answeredCount} / {questions.length}
+                    已答 {answeredCount} / {visible.length}
                   </div>
                 </div>
               </div>
@@ -398,7 +407,7 @@ export function AnsweringForm({
             disabled={pending}
             onClick={submit}
           >
-            {pending ? '提交中…' : `提交答卷（已答 ${answeredCount}/${questions.length}）`}
+            {pending ? '提交中…' : `提交答卷（已答 ${answeredCount}/${visible.length}）`}
           </Button>
         </div>
       ) : null}

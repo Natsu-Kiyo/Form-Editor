@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-import { MATRIX_LIMITS, QUESTION_TYPE_LABEL, type QuestionType } from '@/config/constants';
+import {
+  MATRIX_LIMITS,
+  QUESTION_TYPE_LABEL,
+  SHOW_IF_SOURCE_TYPES,
+  showIfFrom,
+  type QuestionType,
+} from '@/config/constants';
 
 /**
  * 问卷结构快照。
@@ -80,16 +86,79 @@ export const payloadQuestionSchema = z
     }
   });
 
-export const questionnairePayloadSchema = z.object({
-  /** 结构版本号。将来结构变了，靠它决定要不要迁移旧文件 */
-  formatVersion: z.literal(1),
-  title: z.string().trim().min(1).max(80).default('未命名问卷'),
-  intro: z.string().max(500).nullish(),
-  questions: z
-    .array(payloadQuestionSchema)
-    .max(200, { error: '一份问卷最多 200 道题' })
-    .default([]),
-});
+export const questionnairePayloadSchema = z
+  .object({
+    /** 结构版本号。将来结构变了，靠它决定要不要迁移旧文件 */
+    formatVersion: z.literal(1),
+    title: z.string().trim().min(1).max(80).default('未命名问卷'),
+    intro: z.string().max(500).nullish(),
+    questions: z
+      .array(payloadQuestionSchema)
+      .max(200, { error: '一份问卷最多 200 道题' })
+      .default([]),
+  })
+  /**
+   * 条件显示的跨题校验（R65）。三件事都只能在这一层做 —— 单题 schema 看不到兄弟题：
+   * - 依赖必须是**前面的**题（这一条同时消灭了环路与求值顺序问题）；
+   * - 依赖的题必须是选择类（有选项才谈得上命中）；
+   * - 引用的选项必须还在（选项被删 / 改名之后，条件会指向空气）。
+   */
+  .superRefine((payload, ctx) => {
+    payload.questions.forEach((question, index) => {
+      const raw = question.config?.showIf;
+      if (raw === undefined || raw === null) return;
+
+      const showIf = showIfFrom(question.config ?? {});
+      if (!showIf) {
+        // 读取侧容错、写入侧严格：写了 showIf 但形状不对，不能静默丢掉。
+        // 「勾了 0 个选项」单独给一句 —— 那是编辑器里真实的中间态，用户需要知道怎么办
+        const rawOptions =
+          typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+            ? (raw as Record<string, unknown>).options
+            : undefined;
+        const emptyOptions = Array.isArray(rawOptions) && rawOptions.length === 0;
+
+        ctx.addIssue({
+          code: 'custom',
+          path: ['questions', index, 'config', 'showIf'],
+          message: emptyOptions
+            ? '显示条件至少要勾选一个选项（否则这道题永远不会显示）'
+            : '显示条件的格式不正确',
+        });
+
+        return;
+      }
+
+      const source = payload.questions[showIf.questionIndex];
+      if (!source || showIf.questionIndex >= index) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['questions', index, 'config', 'showIf'],
+          message: '显示条件只能指向前面已有的题目',
+        });
+
+        return;
+      }
+
+      if (!SHOW_IF_SOURCE_TYPES.includes(source.type)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['questions', index, 'config', 'showIf'],
+          message: '显示条件只能引用选择类题目（单选 / 多选 / 下拉）',
+        });
+
+        return;
+      }
+
+      if (showIf.options.some((option) => !source.options.includes(option))) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['questions', index, 'config', 'showIf'],
+          message: '显示条件引用了已不存在的选项',
+        });
+      }
+    });
+  });
 
 export type PayloadQuestion = z.infer<typeof payloadQuestionSchema>;
 export type QuestionnairePayload = z.infer<typeof questionnairePayloadSchema>;

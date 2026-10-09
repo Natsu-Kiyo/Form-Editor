@@ -56,12 +56,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-  IDENTITY_MODE_LABEL,
-  QUESTION_TYPE_LABEL,
-  type QuestionType,
-  UPCOMING_BADGE,
-} from '@/config/constants';
+import { IDENTITY_MODE_LABEL, QUESTION_TYPE_LABEL, type QuestionType } from '@/config/constants';
 
 function Panel({
   title,
@@ -411,9 +406,6 @@ export function ComponentGallery() {
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-body-s text-ink-700">必填</span>
                   <Switch defaultChecked aria-label="必填" />
-                </div>
-                <div className="border-ink-200 bg-ink-50 text-ink-400 rounded-[10px] border border-dashed p-3 text-[11.5px] leading-5">
-                  条件跳转 · {UPCOMING_BADGE.V11} 上线
                 </div>
               </div>
             </SheetContent>

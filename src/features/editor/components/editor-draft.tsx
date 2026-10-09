@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react';
 
-import { MATRIX_DEFAULT_COLUMNS, MATRIX_LIMITS } from '@/config/constants';
+import { MATRIX_DEFAULT_COLUMNS, MATRIX_LIMITS, SHOW_IF_SOURCE_TYPES } from '@/config/constants';
 import { hasOptionList } from '@/lib/questionnaire-structure';
 
 import { saveEditorDraftAction } from '../actions/save-draft';
@@ -34,6 +34,18 @@ export type { EditableQuestionType, QuestionConfig } from '../api/questionnaires
 
 export type DraftOption = { key: string; label: string };
 
+/**
+ * 草稿里的显示条件：依赖**哪一道草稿题** —— 用本地 key 而不是序号。
+ *
+ * 序号在编辑过程中随时会错位（插入 / 删除 / 拖拽都会挪动后面所有题），
+ * 而 key 在本次编辑期间是稳定的。保存时才映射成 payload 里的绝对序号
+ * （与「读回来时把序号映射成 key」是一对边界转换）。
+ */
+export type DraftShowIf = {
+  dependsOnKey: string;
+  options: string[];
+};
+
 export type DraftQuestion = {
   key: string;
   type: EditableQuestionType;
@@ -42,13 +54,19 @@ export type DraftQuestion = {
   required: boolean;
   shuffleOptions: boolean;
   pageIndex: number;
+  /** 题型差异项（不含 `showIf` —— 它被提到外面成独立字段，因为它引用别的题） */
   config: QuestionConfig;
+  /** 条件显示（R65）：为空 = 一直显示。块内加题时新题会继承锚点这一份 */
+  showIf: DraftShowIf | null;
   options: DraftOption[];
 };
 
 export type SaveState = 'idle' | 'saving' | 'error' | 'blocked';
 
 export function toDraftQuestions(questions: EditorQuestion[]): DraftQuestion[] {
+  // 序号 → key 的映射表：payload 里的 `showIf.questionIndex` 在这里换成草稿题的 key
+  const keyByIndex = questions.map((question) => question.id);
+
   return questions.map((question) => ({
     key: question.id,
     type: question.type,
@@ -57,9 +75,59 @@ export function toDraftQuestions(questions: EditorQuestion[]): DraftQuestion[] {
     required: question.required,
     shuffleOptions: question.shuffleOptions,
     pageIndex: question.pageIndex,
-    config: question.config,
+    // `showIf` 从 config 里提出来（它引用别的题，不适合留在「题型差异项」里）——
+    // 留着一份旧序号的副本，保存时反而会被原样写回去
+    config: withoutShowIf(question.config),
+    showIf: toDraftShowIf(question.config.showIf, keyByIndex),
     options: question.options.map((option) => ({ key: option.id, label: option.label })),
   }));
+}
+
+function withoutShowIf(config: QuestionConfig): QuestionConfig {
+  const rest = { ...config };
+  delete rest.showIf;
+
+  return rest;
+}
+
+function toDraftShowIf(showIf: QuestionConfig['showIf'], keyByIndex: string[]): DraftShowIf | null {
+  if (!showIf) return null;
+
+  const dependsOnKey = keyByIndex[showIf.questionIndex];
+
+  // 依赖题找不到（脏数据）就当没有条件：宁可少一个条件，也不要一个指向空气的条件
+  return dependsOnKey ? { dependsOnKey, options: showIf.options } : null;
+}
+
+/**
+ * 草稿 → payload 的显示条件：依赖 key 换回序号，并把几种「结构已经被改坏」的情况
+ * **在保存前自愈掉**（都在编辑器里发生，用户看得见改的结果）：
+ *
+ * - 依赖题被删 / 被拖到本题**后面**了 → 条件只允许指向前面的题，丢掉；
+ * - 依赖题不再是选择类（题型被改过）→ 丢掉；
+ * - 引用的选项改过名 / 被删（一个都不剩）→ 丢掉，还剩一部分就只留有效的。
+ *
+ * 外部来源（JSON 导入、历史模板 payload）不经过这里，由 payload schema 的跨题校验拦。
+ */
+function resolveShowIf(question: DraftQuestion, list: DraftQuestion[], index: number) {
+  const showIf = question.showIf;
+  if (!showIf) return undefined;
+
+  const dependsOnIndex = list.findIndex((item) => item.key === showIf.dependsOnKey);
+  if (dependsOnIndex < 0 || dependsOnIndex >= index) return undefined;
+
+  const dependsOn = list[dependsOnIndex]!;
+  if (!SHOW_IF_SOURCE_TYPES.includes(dependsOn.type)) return undefined;
+
+  const available = new Set(dependsOn.options.map((option) => option.label));
+  const options = showIf.options.filter((option) => available.has(option));
+
+  // 原本就是空（用户勾到 0 个）：原样带出去，让 payload schema 给出明确报错 ——
+  // 那是「还没配完」，不该被静默丢掉
+  if (showIf.options.length === 0) return { questionIndex: dependsOnIndex, options: [] };
+
+  // 过滤之后才变空（选项被删 / 改名）：那次改名就是「不要这个条件了」的操作，丢弃
+  return options.length > 0 ? { questionIndex: dependsOnIndex, options } : undefined;
 }
 
 let tempCounter = 0;
@@ -169,22 +237,31 @@ export function EditorDraftProvider({
     setState('saving');
     setErrorMessage(null);
 
+    const list = questionsRef.current;
+
     const payload = {
       formatVersion: 1 as const,
       // 空标题/空题目会被 payload 校验拦下，这里给一个兜底文案而不是让用户对着报错猜
       title: titleRef.current.trim() || '未命名问卷',
       intro: null,
-      questions: questionsRef.current.map((question) => ({
-        type: question.type,
-        title: question.title.trim() || '未命名题目',
-        description: question.description,
-        required: question.required,
-        shuffleOptions: question.shuffleOptions,
-        pageIndex: question.pageIndex,
-        config: question.config,
-        // 矩阵的「行」存在 options 里，不能像文本题那样丢掉（见 lib/questionnaire-structure 的 hasOptionList）
-        options: hasOptionList(question.type) ? question.options.map((option) => option.label) : [],
-      })),
+      // `map` 的第二个参数就是序号：显示条件的「依赖 key → 序号」映射沿着它做
+      questions: list.map((question, index) => {
+        const showIf = resolveShowIf(question, list, index);
+
+        return {
+          type: question.type,
+          title: question.title.trim() || '未命名题目',
+          description: question.description,
+          required: question.required,
+          shuffleOptions: question.shuffleOptions,
+          pageIndex: question.pageIndex,
+          config: showIf ? { ...question.config, showIf } : question.config,
+          // 矩阵的「行」存在 options 里，不能像文本题那样丢掉（见 lib/questionnaire-structure 的 hasOptionList）
+          options: hasOptionList(question.type)
+            ? question.options.map((option) => option.label)
+            : [],
+        };
+      }),
     };
 
     startTransition(async () => {
@@ -263,6 +340,9 @@ export function EditorDraftProvider({
             shuffleOptions: false,
             // 继承锚点那一题的页：插在第 2 页的题后面，新题自然也在第 2 页
             pageIndex: anchor?.pageIndex ?? 0,
+            // 条件块内加题：继承锚点的显示条件（与继承页同一条模式）——
+            // 「在不满意追问里再加一问」不用再配一次条件
+            showIf: anchor?.showIf ?? null,
             config: defaultConfig(type),
             // 矩阵的「行」也在这份 options 里（两者结构完全同构）：默认给下限 2 行
             options: hasOptionList(type)
@@ -288,7 +368,16 @@ export function EditorDraftProvider({
         mutate((list) =>
           list.map((question) => (question.key === key ? { ...question, ...patch } : question)),
         ),
-      removeQuestion: (key) => mutate((list) => list.filter((question) => question.key !== key)),
+      // 删题时把「依赖它」的条件一并清掉：留一个指向空气的条件，界面上就是一句
+      // 「当（已删除）选了…时显示」，比没有条件更难懂
+      removeQuestion: (key) =>
+        mutate((list) =>
+          list
+            .filter((question) => question.key !== key)
+            .map((question) =>
+              question.showIf?.dependsOnKey === key ? { ...question, showIf: null } : question,
+            ),
+        ),
       reorderQuestions: (keys) =>
         mutate((list) => {
           const byKey = new Map(list.map((question) => [question.key, question]));

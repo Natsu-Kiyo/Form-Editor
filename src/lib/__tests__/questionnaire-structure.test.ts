@@ -125,6 +125,104 @@ describe('questionnairePayloadSchema', () => {
   });
 });
 
+describe('条件显示（R65）', () => {
+  const conditional = {
+    formatVersion: 1,
+    title: '条件问卷',
+    questions: [
+      { type: 'SINGLE', title: '你对本次服务满意吗？', options: ['满意', '不满意'] },
+      {
+        type: 'LONG_TEXT',
+        title: '哪里不满意？',
+        config: { showIf: { questionIndex: 0, options: ['不满意'] } },
+      },
+    ],
+  };
+
+  it('接受指向前面单选题的现存选项', () => {
+    expect(questionnairePayloadSchema.safeParse(conditional).success).toBe(true);
+  });
+
+  it('拒绝指向后面的题（条件只能向前看，环路也由此不可能出现）', () => {
+    const result = questionnairePayloadSchema.safeParse({
+      ...conditional,
+      questions: [
+        {
+          type: 'LONG_TEXT',
+          title: '追问',
+          config: { showIf: { questionIndex: 1, options: ['甲'] } },
+        },
+        { type: 'SINGLE', title: '满意吗？', options: ['甲'] },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('拒绝引用不存在的选项（选项改过名之后，条件就指向空气了）', () => {
+    const result = questionnairePayloadSchema.safeParse({
+      ...conditional,
+      questions: [
+        { type: 'SINGLE', title: '满意吗？', options: ['满意'] },
+        {
+          type: 'LONG_TEXT',
+          title: '追问',
+          config: { showIf: { questionIndex: 0, options: ['一般'] } },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('拒绝引用非选择类题（没有选项就谈不上命中）', () => {
+    const result = questionnairePayloadSchema.safeParse({
+      ...conditional,
+      questions: [
+        { type: 'SHORT_TEXT', title: '你的名字' },
+        {
+          type: 'LONG_TEXT',
+          title: '追问',
+          config: { showIf: { questionIndex: 0, options: ['甲'] } },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('勾了 0 个选项：给出可操作的报错，而不是笼统的「格式不正确」', () => {
+    const result = questionnairePayloadSchema.safeParse({
+      ...conditional,
+      questions: [
+        { type: 'SINGLE', title: '满意吗？', options: ['满意'] },
+        {
+          type: 'LONG_TEXT',
+          title: '追问',
+          config: { showIf: { questionIndex: 0, options: [] } },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('至少要勾选一个选项');
+    }
+  });
+
+  it('拒绝形状不对的条件（写了就必须写对，不静默丢掉）', () => {
+    const result = questionnairePayloadSchema.safeParse({
+      ...conditional,
+      questions: [
+        { type: 'SINGLE', title: '满意吗？', options: ['满意'] },
+        { type: 'LONG_TEXT', title: '追问', config: { showIf: { options: ['满意'] } } },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('payloadFileName', () => {
   it('把标题里对文件名不友好的字符换成连字符', () => {
     expect(payloadFileName('2026 秋季/社团:招新')).toBe('2026-秋季-社团-招新.json');

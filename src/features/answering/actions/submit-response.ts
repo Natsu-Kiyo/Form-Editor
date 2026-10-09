@@ -3,7 +3,7 @@
 import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 
-import { matrixColumns } from '@/config/constants';
+import { matrixColumns, showIfFrom } from '@/config/constants';
 import { getCurrentUser } from '@/lib/auth/dal';
 import { prisma } from '@/lib/db';
 import { notifyUsers } from '@/lib/notify';
@@ -121,6 +121,9 @@ export async function submitResponseAction(input: {
         options: question.options.map((option) => option.label),
         // 矩阵的列（行在 options 里）；与作答端同一份收敛函数，两边看到的列不会不同
         columns: matrixColumns(config),
+        // 条件显示（R65）：`parseAnswers` 内部据此过滤可见题 ——
+        // 不可见题的必答不校验、答案也不写库
+        showIf: showIfFrom(config),
       };
     }),
     raw,

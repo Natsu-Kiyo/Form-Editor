@@ -2,6 +2,7 @@ import 'server-only';
 
 import {
   matrixColumns,
+  showIfFrom,
   type CloseReason,
   type IdentityMode,
   type QuestionType,
@@ -267,6 +268,8 @@ export async function getPublicQuestionnaire(
           : question.options.map((option) => option.label),
         // 矩阵的列（行在 options 里）。列**不参与随机** —— 随机的是选项顺序，不是评价刻度
         columns: matrixColumns(config),
+        // 条件显示（R65）；形状不对就当没有（严格校验在 payload schema）
+        showIf: showIfFrom(config),
       };
     }),
   };
