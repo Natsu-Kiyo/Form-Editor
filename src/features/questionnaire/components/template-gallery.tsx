@@ -19,6 +19,7 @@ import { createFromTemplateAction } from '../actions/create-questionnaire';
 import type { TemplateCardData, TemplateScope, TemplateSummary } from '../api/templates';
 import { CreateQuestionnaireDialog } from './create-questionnaire-dialog';
 import { TemplateCard } from './template-card';
+import { TemplateGridSkeleton } from './template-gallery-skeleton';
 
 /**
  * 模板中心（W08）。
@@ -72,7 +73,13 @@ export function TemplateGallery({
   const searchParams = useSearchParams();
   const [usingId, setUsingId] = useState<string | null>(null);
   const [favoritePendingId, setFavoritePendingId] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  /*
+   * **两个 transition，刻意不合并**：
+   * - `navPending` 只跟「切 Tab / 分类」这类导航走 —— 它决定列表区是否换成骨架；
+   * - 写操作（使用模板、收藏）另用一个 —— 合并的话，收藏一张卡会让整个列表闪成骨架。
+   */
+  const [navPending, startNavTransition] = useTransition();
+  const [, startActionTransition] = useTransition();
   const { toast } = useToast();
   // 断点显式写 1024：`useIsDesktop` 默认是 768，而这一页的底部导航/布局用的是 Tailwind 的
   // `lg`（1024）—— 两者不一致时，768~1023px 会出现「桌面顶栏 + 移动底栏」同时在场
@@ -93,12 +100,20 @@ export function TemplateGallery({
     }
 
     const queryString = params.toString();
-    router.push(queryString ? `${basePath}?${queryString}` : basePath);
+    /*
+     * 包在 transition 里，`navPending` 才能覆盖「点下 Tab → 新数据落地」这整段 ——
+     * 这期间列表区换成骨架（见下面的渲染分支），Tab 与胶囊保持在场。
+     * 不用 `loading.tsx` 兜这一段：Next 对同路由的 searchParams 变化不会重新挂载
+     * loading 边界（页面不重挂，只是收到新 props），骨架得由页面自己按时序摆出来。
+     */
+    startNavTransition(() => {
+      router.push(queryString ? `${basePath}?${queryString}` : basePath);
+    });
   };
 
   const use = (templateId: string) => {
     setUsingId(templateId);
-    startTransition(async () => {
+    startActionTransition(async () => {
       // 成功后服务端会 redirect 到编辑器，这里不需要处理结果；
       // 失败（比如结构损坏 / 已被取消公开）会抛出，由下一帧的 error boundary 接住
       await createFromTemplateAction(templateId);
@@ -108,7 +123,7 @@ export function TemplateGallery({
 
   const toggleFavorite = (template: TemplateCardData) => {
     setFavoritePendingId(template.id);
-    startTransition(async () => {
+    startActionTransition(async () => {
       const result = await toggleTemplateFavoriteAction(template.id, !template.isFavorited);
       setFavoritePendingId(null);
 
@@ -232,50 +247,61 @@ export function TemplateGallery({
             ))}
           </div>
 
-          {/* ---- 已收藏（「我的模板」Tab 顶部；只收藏了官方模板时这里是唯一的内容）---- */}
-          {showFavorites ? (
-            <section className="mb-8">
-              <h2 className="text-ink-700 mb-3 text-[13.5px] font-medium">
-                已收藏
-                <span className="text-ink-400 ml-1.5 text-[12px] font-normal">
-                  {favoriteItems.length}
-                </span>
-              </h2>
-              {renderGrid(favoriteItems, false)}
-
-              <div className="border-ink-200 mt-8 mb-6 border-t" />
-              <h2 className="text-ink-700 mb-3 text-[13.5px] font-medium">全部模板</h2>
-            </section>
-          ) : null}
-
-          {items.length > 0 ? (
-            renderGrid(items, scope === 'PUBLIC')
-          ) : favoriteItems.length === 0 ? (
-            <EmptyState
-              icon={<TemplateEmptyIcon />}
-              title={filtering ? '没有匹配的模板' : '这里还没有模板'}
-              description={
-                filtering
-                  ? '换个关键词或分类试试，或者把筛选清掉。'
-                  : scope === 'MINE'
-                    ? '在问卷卡片的「⋯」里选「另存为模板」，它就会出现在这里。'
-                    : '公开模板还没准备好，稍后再看。'
-              }
-              action={
-                filtering ? (
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={scope === 'MINE' ? `${basePath}?tab=mine` : basePath}>
-                      清空筛选
-                    </Link>
-                  </Button>
-                ) : undefined
-              }
-            />
+          {/*
+            切 Tab / 分类时**列表区换成骨架**（Tab 与胶囊保持在场 —— 正在点的那颗按钮
+            不该跟着消失）。`navPending` 覆盖「点下去 → 新数据落地」这整段；
+            骨架与 `loading.tsx` 共用同一套（形状逐个对齐，见 skeleton 文件）。
+          */}
+          {navPending ? (
+            <TemplateGridSkeleton />
           ) : (
-            // 只有收藏、还没有自己的模板：不当成一个「错误」来报，给一句指路即可
-            <p className="text-ink-400 text-[12.5px] leading-5">
-              还没有自己的模板 —— 在问卷卡片的「⋯」里选「另存为模板」，它就会出现在这里。
-            </p>
+            <>
+              {/* ---- 已收藏（「我的模板」Tab 顶部；只收藏了官方模板时这里是唯一的内容）---- */}
+              {showFavorites ? (
+                <section className="mb-8">
+                  <h2 className="text-ink-700 mb-3 text-[13.5px] font-medium">
+                    已收藏
+                    <span className="text-ink-400 ml-1.5 text-[12px] font-normal">
+                      {favoriteItems.length}
+                    </span>
+                  </h2>
+                  {renderGrid(favoriteItems, false)}
+
+                  <div className="border-ink-200 mt-8 mb-6 border-t" />
+                  <h2 className="text-ink-700 mb-3 text-[13.5px] font-medium">全部模板</h2>
+                </section>
+              ) : null}
+
+              {items.length > 0 ? (
+                renderGrid(items, scope === 'PUBLIC')
+              ) : favoriteItems.length === 0 ? (
+                <EmptyState
+                  icon={<TemplateEmptyIcon />}
+                  title={filtering ? '没有匹配的模板' : '这里还没有模板'}
+                  description={
+                    filtering
+                      ? '换个关键词或分类试试，或者把筛选清掉。'
+                      : scope === 'MINE'
+                        ? '在问卷卡片的「⋯」里选「另存为模板」，它就会出现在这里。'
+                        : '公开模板还没准备好，稍后再看。'
+                  }
+                  action={
+                    filtering ? (
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={scope === 'MINE' ? `${basePath}?tab=mine` : basePath}>
+                          清空筛选
+                        </Link>
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                // 只有收藏、还没有自己的模板：不当成一个「错误」来报，给一句指路即可
+                <p className="text-ink-400 text-[12.5px] leading-5">
+                  还没有自己的模板 —— 在问卷卡片的「⋯」里选「另存为模板」，它就会出现在这里。
+                </p>
+              )}
+            </>
           )}
         </div>
       </main>

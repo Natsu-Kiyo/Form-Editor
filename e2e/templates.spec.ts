@@ -313,4 +313,81 @@ test.describe('模板中心', () => {
     await unstar.first().click();
     await expect(previewButton(page, title)).toHaveCount(0);
   });
+
+  test('切 Tab 有等待态：列表区换成骨架，Tab 与胶囊保持在场', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '入口（侧栏「模板中心」）只在桌面形态有');
+
+    await signIn(page);
+    await openTemplates(page);
+    await expect(page.getByRole('button', { name: /^使用此模板「/ }).first()).toBeVisible();
+
+    /*
+     * 为什么要拦请求：真实环境里骨架只闪一两百毫秒，直接断言会时有时无。
+     * 把这次导航的 RSC 请求按住 1.2 秒（Playwright 官方的慢网络手法），
+     * 「一闪而过」变成「稳定可见」，断言才有意义 —— 断言的是时序存在的证据。
+     */
+    await page.route('**/app/templates*', async (route) => {
+      if (route.request().url().includes('_rsc')) {
+        await new Promise((resolve) => setTimeout(resolve, 1_200));
+      }
+      await route.continue();
+    });
+
+    await page.getByRole('button', { name: /^我的模板/ }).click();
+
+    // 骨架出现（含给读屏的那句「正在加载模板…」）
+    const skeleton = page.locator('[aria-busy="true"]');
+    await expect(skeleton).toBeVisible();
+    await expect(skeleton.getByText('正在加载模板…')).toBeAttached();
+
+    // 关键：只替换**列表区** —— Tab 与分类胶囊保持在场，正在点的那颗按钮不该消失
+    await expect(page.getByRole('button', { name: '公开模板', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '全部', exact: true })).toBeVisible();
+
+    // 数据落地：骨架退场、Tab 高亮落到新的那个
+    await expect(skeleton).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^我的模板/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+
+    await page.unroute('**/app/templates*');
+  });
+
+  test('搜索框有等待态：导航期间放大镜原位换成 spinner，落地后还原', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '入口（侧栏「模板中心」）只在桌面形态有');
+
+    await signIn(page);
+    await openTemplates(page);
+
+    const search = page.getByLabel('搜索模板');
+    const searching = page.getByRole('status').filter({ hasText: '正在搜索…' });
+
+    // 静止时是放大镜：没有 spinner、也没有状态文字
+    await expect(page.locator('.qw-spinner')).toHaveCount(0);
+    await expect(searching).toHaveCount(0);
+
+    // 与骨架那条同款手法：把这次导航按住，spinner 才稳定可见
+    await page.route('**/app/templates*', async (route) => {
+      if (route.request().url().includes('_rsc')) {
+        await new Promise((resolve) => setTimeout(resolve, 1_200));
+      }
+      await route.continue();
+    });
+
+    // 防抖 300ms 之后才发起导航，expect 的自动重试会等到它
+    await search.fill('NPS');
+
+    // 三件事一起验：spinner 顶掉了放大镜（原位、只一个）、input 挂上 aria-busy、有状态文字
+    await expect(page.locator('.qw-spinner')).toHaveCount(1);
+    await expect(search).toHaveAttribute('aria-busy', 'true');
+    await expect(searching).toBeAttached();
+
+    // 结果落地：spinner 退场、放大镜回来、结果真正筛出来了
+    await expect(page.locator('.qw-spinner')).toHaveCount(0);
+    await expect(search).not.toHaveAttribute('aria-busy', 'true');
+    await expect(previewButton(page, 'NPS 净推荐值')).toBeVisible();
+
+    await page.unroute('**/app/templates*');
+  });
 });

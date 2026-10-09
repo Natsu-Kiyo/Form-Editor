@@ -129,7 +129,7 @@ docs/                     PLAN.md（里程碑与遗留总表）· VERIFY.md（�
 pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm db:check && pnpm e2e
 ```
 
-最近一次全量（2026-10-08）：`typecheck` ✓ · `lint` ✓ · `test` ✓ **134 passed** · `build` ✓ · `db:check` ✓ · `e2e` ✓ **61 passed / 43 skipped / 0 failed**（两个 project 各跑一轮：desktop 42 + mobile 19；skipped 是用例里显式跳过的：写库类只在桌面项目跑、窄屏专属项在桌面项目下跳过、拖拽排序因 E2E 驱动不了 dnd-kit 的 drop 而留手工验证）。
+最近一次全量（2026-10-09）：`typecheck` ✓ · `lint` ✓ · `test` ✓ **134 passed** · `build` ✓ · `db:check` ✓ · `e2e` ✓ **63 passed / 45 skipped / 0 failed**（两个 project 各跑一轮：desktop 44 + mobile 19；skipped 是用例里显式跳过的：写库类只在桌面项目跑、窄屏专属项在桌面项目下跳过、拖拽排序因 E2E 驱动不了 dnd-kit 的 drop 而留手工验证）。
 
 ## 已知取舍（演示项目范围内的决定）
 
