@@ -400,3 +400,17 @@ export function DotsIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/**
+ * 星标（收藏）。路径取自设计稿 W11「我的模板卡」菜单里的收藏图标。
+ *
+ * `filled` 为 true 时填充 —— 用于「已收藏」态；默认描边 = 未收藏。
+ * 一个图标两种状态，而不是两个图标：线宽与端点天然对齐。
+ */
+export function StarIcon({ filled = false, ...props }: IconProps & { filled?: boolean }) {
+  return (
+    <Icon fill={filled ? 'currentColor' : 'none'} {...props}>
+      <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z" />
+    </Icon>
+  );
+}

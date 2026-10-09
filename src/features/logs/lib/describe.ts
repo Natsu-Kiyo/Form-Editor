@@ -235,6 +235,22 @@ export function describeOperation(input: {
         extra: typeof detail.questions === 'number' ? `${detail.questions} 题` : null,
       };
 
+    case OPERATION_TYPE.TEMPLATE_PUBLISH:
+      return {
+        group: OPERATION_TYPE_GROUP_OF.TEMPLATE_PUBLISH,
+        typeLabel,
+        sentence: build('把模板', name, '公开到了公开池'),
+        extra: detail.category ? `分类：${String(detail.category)}` : null,
+      };
+
+    case OPERATION_TYPE.TEMPLATE_UNPUBLISH:
+      return {
+        group: OPERATION_TYPE_GROUP_OF.TEMPLATE_UNPUBLISH,
+        typeLabel,
+        sentence: build('把模板', name, '从公开池收回了'),
+        extra: null,
+      };
+
     default:
       // 兜底也要能读：类型随里程碑增长，漏一个不该让整页显示空白
       return {

@@ -513,6 +513,8 @@ const WORKSPACE_TEMPLATES: {
   description: string;
   category: TemplateCategory;
   usageCount: number;
+  /** X2：公开到「公开模板」池（演示数据里要有一张，否则那个 Tab 只有官方模板） */
+  isPublic?: boolean;
   questions: SeededQuestion[];
 }[] = [
   {
@@ -520,6 +522,8 @@ const WORKSPACE_TEMPLATES: {
     description: '活动结束后的一次回访，三个评分 + 一个开放题。',
     category: '满意度调研',
     usageCount: 6,
+    // 演示「已公开」这张卡：公开池里有它、我的模板卡上有「公开」角标（设计稿 W08 画的就是它）
+    isPublic: true,
     questions: [
       { type: 'SHORT_TEXT', title: '你参加的是哪场活动？', required: true },
       { type: 'RATING', title: '整体满意度', required: true, config: { min: 1, max: 5 } },
@@ -600,6 +604,8 @@ async function seedTemplates(workspaceId: string, ownerId: string) {
         questionCount: template.questions.length,
         usageCount: template.usageCount,
         isOfficial: false,
+        isPublic: template.isPublic ?? false,
+        publishedAt: template.isPublic ? new Date() : null,
         payload: toJsonPayload(template),
       },
     });

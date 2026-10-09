@@ -22,6 +22,9 @@ export const PERMISSION_MATRIX: { point: string; min: Role; source: string }[] =
   // 模板不是数据（没有答卷挂在上面），所以与「改内容」同档；
   // 官方模板在服务端另有拦（`findEditableTemplate` 里带 workspaceId 条件）
   { point: '重命名 / 删除模板', min: 'EDITOR', source: '与「编辑内容」同档（模板不含数据）' },
+  // X2：公开是**对外动作** —— 内容会离开工作区边界、被其他工作区看到并使用，
+  // 与「发布 / 归档 / 删除问卷」同档；界面按这一行渲染，action 里再拦一次
+  { point: '公开模板到公开池', min: 'ADMIN', source: '由「对外动作」推得（与「发布」同档）' },
   { point: '邀请 / 移除成员', min: 'ADMIN', source: '设计稿 W09 矩阵' },
   { point: '工作区设置 / 解散', min: 'OWNER', source: '设计稿 W09 矩阵' },
 ];

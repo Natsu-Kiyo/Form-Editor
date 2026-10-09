@@ -68,6 +68,29 @@ describe('describeOperation', () => {
     expect(invite.extra).toBe('编辑者 · 等待接受');
   });
 
+  it('模板公开与取消公开：对象是模板名，第二行带分类', () => {
+    const publish = describeOperation({
+      type: OPERATION_TYPE.TEMPLATE_PUBLISH,
+      targetName: '活动满意度回访',
+      detail: { category: '满意度调研' },
+    });
+
+    expect(publish.sentence).toEqual({
+      prefix: '把模板',
+      target: '活动满意度回访',
+      suffix: '公开到了公开池',
+    });
+    expect(publish.extra).toBe('分类：满意度调研');
+
+    const unpublish = describeOperation({
+      type: OPERATION_TYPE.TEMPLATE_UNPUBLISH,
+      targetName: '活动满意度回访',
+      detail: null,
+    });
+    expect(unpublish.sentence.suffix).toBe('从公开池收回了');
+    expect(unpublish.group).toBe(publish.group);
+  });
+
   it('没见过的类型也要兜住（类型会随里程碑增长，漏一个不该让整页空白）', () => {
     const unknown = describeOperation({ type: 'FUTURE_TYPE', targetName: 'X', detail: null });
 

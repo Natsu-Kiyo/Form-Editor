@@ -248,7 +248,9 @@ test.describe('移动外壳', () => {
     await expect(publishSheet.getByRole('button', { name: /保存并发布|保存设置/ })).toBeVisible();
   });
 
-  test('P07 模板页：卡片按钮常显，「⋯」不在窄屏', async ({ page }, testInfo) => {
+  test('P07 模板页：卡片按钮常显，星标与「⋯」在窄屏也能用（R59 起）', async ({
+    page,
+  }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', '这是 375px 的形态');
 
     await signIn(page);
@@ -261,9 +263,23 @@ test.describe('移动外壳', () => {
     // 官方卡的动作**不必悬浮**：375px 没有 hover 可言
     await expect(page.getByRole('button', { name: /^使用此模板「/ }).first()).toBeVisible();
 
-    // 「我的模板」：卡片在，但「⋯」（重命名 / 删除）是桌面专属（设计稿 P07 的原话）
+    /*
+     * R59：所有者决定忽略 P07「移动端只做查看 + 使用」的口径，窄屏保留完整功能。
+     * 三条都验：新建问卷、星标、⋯（此前它们要么是 CSS 隐藏、要么干脆没渲染）。
+     */
+    await expect(page.getByRole('button', { name: '新建问卷' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^(取消)?收藏「/ }).first()).toBeVisible();
+
+    // 「我的模板」：「⋯」打开后菜单项齐备（所有者 → 公开 / 收藏 / 重命名 / 删除都在）
     await page.getByRole('button', { name: /^我的模板/ }).click();
     await expect(page.getByRole('button', { name: /^预览「/ }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /更多操作/ })).toHaveCount(0);
+    await page
+      .getByRole('button', { name: /更多操作/ })
+      .first()
+      .click();
+    await expect(page.getByRole('menuitem', { name: '重命名' })).toBeVisible();
+    // 公开那一项随卡片当前状态换文案（演示库里已有几张被公开过），两者其一必在
+    await expect(page.getByRole('menuitem', { name: /设为公开|取消公开/ })).toBeVisible();
+    await page.keyboard.press('Escape');
   });
 });

@@ -190,19 +190,35 @@ function createPrismaClient() {
 }
 
 /**
- * 应用依赖的模型清单。
+ * 应用依赖的模型清单（= schema.prisma 里的全部模型）。
  *
  * **为什么需要这道检查**：`prisma migrate dev` 会重新生成客户端，但**运行中的 dev server
  * 不会重新加载它** —— 新加的模型在进程里就是 `undefined`，报错是
  * `Cannot read properties of undefined (reading 'findFirst')`，
  * 一句和「模型不存在」毫无关系的话（我们为它查了一整轮）。
  * 这里把「客户端是不是旧的」这件事直接说出来，并给出该做什么。
+ *
+ * **列的是全部模型**（不是只列最近加的）：清单缺一个，那种「新表在旧客户端里
+ * 不存在」的情况就会绕过这条预警，直接炸在某个 `findMany` 上 ——
+ * `templateFavorite`（X2 新增）就是这么漏过去一次。加表时在**同一处**补一行。
  */
 const REQUIRED_MODELS = [
+  'user',
+  'session',
+  'workspace',
+  'invitation',
+  'membership',
+  'notification',
+  'feedback',
   'questionnaire',
-  'question',
   'questionnaireVersion',
+  'question',
+  'option',
   'channel',
+  'response',
+  'answer',
+  'template',
+  'templateFavorite',
   'operationLog',
 ] as const;
 

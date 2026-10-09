@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from 'react';
 
+import { StarIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
-import { QUESTION_TYPE_LABEL, type QuestionType } from '@/config/constants';
+import { QUESTION_TYPE_LABEL, TEMPLATE_PUBLIC_BADGE, type QuestionType } from '@/config/constants';
 import { cn } from '@/utils/cn';
 
 import type { TemplateCardData } from '../api/templates';
@@ -13,26 +14,41 @@ import { TemplatePreviewDialog } from './template-preview-dialog';
 /**
  * 模板卡（设计稿 W08）。
  *
- * 三处刻意的处理：
+ * 五处刻意的处理：
  * - **缩略图是现算的骨架**，不是图片：按前四道题的题型画（文本题长条、选项题小方块、
  *   评分题方格），省掉一整套缩略图资源与它们必然的失效问题。
  * - **「使用此模板」不做中间确认**：它在提交里只做一件事 —— 复制一份新问卷。
  *   中间加一层「确定要使用吗」是在问一个用户刚刚已经回答过的问题。
  * - 官方卡的按钮**悬浮才出现**（设计稿如此，让网格更干净）；「我的模板」卡上的
  *   按钮常显 + 右上角有「⋯」—— 那是它唯一能改自己的地方，藏起来就找不到了。
+ * - **星标（收藏）**：所有卡都有（X2 起「官方 / 公开 / 我的」都能收藏）。
+ *   **两端都渲染**：R59 起所有者决定忽略 P07「移动端只做查看 + 使用」的口径 ——
+ *   手机上也该能收藏、能管自己的模板，不再用 CSS 把它们藏起来。
+ * - **「公开」角标**（设计稿 W08：贴在标题旁）只在非公开池的卡片上显示；
+ *   公开池里让位给「来自 X 工作区」的来源行（角标说明状态，来源说明归属，各管一件事）。
  */
 export function TemplateCard({
   template,
   onUse,
   using,
   canManage,
+  canPublish,
+  onToggleFavorite,
+  favoritePending,
+  showSource = false,
 }: {
   template: TemplateCardData;
   /** 用这个模板建一份新问卷（提交按钮自己不做确认，见上） */
   onUse: () => void;
   using: boolean;
-  /** 「使用此模板」（创建问卷）与「⋯」（改模板）都要求编辑者；查看者只有「预览」 */
+  /** 「使用此模板」（创建问卷）与「⋯」（改模板）都要求编辑者；查看者只有「预览」与星标 */
   canManage: boolean;
+  /** 「设为公开 / 取消公开」= 管理员（权限矩阵「公开模板到公开池」一行） */
+  canPublish: boolean;
+  onToggleFavorite: () => void;
+  favoritePending: boolean;
+  /** 公开池的卡片显示「来自 X 工作区」（透明化：谁公开的一目了然） */
+  showSource?: boolean;
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [, startTransition] = useTransition();
@@ -40,21 +56,54 @@ export function TemplateCard({
 
   return (
     <div className="group border-ink-200 hover:border-brand-300 hover:shadow-card relative flex flex-col overflow-hidden rounded-xl border bg-white transition-all duration-150">
-      {/*
-        「⋯」是**桌面专属**：设计稿 P07 写明移动端这个 Tab 只做「查看 + 使用」，
-        「另存为模板」留在桌面端（它与复制 / 导出 JSON / 问卷移交同属卡片「更多」菜单，
-        为它单独在手机上造一套菜单不划算）。
-      */}
-      {mine && canManage ? (
-        <div className="absolute top-2.5 right-2.5 z-10 hidden lg:block">
-          <TemplateActionsMenu templateId={template.id} title={template.title} />
-        </div>
-      ) : null}
+      <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
+        <button
+          type="button"
+          aria-label={`${template.isFavorited ? '取消收藏' : '收藏'}「${template.title}」`}
+          aria-pressed={template.isFavorited}
+          disabled={favoritePending}
+          onClick={onToggleFavorite}
+          // 窄屏 36px（与顶栏铃铛一致，触控友好）；桌面回到 28px（与「⋯」并排不挤标题）
+          className="border-ink-200 flex size-9 items-center justify-center rounded-md border bg-white/90 shadow-sm transition-colors duration-150 hover:bg-white disabled:cursor-not-allowed lg:size-7"
+        >
+          <StarIcon
+            filled={template.isFavorited}
+            className={cn('size-4', template.isFavorited ? 'text-amber-500' : 'text-ink-500')}
+          />
+        </button>
+
+        {/*
+          「⋯」两端都渲染（R59 起）：P07 原本写「移动端只做查看 + 使用」，
+          所有者决定忽略它 —— 手机上同样要能重命名 / 删除 / 公开自己的模板。
+        */}
+        {mine && canManage ? (
+          <TemplateActionsMenu
+            templateId={template.id}
+            title={template.title}
+            description={template.description}
+            isPublic={template.isPublic}
+            isFavorited={template.isFavorited}
+            canPublish={canPublish}
+          />
+        ) : null}
+      </div>
 
       <TemplateThumbnail types={template.previewTypes} />
 
       <div className="flex flex-1 flex-col p-4">
-        <div className="text-ink-900 mb-1 truncate text-[13.5px] font-medium">{template.title}</div>
+        <div className="mb-1 flex items-center gap-1.5">
+          <span className="text-ink-900 truncate text-[13.5px] font-medium">{template.title}</span>
+          {template.isPublic && !showSource ? (
+            <span className="shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+              {TEMPLATE_PUBLIC_BADGE}
+            </span>
+          ) : null}
+        </div>
+
+        {showSource && !template.isOfficial && template.workspaceName ? (
+          <div className="text-ink-400 mb-1 text-[11px]">来自 {template.workspaceName}</div>
+        ) : null}
+
         <div className="text-ink-400 flex items-center justify-between text-[11.5px]">
           <span>
             {template.questionCount} 题 · 约 {estimateMinutes(template.questionCount)} 分钟

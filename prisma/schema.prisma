@@ -80,6 +80,7 @@ model Workspace {
   memberships Membership[]
   questionnaires Questionnaire[]
   templates   Template[]
+  templateFavorites TemplateFavorite[]
   operationLogs OperationLog[]
   invitations Invitation[]
 
@@ -400,20 +401,44 @@ model Template {
   /// 题目结构快照，与「导出 JSON」是同一套结构
   payload       Json
   isOfficial    Boolean  @default(false)
+  /// 是否公开到「公开模板」池（跨工作区可见、可被使用）。
+  /// 只有非官方、且属于某工作区的模板才可能为 true —— 官方模板**本来就是公开内容**，
+  /// 不靠这个字段（数据上分开两个来源，见 `api/templates.ts` 的公开池查询）
+  isPublic      Boolean  @default(false)
+  /// 公开时间。公开池按它倒序排（**刻意不用 usageCount 排**：没有排序收益就没有刷量的动机）
+  publishedAt   DateTime?
   workspaceId   String?
   ownerId       String?
   usageCount    Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  owner     User?      @relation("TemplateOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  workspace Workspace?         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner     User?              @relation("TemplateOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  favorites TemplateFavorite[]
 
   @@index([isOfficial, category])
+  /// 公开池的查询口径：`isPublic = true` 且按 publishedAt 倒序
+  @@index([isPublic, publishedAt])
   @@index([workspaceId])
   /// 同一工作区不允许同名模板。**用约束而不是只靠 action 里那次检查**：
   /// 「检查—写入」之间有窗口，慢环境下同一个提交重试两次就能写进两行
   /// （E2E 实测撞上过：同名两行相差 13 秒）。官方模板的 workspaceId 为 null，
   /// Postgres 认为 NULL 彼此不同，所以 8 张官方模板不受这条约束影响。
   @@unique([workspaceId, title])
+}
+
+/// 收藏。**按工作区记而不是按人**：模板本身就是工作区的资产（与「我的模板」同一归属），
+/// 成员之间共享同一份收藏，换个人登录不该看到另一套。
+model TemplateFavorite {
+  id          String   @id @default(cuid())
+  templateId  String
+  workspaceId String
+  createdAt   DateTime @default(now())
+
+  template  Template  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, workspaceId])
+  @@index([workspaceId, createdAt])
 }

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-import { TEMPLATE_CATEGORY_NEW } from '@/config/constants';
+import { TEMPLATE_CATEGORY_NEW, TEMPLATE_PUBLIC_CATEGORIES } from '@/config/constants';
+
+import { TEMPLATE_PUBLIC_RULES } from './lib/template-publish';
 
 /** 新建问卷弹层只有两种方式，没有标题输入 —— 标题在编辑器顶栏里改 */
 export const CREATE_MODE = {
@@ -53,3 +55,27 @@ export const saveAsTemplateSchema = z
       ctx.addIssue({ code: 'custom', path: ['newCategory'], message: '请输入新的分类名称' });
     }
   });
+
+/**
+ * 公开模板（X2）。
+ *
+ * 描述与分类**在公开时现场补齐**：模板创建之后没有编辑它们的入口（只有重命名），
+ * 而公开池要求「一段像样的描述 + 官方分类」—— 没有这个弹层，早先另存出来的模板
+ * 就永远公开不了（门槛把用户领进死路，比没有门槛更糟）。
+ *
+ * 配额与题数那两条不在这里：它们是**服务端才知道的业务状态**（已公开几张、库里几道题），
+ * 见 `lib/template-publish.ts` 的 `canPublishTemplate`（界面与服务端共用）。
+ */
+export const publishTemplateSchema = z.object({
+  templateId: z.string().min(1),
+  description: z
+    .string()
+    .trim()
+    .min(TEMPLATE_PUBLIC_RULES.minDescription, {
+      error: `公开的模板需要一段 ${TEMPLATE_PUBLIC_RULES.minDescription} 个字以上的说明，让别人知道它是什么`,
+    })
+    .max(TEMPLATE_PUBLIC_RULES.maxDescription, {
+      error: `模板说明不超过 ${TEMPLATE_PUBLIC_RULES.maxDescription} 个字`,
+    }),
+  category: z.enum(TEMPLATE_PUBLIC_CATEGORIES, { error: '请选择一个公开分类' }),
+});

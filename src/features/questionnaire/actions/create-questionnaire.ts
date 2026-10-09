@@ -103,8 +103,14 @@ async function createFromTemplate(input: {
   workspaceId: string;
   ownerId: string;
 }): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
-  const payload = await getTemplatePayload(input.templateId);
-  if (!payload) return { ok: false, message: '这个模板的结构已损坏，换一个试试' };
+  /*
+   * 归属校验收在 `getTemplatePayload` 里（官方 / 别人已公开的 / 本工作区自己的）：
+   * 公开池出现之后，「能用的模板」不再等于「所有存在的模板」——
+   * 别人刚取消公开的模板，点「使用此模板」时会落到这个分支上。
+   */
+  const payload = await getTemplatePayload(input.templateId, input.workspaceId);
+  if (!payload)
+    return { ok: false, message: '这个模板已不可用（可能已被取消公开或删除），换一个试试' };
 
   const questionnaire = await createQuestionnaireWithPayload({
     workspaceId: input.workspaceId,

@@ -11,23 +11,97 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
 import { Modal, ModalContent } from '@/components/ui/modal';
-import { UPCOMING_BADGE } from '@/config/constants';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/components/ui/toast';
+import { TEMPLATE_PUBLIC_CATEGORIES } from '@/config/constants';
+import { EMPTY_FORM_STATE } from '@/types/form-state';
 
-import { deleteTemplateAction, renameTemplateAction } from '../actions/manage-template';
+import { toggleTemplateFavoriteAction } from '../actions/favorite-template';
+import {
+  deleteTemplateAction,
+  publishTemplateAction,
+  renameTemplateAction,
+  unpublishTemplateAction,
+} from '../actions/manage-template';
+import { TEMPLATE_PUBLIC_LIMIT } from '../lib/template-publish';
 
 /**
- * 「我的模板」卡右上角的「⋯」。
+ * 「我的模板」卡右上角的「⋯」（设计稿 W11「列表项更多菜单 · 我的模板卡」）。
  *
- * 两个 A 级动作（重命名 / 删除）+ 两个 B 级灰显（设为公开 / 收藏）。
+ * X2 起四项都是真的（此前「设为公开 / 收藏」是 B 级灰显）：
+ * **设为公开 / 取消公开**（ADMIN，权限矩阵「公开模板到公开池」一行）、
+ * **收藏 / 取消收藏**（VIEWER 起）、重命名 / 删除（EDITOR）。
  *
- * 灰显按规范做：**`disabled` + 角标，不留 hover 假反馈** —— 灰显项不算假入口，
- * 但「看起来能点、点了没反应」算。删除是硬删，所以二次确认里写清
- * 「用过它的问卷不受影响」（用户真正担心的是这个，不是模板本身）。
+ * 三处刻意的处理：
+ * - 菜单项按权限**不渲染**（与问卷卡「⋯」同一条规矩：看不到无权入口，
+ *   而不是给一个点了报错的按钮）；
+ * - **取消公开不加二次确认**：它不是破坏性动作（重新公开即恢复），
+ *   而「垃圾撤得回、误操作有退路」正是这个功能敢开放的前提；
+ * - 公开的弹层要**顺便补齐描述与分类**：模板创建后没有编辑它们的入口，
+ *   而公开池要求一段像样的说明与一个公开分类 —— 没有这个弹层，
+ *   早先另存出来的模板就永远公开不了（门槛把人领进死路比没有门槛更糟）。
+ *   其中**描述预填、分类不预选**：R59 起所有者要求分类必须由人明确选一次
+ *   （不预选就不会出现「没看清就点了确认」把分类带错的情况）。
  */
-export function TemplateActionsMenu({ templateId, title }: { templateId: string; title: string }) {
+export function TemplateActionsMenu({
+  templateId,
+  title,
+  description,
+  isPublic,
+  isFavorited,
+  canPublish,
+}: {
+  templateId: string;
+  title: string;
+  /** 公开弹层预填：模板当前的说明（分类刻意不传，见上） */
+  description: string;
+  /** 当前是否在公开池里（决定菜单文案：设为公开 / 取消公开） */
+  isPublic: boolean;
+  isFavorited: boolean;
+  /** 公开 / 取消公开 = ADMIN（权限矩阵那一行，界面与 action 各拦一次） */
+  canPublish: boolean;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dialog, setDialog] = useState<'rename' | 'delete' | null>(null);
+  const [dialog, setDialog] = useState<'publish' | 'rename' | 'delete' | null>(null);
+  const [pending, startTransition] = useTransition();
+  const { toast } = useToast();
+
+  const unpublish = () => {
+    setMenuOpen(false);
+    startTransition(async () => {
+      const result = await unpublishTemplateAction(templateId);
+      if (!result.ok) {
+        toast({ title: '取消公开失败', description: result.message, variant: 'error' });
+        return;
+      }
+      toast({ title: '已取消公开', description: `「${title}」已从公开池移除`, variant: 'success' });
+    });
+  };
+
+  const toggleFavorite = () => {
+    setMenuOpen(false);
+    startTransition(async () => {
+      const result = await toggleTemplateFavoriteAction(templateId, !isFavorited);
+      if (!result.ok) {
+        toast({ title: '操作失败', description: result.message, variant: 'error' });
+        return;
+      }
+      toast({
+        title: isFavorited ? '已取消收藏' : '已收藏',
+        description: `「${title}」`,
+        variant: 'success',
+      });
+    });
+  };
 
   return (
     <>
@@ -36,13 +110,31 @@ export function TemplateActionsMenu({ templateId, title }: { templateId: string;
           <button
             type="button"
             aria-label={`更多操作「${title}」`}
-            className="border-ink-200 text-ink-500 hover:text-ink-900 flex size-7 items-center justify-center rounded-md border bg-white/90 shadow-sm transition-colors duration-150 hover:bg-white"
+            // 与星标同规格：窄屏 36px（触控友好），桌面 28px
+            className="border-ink-200 text-ink-500 hover:text-ink-900 flex size-9 items-center justify-center rounded-md border bg-white/90 shadow-sm transition-colors duration-150 hover:bg-white lg:size-7"
           >
             <DotsIcon className="size-4" />
           </button>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="w-44">
+          {/* 设计稿 W11 的顺序：设为公开 / 收藏 / 重命名 / 删除 */}
+          {canPublish ? (
+            isPublic ? (
+              <DropdownMenuItem disabled={pending} onSelect={unpublish}>
+                取消公开
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onSelect={() => setDialog('publish')}>设为公开</DropdownMenuItem>
+            )
+          ) : null}
+
+          <DropdownMenuItem onSelect={toggleFavorite}>
+            {isFavorited ? '取消收藏' : '收藏'}
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
           <DropdownMenuItem onSelect={() => setDialog('rename')}>重命名</DropdownMenuItem>
 
           <DropdownMenuSeparator />
@@ -50,19 +142,17 @@ export function TemplateActionsMenu({ templateId, title }: { templateId: string;
           <DropdownMenuItem icon={<TrashIcon />} tone="danger" onSelect={() => setDialog('delete')}>
             删除模板
           </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem disabled>
-            设为公开
-            <span className="text-ink-300 ml-auto text-[10.5px]">{UPCOMING_BADGE.V20}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled>
-            收藏
-            <span className="text-ink-300 ml-auto text-[10.5px]">{UPCOMING_BADGE.V20}</span>
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {dialog === 'publish' ? (
+        <PublishTemplateDialog
+          templateId={templateId}
+          title={title}
+          defaultDescription={description}
+          onClose={() => setDialog(null)}
+        />
+      ) : null}
 
       {dialog === 'rename' ? (
         <RenameTemplateDialog
@@ -80,6 +170,117 @@ export function TemplateActionsMenu({ templateId, title }: { templateId: string;
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * 设为公开（X2）。
+ *
+ * 描述与分类在这里就地补齐；配额 / 题数 / 分类这些规则由服务端的
+ * `canPublishTemplate` 与 schema 最终把关（界面只是把字段摆出来）。
+ */
+function PublishTemplateDialog({
+  templateId,
+  title,
+  defaultDescription,
+  onClose,
+}: {
+  templateId: string;
+  title: string;
+  /** 预填的模板说明（分类刻意不预填，见文件顶部说明） */
+  defaultDescription: string;
+  onClose: () => void;
+}) {
+  const [state, formAction, pending] = useActionState(publishTemplateAction, EMPTY_FORM_STATE);
+
+  /*
+   * 分类**不预选**（R59 起所有者要求）：初始为空，必须由人明确选一次。
+   * 选中项在渲染时派生（用户选过 → 用他的；提交出错 → 用服务端回填的），
+   * 而不是在 effect 里补 setState —— 与「另存为模板」同一套处理。
+   */
+  const [picked, setPicked] = useState<string | null>(null);
+  const category = picked || state.values?.category || '';
+
+  useEffect(() => {
+    if (state.success) onClose();
+  }, [state.success, onClose]);
+
+  return (
+    <Modal open onOpenChange={(next) => !next && onClose()}>
+      <ModalContent
+        title="设为公开"
+        description={`「${title}」公开后，其他工作区能在「公开模板」里看到并使用它。`}
+        width="sm"
+      >
+        <form action={formAction} className="space-y-4" noValidate>
+          <input type="hidden" name="templateId" value={templateId} />
+
+          <div className="bg-ink-50 border-ink-100 text-ink-500 rounded-[10px] border p-3 text-[11.5px] leading-5">
+            每个工作区最多公开 {TEMPLATE_PUBLIC_LIMIT}{' '}
+            张；公开的模板需要一段像样的说明，并自行选择一个公开分类（官方五类之外的选「其他」）。
+            <b className="text-ink-700 font-medium">可随时取消公开</b>
+            —— 取消后其他工作区就看不到它了，已经用它建出来的问卷不受影响。
+          </div>
+
+          <div>
+            <Label htmlFor="publish-template-description" required>
+              模板说明
+            </Label>
+            <Textarea
+              id="publish-template-description"
+              name="description"
+              rows={3}
+              defaultValue={state.values?.description ?? defaultDescription}
+              invalid={Boolean(state.fieldErrors?.description)}
+              placeholder="一句话说明这个模板适用什么场景（会展示给所有人）"
+              required
+            />
+            {state.fieldErrors?.description ? (
+              <p className="text-caption mt-1.5 text-rose-500">
+                {state.fieldErrors.description.join('，')}
+              </p>
+            ) : null}
+          </div>
+
+          <div>
+            <Label htmlFor="publish-template-category" required>
+              模板分类
+            </Label>
+            <Select name="category" value={category} onValueChange={setPicked}>
+              <SelectTrigger
+                id="publish-template-category"
+                invalid={Boolean(state.fieldErrors?.category)}
+              >
+                <SelectValue placeholder="选择一个官方分类" />
+              </SelectTrigger>
+              <SelectContent>
+                {TEMPLATE_PUBLIC_CATEGORIES.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {state.fieldErrors?.category ? (
+              <p className="text-caption mt-1.5 text-rose-500">
+                {state.fieldErrors.category.join('，')}
+              </p>
+            ) : null}
+          </div>
+
+          {state.message ? <p className="text-caption text-rose-500">{state.message}</p> : null}
+
+          <div className="flex gap-2.5">
+            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+              取消
+            </Button>
+            <Button loading={pending} type="submit" className="flex-1" disabled={pending}>
+              {pending ? '公开中…' : '确认公开'}
+            </Button>
+          </div>
+        </form>
+      </ModalContent>
+    </Modal>
   );
 }
 

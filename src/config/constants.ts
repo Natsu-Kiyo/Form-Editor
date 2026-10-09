@@ -221,6 +221,9 @@ export const OPERATION_TYPE = {
   // M9 的模板管理（模板库也是工作区的内容，改它要留痕）
   TEMPLATE_RENAME: 'TEMPLATE_RENAME',
   TEMPLATE_DELETE: 'TEMPLATE_DELETE',
+  // X2：模板公开与收藏 —— 公开/取消公开是对外动作（效果超出工作区），必须留痕
+  TEMPLATE_PUBLISH: 'TEMPLATE_PUBLISH',
+  TEMPLATE_UNPUBLISH: 'TEMPLATE_UNPUBLISH',
   // M8 起：成员管理
   INVITE: 'INVITE',
   INVITE_REVOKE: 'INVITE_REVOKE',
@@ -250,6 +253,8 @@ export const OPERATION_TYPE_LABEL: Record<OperationType, string> = {
   DELETE: '删除问卷',
   TEMPLATE_RENAME: '重命名模板',
   TEMPLATE_DELETE: '删除模板',
+  TEMPLATE_PUBLISH: '公开模板',
+  TEMPLATE_UNPUBLISH: '取消公开模板',
   INVITE: '邀请成员',
   INVITE_REVOKE: '撤回邀请',
   MEMBER_JOIN: '成员加入',
@@ -286,6 +291,8 @@ export const OPERATION_TYPE_GROUP_OF: Record<OperationType, OperationTypeGroup> 
   DELETE: OPERATION_TYPE_GROUP.QUESTIONNAIRE,
   TEMPLATE_RENAME: OPERATION_TYPE_GROUP.QUESTIONNAIRE,
   TEMPLATE_DELETE: OPERATION_TYPE_GROUP.QUESTIONNAIRE,
+  TEMPLATE_PUBLISH: OPERATION_TYPE_GROUP.QUESTIONNAIRE,
+  TEMPLATE_UNPUBLISH: OPERATION_TYPE_GROUP.QUESTIONNAIRE,
   INVITE: OPERATION_TYPE_GROUP.MEMBER,
   INVITE_REVOKE: OPERATION_TYPE_GROUP.MEMBER,
   MEMBER_JOIN: OPERATION_TYPE_GROUP.MEMBER,
@@ -389,6 +396,29 @@ export const TEMPLATE_CATEGORIES = [
 ] as const;
 
 export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
+
+/**
+ * 「公开」角标（设计稿 W08：emerald-50 底 + emerald-600 字，贴在模板标题旁）。
+ * 文案收在这里，「我的模板」卡片与公开弹层共用同一份。
+ */
+export const TEMPLATE_PUBLIC_BADGE = '公开';
+
+/**
+ * 公开池的**兜底分类**（X2 上线后由所有者追加）。
+ *
+ * 官方那五类之外的自建分类不能直接进公共池（防污染的一部分），但用户的模板
+ * 不该因此公开不了 —— 公开弹层里选「其他」即可，落库后分类就是它。
+ *
+ * **刻意不属于 `TEMPLATE_CATEGORIES`**：那个常量是「官方五分类」的口径
+ * （seed 的 8 张官方模板、我的模板胶囊的排序基准），加进来会多出一颗点开是空的胶囊。
+ */
+export const TEMPLATE_CATEGORY_OTHER = '其他';
+
+/** 公开（弹层）里可选的分类：官方五类 + 「其他」兜底 */
+export const TEMPLATE_PUBLIC_CATEGORIES = [
+  ...TEMPLATE_CATEGORIES,
+  TEMPLATE_CATEGORY_OTHER,
+] as const;
 
 /**
  * 「另存为模板」里选中**新增分类**时，分类下拉提交的哨兵值。
