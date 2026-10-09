@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 
-import { listOfficialTemplates } from '@/features/questionnaire/api/templates';
 import {
   countWorkspaceTemplates,
   hasOtherPublicTemplates,
@@ -82,10 +81,9 @@ export default async function TemplatesPage({
       ? query.category
       : null;
 
-  const [items, mineCount, templates, favoriteItems] = await Promise.all([
+  const [items, mineCount, favoriteItems] = await Promise.all([
     listTemplateCards(workspace.id, { scope, keyword, category }),
     countWorkspaceTemplates(workspace.id),
-    listOfficialTemplates(),
     // 收藏分组只在「我的模板」Tab 渲染；公开池那侧不查（省一次往返）
     scope === TEMPLATE_SCOPE.MINE ? listFavoriteTemplates(workspace.id) : Promise.resolve([]),
   ]);
@@ -98,7 +96,6 @@ export default async function TemplatesPage({
       category={category}
       categories={chipCategories}
       mineCount={mineCount}
-      templates={templates}
       canCreate={hasAtLeastRole(workspace.role, 'EDITOR')}
       canPublish={hasAtLeastRole(workspace.role, 'ADMIN')}
       favoriteItems={favoriteItems}

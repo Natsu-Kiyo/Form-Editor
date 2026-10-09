@@ -16,7 +16,6 @@ import {
   type QuestionnaireFilter,
   type QuestionnaireSort,
 } from '@/features/questionnaire/api/questionnaires';
-import { listOfficialTemplates } from '@/features/questionnaire/api/templates';
 import { CreateQuestionnaireDialog } from '@/features/questionnaire/components/create-questionnaire-dialog';
 import { ListToolbar } from '@/features/questionnaire/components/list-toolbar';
 import { QuestionnaireCardItem } from '@/features/questionnaire/components/questionnaire-card';
@@ -84,10 +83,9 @@ export default async function DashboardHomePage({
   const canEdit = hasAtLeastRole(workspace.role, 'EDITOR');
   const canManage = hasAtLeastRole(workspace.role, 'ADMIN');
 
-  const [summary, list, templates, notifications, unreadCount, workspaces] = await Promise.all([
+  const [summary, list, notifications, unreadCount, workspaces] = await Promise.all([
     getQuestionnaireSummary(workspace.id),
     listQuestionnaires({ workspaceId: workspace.id, filter, keyword, sort }),
-    listOfficialTemplates(),
     getNotifications(user.id),
     getUnreadNotificationCount(user.id),
     // 只给窄屏顶栏的工作区切换器用（桌面端那份在侧栏里）
@@ -132,7 +130,7 @@ export default async function DashboardHomePage({
                 />
               </div>
               {/* 「新建问卷」是写入口：查看者不该看到它（矩阵里「创建问卷」= 编辑者） */}
-              {canEdit ? <CreateQuestionnaireDialog templates={templates} /> : null}
+              {canEdit ? <CreateQuestionnaireDialog /> : null}
             </div>
           }
         />
@@ -202,11 +200,7 @@ export default async function DashboardHomePage({
             icon={<FileTextIcon />}
             title="还没有问卷"
             description="从空白创建，或挑一个模板开始"
-            action={
-              canEdit ? (
-                <CreateQuestionnaireDialog templates={templates} variant="empty" />
-              ) : undefined
-            }
+            action={canEdit ? <CreateQuestionnaireDialog variant="empty" /> : undefined}
           />
         )}
       </main>

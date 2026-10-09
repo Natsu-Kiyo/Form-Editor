@@ -8,46 +8,21 @@ import type { FormState } from '@/types/form-state';
 
 import { createQuestionnaireWithPayload } from '../api/questionnaires';
 import { getTemplatePayload } from '../api/templates';
-import { CREATE_MODE, createQuestionnaireSchema } from '../schemas';
 
 /** 空白创建的默认标题。真正的标题在编辑器顶栏里改（设计稿 W03 顶栏标题即输入框） */
 const UNTITLED = '未命名问卷';
 
-export async function createQuestionnaireAction(
-  _prevState: FormState,
-  formData: FormData,
-): Promise<FormState> {
+/**
+ * 「新建问卷」弹层的提交（**只做空白创建**）。
+ *
+ * R64 起弹层里的「从模板创建」改成跳转模板中心 —— 模板中心有搜索、分类、预览与公开池，
+ * 这份「从模板创建」的入口收在那边（`createFromTemplateAction`），
+ * 所以这里不再解析 mode / templateId，也不再有「选了模板却没选具体哪一个」那种半成品状态。
+ */
+export async function createQuestionnaireAction(): Promise<FormState> {
   const { user, workspace } = await requireActiveWorkspace('EDITOR');
 
-  const parsed = createQuestionnaireSchema.safeParse({
-    mode: formData.get('mode') ?? CREATE_MODE.BLANK,
-    templateId: formData.get('templateId') ?? undefined,
-  });
-
-  if (!parsed.success) {
-    return { message: '新建参数不正确，请重新选择' };
-  }
-
-  // 先把「用哪个模板」这件事定下来，再决定走哪条创建路径 ——
-  // 否则「选了模板却没选具体哪一个」这种半成品状态要判两次
-  const target =
-    parsed.data.mode === CREATE_MODE.TEMPLATE
-      ? parsed.data.templateId
-        ? ({ kind: 'TEMPLATE', templateId: parsed.data.templateId } as const)
-        : null
-      : ({ kind: 'BLANK' } as const);
-
-  if (!target) return { message: '请先选择一个模板' };
-
-  const created =
-    target.kind === 'TEMPLATE'
-      ? await createFromTemplate({
-          templateId: target.templateId,
-          workspaceId: workspace.id,
-          ownerId: user.id,
-        })
-      : await createBlank({ workspaceId: workspace.id, ownerId: user.id });
-
+  const created = await createBlank({ workspaceId: workspace.id, ownerId: user.id });
   if (!created.ok) return { message: created.message };
 
   revalidatePath('/app');
@@ -60,10 +35,10 @@ export async function createQuestionnaireAction(
 }
 
 /**
- * 「使用此模板」。
+ * 「使用此模板」——模板中心那张卡点下去的直接动作。
  *
- * 与新建弹层里的「从模板创建」是**同一条路径**（同一个 `createFromTemplate`），
- * 只是入口不同：模板中心那张卡点下去就该直接进编辑器，**中间不加确认层** ——
+ * **「从模板创建」现在只有这一个入口**（R64）：新建弹层那张卡是跳转到这里，
+ * 挑中哪张卡再点它，落地即编辑器、**中间不加确认层** ——
  * 它在问一个用户刚刚已经回答过的问题（我点了「使用此模板」）。
  */
 export async function createFromTemplateAction(templateId: string) {

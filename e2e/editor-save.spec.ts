@@ -53,14 +53,18 @@ test.describe('编辑器保存', () => {
     await clearLeftovers(page, TEMPLATE_TITLE);
 
     // ---- 从模板创建（与「空白创建」是两条不同的服务端分支）----
+    // R64 起入口在模板中心：新建弹层那张卡是跳转，真正的动作是卡上的「使用此模板」
     await page.getByRole('button', { name: '新建问卷' }).first().click();
     await page.getByText('从模板创建').click();
-    await page.getByRole('button', { name: '创建', exact: true }).click();
-    // 从模板创建是全套件最重的一次写：模板的每一道题、每个选项都在同一个事务里
-    // 逐条写（4 道题 ≈ 十几次跨区域往返），慢的时候要几十秒，所以单独放宽
-    await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/, { timeout: 90_000 });
+    await expect(page).toHaveURL(/\/app\/templates$/);
 
-    await page.getByLabel('问卷标题').fill(TEMPLATE_TITLE);
+    await page
+      .getByRole('button', { name: /^使用此模板「/ })
+      .first()
+      .click();
+    // 从模板创建是全套件最重的一次写：模板的每一道题、每个选项都在同一个事务里
+    // 逐条写（5 道题 ≈ 十几次跨区域往返），慢的时候要几十秒，所以单独放宽
+    await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/, { timeout: 90_000 });
 
     await page.getByLabel('问卷标题').fill(TEMPLATE_TITLE);
 

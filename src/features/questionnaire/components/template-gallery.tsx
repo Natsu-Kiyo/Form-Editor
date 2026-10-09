@@ -16,8 +16,7 @@ import { cn } from '@/utils/cn';
 
 import { toggleTemplateFavoriteAction } from '../actions/favorite-template';
 import { createFromTemplateAction } from '../actions/create-questionnaire';
-import type { TemplateCardData, TemplateScope, TemplateSummary } from '../api/templates';
-import { CreateQuestionnaireDialog } from './create-questionnaire-dialog';
+import type { TemplateCardData, TemplateScope } from '../api/templates';
 import { TemplateCard } from './template-card';
 import { TemplateGridSkeleton } from './template-gallery-skeleton';
 
@@ -47,7 +46,6 @@ export function TemplateGallery({
   category,
   categories,
   mineCount,
-  templates,
   canCreate,
   canPublish,
   favoriteItems,
@@ -60,8 +58,6 @@ export function TemplateGallery({
   categories: string[];
   /** 「我的模板」Tab 上的角标 */
   mineCount: number;
-  /** 给「新建问卷」弹层用 */
-  templates: TemplateSummary[];
   /** 「使用此模板」与「⋯」= 编辑者 */
   canCreate: boolean;
   /** 「设为公开 / 取消公开」= 管理员（权限矩阵「公开模板到公开池」一行） */
@@ -175,8 +171,9 @@ export function TemplateGallery({
         读屏软件与自动化匹配到；搜索框是交互控件，不属于「纯版式」）。
 
         窄屏是 P07 的形态：标题 + **通栏搜索框**（桌面放在顶栏右侧）。
-        R59 起**也放「新建问卷」**（所有者决定忽略 P07「新建走底部『问卷』格」的口径）：
-        模板页本来就是「挑一个开始写」的地方，回工作台再点一次「＋」是白绕一圈。
+        R59 起这里曾放「新建问卷」，R64 又去掉了 —— 模板页是「挑一个开始写」的地方，
+        建问卷的入口收在工作台那一处（顶栏「新建问卷」/ 悬浮「＋」）就够了；
+        反过来，新建弹层里的「从模板创建」现在跳到这里（同一个决定的两面）。
       */}
       {isDesktop ? (
         <Topbar
@@ -190,7 +187,6 @@ export function TemplateGallery({
                 placeholder="搜索模板…"
                 label="搜索模板"
               />
-              {canCreate ? <CreateQuestionnaireDialog templates={templates} /> : null}
             </div>
           }
         />
@@ -198,7 +194,6 @@ export function TemplateGallery({
         <>
           <header className="flex items-center justify-between gap-3 px-5 pt-4 pb-3">
             <h1 className="text-ink-900 text-[17px] font-semibold">模板中心</h1>
-            {canCreate ? <CreateQuestionnaireDialog templates={templates} /> : null}
           </header>
 
           <div className="px-5 pb-3">

@@ -4,19 +4,6 @@ import { TEMPLATE_CATEGORY_NEW, TEMPLATE_PUBLIC_CATEGORIES } from '@/config/cons
 
 import { TEMPLATE_PUBLIC_RULES } from './lib/template-publish';
 
-/** 新建问卷弹层只有两种方式，没有标题输入 —— 标题在编辑器顶栏里改 */
-export const CREATE_MODE = {
-  BLANK: 'BLANK',
-  TEMPLATE: 'TEMPLATE',
-} as const;
-
-export type CreateMode = (typeof CREATE_MODE)[keyof typeof CREATE_MODE];
-
-export const createQuestionnaireSchema = z.object({
-  mode: z.enum([CREATE_MODE.BLANK, CREATE_MODE.TEMPLATE]),
-  templateId: z.string().optional(),
-});
-
 /** 模板重命名：与「另存为模板」共用同一套名称规则（长度、去空格） */
 export const renameTemplateSchema = z.object({
   templateId: z.string().min(1),
