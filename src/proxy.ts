@@ -7,7 +7,8 @@ import { NextResponse, type NextRequest } from 'next/server';
  */
 const SESSION_COOKIE = 'qw_session';
 
-const PROTECTED_PREFIXES = ['/app', '/me'];
+// `/app/me` 由 `/app` 这个前缀覆盖，**不要再单独列**（列了也没有对应路由，只会误导读的人）
+const PROTECTED_PREFIXES = ['/app'];
 
 /**
  * 乐观鉴权（Next 16 起 Middleware 更名为 Proxy）。
@@ -50,5 +51,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/me'],
+  matcher: ['/app/:path*'],
 };
