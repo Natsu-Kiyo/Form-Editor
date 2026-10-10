@@ -53,8 +53,3 @@ export function filterBounds(filter: AnalyticsFilter) {
 export function filterEndInclusive(filter: AnalyticsFilter): Date | null {
   return filter.to ? new Date(filter.to.getTime() + DAY_MS - 1) : null;
 }
-
-/** 筛选是否生效（指标卡上那句口径提示按它决定说不说） */
-export function isFilterActive(filter: AnalyticsFilter) {
-  return Boolean(filter.channelId || filter.from || filter.to);
-}

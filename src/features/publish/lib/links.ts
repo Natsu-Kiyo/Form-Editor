@@ -22,11 +22,6 @@ export function channelUrl(slug: string, srcToken: string) {
   return `${questionnaireUrl(slug)}?src=${encodeURIComponent(srcToken)}`;
 }
 
-/** 渠道链接的展示文案 */
-export function channelLinkLabel(slug: string, srcToken: string) {
-  return `?src=${srcToken}`;
-}
-
 /**
  * 嵌入代码（设计稿 W05 的「嵌入到网页」）。
  *

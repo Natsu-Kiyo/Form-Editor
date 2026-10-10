@@ -247,33 +247,9 @@ export async function replaceQuestionnaireStructure(input: {
   });
 }
 
-/** 归档 / 恢复 / 删除共用的「取一份问卷并校验它属于该工作区」 */
-export async function getQuestionnaireInWorkspace(questionnaireId: string, workspaceId: string) {
-  return prisma.questionnaire.findFirst({
-    where: { id: questionnaireId, workspaceId },
-    select: {
-      id: true,
-      title: true,
-      intro: true,
-      status: true,
-      publishedAt: true,
-      archivedAt: true,
-      workspaceId: true,
-    },
-  });
-}
-
 export function setQuestionnaireStatus(
   questionnaireId: string,
   data: { status: QuestionnaireStatus; archivedAt: Date | null },
 ) {
   return prisma.questionnaire.update({ where: { id: questionnaireId }, data });
-}
-
-export function deleteQuestionnaire(questionnaireId: string) {
-  return prisma.questionnaire.delete({ where: { id: questionnaireId } });
-}
-
-export function renameQuestionnaire(questionnaireId: string, title: string) {
-  return prisma.questionnaire.update({ where: { id: questionnaireId }, data: { title } });
 }

@@ -9,14 +9,6 @@ import {
   type QuestionnairePayload,
 } from '@/lib/questionnaire-structure';
 
-export type TemplateSummary = {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  questionCount: number;
-};
-
 /**
  * 模板中心的两个 Tab。
  *
@@ -365,20 +357,6 @@ export function setTemplatePrivate(templateId: string) {
   return prisma.template.update({
     where: { id: templateId },
     data: { isPublic: false, publishedAt: null },
-  });
-}
-
-export function listOfficialTemplates(): Promise<TemplateSummary[]> {
-  return prisma.template.findMany({
-    where: { isOfficial: true },
-    orderBy: [{ category: 'asc' }, { title: 'asc' }],
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      category: true,
-      questionCount: true,
-    },
   });
 }
 

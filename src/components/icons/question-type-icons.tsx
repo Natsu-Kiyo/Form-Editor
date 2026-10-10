@@ -25,7 +25,7 @@ function TypeIcon({ children, ...props }: IconProps) {
   );
 }
 
-export function SingleChoiceIcon(props: IconProps) {
+function SingleChoiceIcon(props: IconProps) {
   return (
     <TypeIcon {...props}>
       <circle cx="12" cy="12" r="9" />
@@ -34,7 +34,7 @@ export function SingleChoiceIcon(props: IconProps) {
   );
 }
 
-export function MultiChoiceIcon(props: IconProps) {
+function MultiChoiceIcon(props: IconProps) {
   return (
     <TypeIcon {...props}>
       <rect x="3" y="3" width="18" height="18" rx="3" />
@@ -43,7 +43,7 @@ export function MultiChoiceIcon(props: IconProps) {
   );
 }
 
-export function ShortTextIcon(props: IconProps) {
+function ShortTextIcon(props: IconProps) {
   return (
     <TypeIcon {...props}>
       <path d="M4 7h16M4 12h10M4 17h13" />
@@ -51,7 +51,7 @@ export function ShortTextIcon(props: IconProps) {
   );
 }
 
-export function LongTextIcon(props: IconProps) {
+function LongTextIcon(props: IconProps) {
   return (
     <TypeIcon {...props}>
       <rect x="4" y="4" width="16" height="16" rx="2.5" />
@@ -60,7 +60,7 @@ export function LongTextIcon(props: IconProps) {
   );
 }
 
-export function RatingIcon(props: IconProps) {
+function RatingIcon(props: IconProps) {
   return (
     <TypeIcon {...props}>
       <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z" />
@@ -68,7 +68,7 @@ export function RatingIcon(props: IconProps) {
   );
 }
 
-export function DropdownIcon(props: IconProps) {
+function DropdownIcon(props: IconProps) {
   return (
     <TypeIcon {...props}>
       <rect x="3" y="3" width="18" height="18" rx="3" />
@@ -77,7 +77,7 @@ export function DropdownIcon(props: IconProps) {
   );
 }
 
-export function DateIcon(props: IconProps) {
+function DateIcon(props: IconProps) {
   return (
     <TypeIcon {...props}>
       <rect x="3" y="5" width="18" height="16" rx="2.5" />
@@ -86,7 +86,7 @@ export function DateIcon(props: IconProps) {
   );
 }
 
-export function MatrixIcon(props: IconProps) {
+function MatrixIcon(props: IconProps) {
   return (
     <TypeIcon {...props}>
       <rect x="3" y="3" width="18" height="18" rx="3" />

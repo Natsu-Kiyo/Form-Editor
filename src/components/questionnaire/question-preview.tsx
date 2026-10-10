@@ -1,9 +1,4 @@
-import {
-  QUESTION_TYPE_LABEL,
-  matrixColumns,
-  ratingBounds,
-  type QuestionType,
-} from '@/config/constants';
+import { matrixColumns, ratingBounds, type QuestionType } from '@/config/constants';
 import { cn } from '@/utils/cn';
 
 /**
@@ -138,9 +133,4 @@ function QuestionPreviewShape({
       在此填写…
     </div>
   );
-}
-
-/** 题型标签：预览弹层的标题行用 */
-export function previewTypeLabel(type: QuestionType) {
-  return QUESTION_TYPE_LABEL[type] ?? type;
 }

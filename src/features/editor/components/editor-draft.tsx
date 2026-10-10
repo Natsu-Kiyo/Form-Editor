@@ -63,7 +63,7 @@ export type DraftQuestion = {
 
 export type SaveState = 'idle' | 'saving' | 'error' | 'blocked';
 
-export function toDraftQuestions(questions: EditorQuestion[]): DraftQuestion[] {
+function toDraftQuestions(questions: EditorQuestion[]): DraftQuestion[] {
   // 序号 → key 的映射表：payload 里的 `showIf.questionIndex` 在这里换成草稿题的 key
   const keyByIndex = questions.map((question) => question.id);
 

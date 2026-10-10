@@ -8,7 +8,7 @@ import { requireUser } from './dal';
 export { hasAtLeastRole };
 
 /** 当前用户在某工作区的成员关系；不在该工作区则为 null */
-export function getMembership(workspaceId: string, userId: string) {
+function getMembership(workspaceId: string, userId: string) {
   return prisma.membership.findUnique({
     where: { workspaceId_userId: { workspaceId, userId } },
   });

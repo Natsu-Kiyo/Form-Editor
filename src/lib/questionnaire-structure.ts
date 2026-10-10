@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import {
   MATRIX_LIMITS,
-  QUESTION_TYPE_LABEL,
   SHOW_IF_SOURCE_TYPES,
   showIfFrom,
   type QuestionType,
@@ -164,7 +163,7 @@ export type PayloadQuestion = z.infer<typeof payloadQuestionSchema>;
 export type QuestionnairePayload = z.infer<typeof questionnairePayloadSchema>;
 
 /** 只有选择题带「选项」 */
-export function isChoiceQuestion(type: QuestionType) {
+function isChoiceQuestion(type: QuestionType) {
   return type === 'SINGLE' || type === 'MULTI' || type === 'DROPDOWN';
 }
 
@@ -190,9 +189,4 @@ export function payloadFileName(title: string) {
       .slice(0, 40) || 'questionnaire';
 
   return `${safe}.json`;
-}
-
-/** 题型的中文名，导出文件里也带上，方便人直接读 */
-export function describeQuestionType(type: QuestionType) {
-  return QUESTION_TYPE_LABEL[type];
 }

@@ -20,11 +20,11 @@ const COOKIE_PREFIX = 'qw_unlock_';
 /** 口令解锁的有效期。一天足够填完一份问卷，也不至于把口令永久留在浏览器里 */
 const UNLOCK_MAX_AGE_SECONDS = 24 * 60 * 60;
 
-export function unlockCookieName(questionnaireId: string) {
+function unlockCookieName(questionnaireId: string) {
   return `${COOKIE_PREFIX}${questionnaireId}`;
 }
 
-export function unlockToken(questionnaireId: string, accessPassword: string) {
+function unlockToken(questionnaireId: string, accessPassword: string) {
   return createHash('sha256').update(`${questionnaireId}:${accessPassword}`).digest('hex');
 }
 

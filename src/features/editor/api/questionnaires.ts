@@ -151,29 +151,3 @@ export const getEditorQuestionnaire = cache(
     };
   },
 );
-
-/** 紧接着要写入的 `order`。用「最大值 + 1」而不是「数量」—— 删过题目之后数量会小于最大值 */
-export async function getNextQuestionOrder(questionnaireId: string) {
-  const last = await prisma.question.findFirst({
-    where: { questionnaireId },
-    orderBy: { order: 'desc' },
-    select: { order: true },
-  });
-
-  return (last?.order ?? -1) + 1;
-}
-
-export function getQuestionCount(questionnaireId: string) {
-  return prisma.question.count({ where: { questionnaireId } });
-}
-
-export function renameQuestionnaire(questionnaireId: string, title: string) {
-  return prisma.questionnaire.update({ where: { id: questionnaireId }, data: { title } });
-}
-
-export function getQuestionType(questionId: string) {
-  return prisma.question.findUnique({
-    where: { id: questionId },
-    select: { id: true, type: true, questionnaireId: true, config: true },
-  });
-}

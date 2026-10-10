@@ -45,7 +45,7 @@ export type SidebarNavItem = {
  *
  * ⚠️ 别把 `exact` 换成 `matchPrefixes` 了事、也别反过来 —— 它们解决的是两个方向的问题。
  */
-export function isNavItemActive(
+function isNavItemActive(
   pathname: string,
   item: Pick<SidebarNavItem, 'href' | 'exact' | 'matchPrefixes'>,
 ) {
