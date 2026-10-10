@@ -222,7 +222,7 @@ const REQUIRED_MODELS = [
   'operationLog',
 ] as const;
 
-export function assertGeneratedModels() {
+function assertGeneratedModels() {
   // 客户端实例缺失时它连 `undefined` 都不是，所以按索引查，不直接点属性
   const client = prisma as unknown as Record<string, unknown>;
   const missing = REQUIRED_MODELS.filter((model) => !client[model]);

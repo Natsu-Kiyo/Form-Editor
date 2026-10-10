@@ -86,9 +86,6 @@ export const DEMO_ACCOUNTS = {
   viewer: { name: '陈默', role: 'VIEWER', email: 'chen.mo@example.com', password: 'demo1234' },
 } as const;
 
-/** 供 E2E 与 seed 复用的主演示账号 */
-export const PRIMARY_DEMO_ACCOUNT = DEMO_ACCOUNTS.owner;
-
 /**
  * 统计口径的说明（设计稿 W06 每张指标卡右上角的「?」）。
  *
@@ -118,9 +115,6 @@ export const TREND_GRANULARITY_LABEL: Record<TrendGranularity, string> = {
   MONTH: '月',
 };
 
-/** 统计页的时间范围筛选 */
-export const ANALYTICS_RANGE = { D7: 7, D30: 30, ALL: 0 } as const;
-
 /**
  * 题型。取值与数据库枚举一致（docs/PLAN.md §5）。
  * 8 个题型位全部开放 —— 矩阵题（`MATRIX`）R62 由 1.1 灰显转 A 级实现。
@@ -138,9 +132,6 @@ export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
   DATE: '日期',
   MATRIX: '矩阵',
 };
-
-/** 只有选择题才有「选项随机排序」 */
-export const CHOICE_QUESTION_TYPES: readonly QuestionType[] = ['SINGLE', 'MULTI'];
 
 /**
  * 条件显示（R65）：一道题的显示条件 —— 「当**前面的**某题选择了其中某个选项时才显示」。
@@ -247,13 +238,6 @@ export const CLOSE_REASON = {
 } as const;
 
 export type CloseReason = (typeof CLOSE_REASON)[keyof typeof CLOSE_REASON];
-
-export const CLOSE_REASON_LABEL: Record<CloseReason, string> = {
-  MANUAL: '手动截止',
-  SCHEDULED: '到期自动截止',
-  LIMIT_REACHED: '达到回收上限',
-  ADMIN: '管理员关闭',
-};
 
 /**
  * 回收开关。**三态而不是两态**：
@@ -373,6 +357,21 @@ export const OPERATION_TYPE_GROUP_OF: Record<OperationType, OperationTypeGroup> 
   RESPONSE_RESTORE: OPERATION_TYPE_GROUP.DATA,
   EXPORT: OPERATION_TYPE_GROUP.DATA,
 };
+
+/**
+ * 日志页「全部操作类型」下拉的选项（顺序即展示顺序）。
+ *
+ * 放在 `constants.ts` 而不是 `features/logs/api/`：后者有 `import 'server-only'`，
+ * 而消费它的是**客户端组件**（`logs-panel.tsx`）—— 与 `LOG_RANGE_DAYS` 同一个理由。
+ * 值直接取自分组清单，所以「常量改了、下拉没跟上」这种错位不会出现。
+ */
+export const LOG_GROUP_OPTIONS = [
+  OPERATION_TYPE_GROUP.QUESTIONNAIRE,
+  OPERATION_TYPE_GROUP.STATUS,
+  OPERATION_TYPE_GROUP.DATA,
+  OPERATION_TYPE_GROUP.DISTRIBUTION,
+  OPERATION_TYPE_GROUP.MEMBER,
+] as const;
 
 /**
  * 操作日志的时间范围选项（天）。

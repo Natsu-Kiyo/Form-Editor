@@ -3,7 +3,6 @@ import 'server-only';
 import {
   LOG_RANGE_DAYS,
   LOG_RETENTION_DAYS,
-  OPERATION_TYPE_GROUP,
   OPERATION_TYPE_GROUP_OF,
   type OperationType,
   type OperationTypeGroup,
@@ -156,12 +155,3 @@ export async function getOperationLogs(
     truncated,
   };
 }
-
-/** 「全部操作类型」下拉的选项：先「全部」，再按分组 */
-export const LOG_GROUP_OPTIONS = [
-  OPERATION_TYPE_GROUP.QUESTIONNAIRE,
-  OPERATION_TYPE_GROUP.STATUS,
-  OPERATION_TYPE_GROUP.DATA,
-  OPERATION_TYPE_GROUP.DISTRIBUTION,
-  OPERATION_TYPE_GROUP.MEMBER,
-];

@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 
 import { StarIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
-import { QUESTION_TYPE_LABEL, TEMPLATE_PUBLIC_BADGE, type QuestionType } from '@/config/constants';
+import { TEMPLATE_PUBLIC_BADGE, type QuestionType } from '@/config/constants';
 import { cn } from '@/utils/cn';
 
 import type { TemplateCardData } from '../api/templates';
@@ -228,11 +228,6 @@ function ThumbnailRow({ type }: { type: QuestionType }) {
  * 且至少 1 分钟。宁可给出一个可解释的估算，也不写死一个数（写死的那种，
  * 20 题和 4 题会显示同一个时长）。
  */
-export function estimateMinutes(questionCount: number) {
+function estimateMinutes(questionCount: number) {
   return Math.max(1, Math.round((questionCount * 15) / 60));
-}
-
-/** 题型标签的展示（预览弹层与卡片共用一句话口径） */
-export function typeLabel(type: QuestionType) {
-  return QUESTION_TYPE_LABEL[type] ?? type;
 }

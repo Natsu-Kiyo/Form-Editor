@@ -8,7 +8,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FilterSelect } from '@/components/ui/filter-select';
-import { LOG_RANGE_DAYS } from '@/config/constants';
+import { LOG_GROUP_OPTIONS, LOG_RANGE_DAYS } from '@/config/constants';
 
 import type { LogsPageData } from '../api/logs';
 
@@ -90,13 +90,9 @@ export function LogsPanel({
               placeholder="全部操作类型"
               value={group ?? ''}
               onChange={(value) => push({ group: value || null })}
-              options={[
-                { value: '问卷', label: '问卷' },
-                { value: '状态变更', label: '状态变更' },
-                { value: '数据', label: '数据' },
-                { value: '分发', label: '分发' },
-                { value: '成员管理', label: '成员管理' },
-              ]}
+              // 选项来自唯一那份分组清单（`config/constants.ts`）：
+              // 这里原本硬编码了同样 5 个值，加一个分组就会有一处忘了跟上
+              options={LOG_GROUP_OPTIONS.map((group) => ({ value: group, label: group }))}
             />
 
             <FilterSelect
