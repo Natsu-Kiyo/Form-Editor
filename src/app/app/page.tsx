@@ -4,6 +4,7 @@ import { MobileTabBar } from '@/components/layout/mobile-tab-bar';
 import { MobileWorkbenchHeader } from '@/components/layout/mobile-workbench-header';
 import { Topbar } from '@/components/layout/topbar';
 import { getWorkspacesForUser } from '@/features/workspace/api/workspaces';
+import { WorkspaceSwitcher } from '@/features/workspace/components/workspace-switcher';
 import { CreateBlankFab } from '@/features/questionnaire/components/create-blank-fab';
 import { getNotifications, getUnreadNotificationCount } from '@/features/account/api/notifications';
 import { NotificationPanel } from '@/features/account/components/notification-panel';
@@ -96,10 +97,10 @@ export default async function DashboardHomePage({
         桌面端保持原样：顶栏 + 侧栏。
       */}
       <MobileWorkbenchHeader
-        workspaces={workspaces}
-        activeWorkspaceId={workspace.id}
-        notifications={notifications}
-        unreadCount={unreadCount}
+        workspaceSwitcher={<WorkspaceSwitcher workspaces={workspaces} activeId={workspace.id} />}
+        notifications={
+          <NotificationPanel notifications={notifications} unreadCount={unreadCount} />
+        }
         userName={user.name}
       />
 

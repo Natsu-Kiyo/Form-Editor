@@ -6,6 +6,7 @@ import { EditorChrome } from '@/features/editor/components/editor-chrome';
 import { EditorDraftProvider } from '@/features/editor/components/editor-draft';
 import { EditorWorkspace } from '@/features/editor/components/editor-workspace';
 import { getPublishPageData } from '@/features/publish/api/publish';
+import { PublishSettings } from '@/features/publish/components/publish-settings';
 import { hasAtLeastRole } from '@/lib/auth/permissions';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 
@@ -46,6 +47,8 @@ export default async function EditQuestionnairePage({
       ? ('FROZEN' as const)
       : null;
 
+  const canPublish = hasAtLeastRole(role, 'EDITOR');
+
   return (
     <EditorDraftProvider
       questionnaireId={editor.id}
@@ -56,8 +59,12 @@ export default async function EditQuestionnairePage({
       <EditorChrome
         readOnlyReason={readOnlyReason}
         versions={versions}
-        publishData={publishData}
-        canPublish={hasAtLeastRole(role, 'EDITOR')}
+        // 窄屏的发布弹层在**页面**构造：publish 是另一个 feature，编辑器那一层不跨域引用
+        publishSheet={
+          publishData ? (
+            <PublishSettings data={publishData} canEdit={canPublish} variant="sheet" />
+          ) : null
+        }
       />
       {readOnlyReason ? <ReadOnlyBanner reason={readOnlyReason} /> : null}
       <EditorWorkspace readOnly={readOnlyReason !== null} />

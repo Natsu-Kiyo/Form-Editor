@@ -12,8 +12,6 @@ import { VersionDrawer } from './version-drawer';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalContent } from '@/components/ui/modal';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import type { PublishPageData } from '@/features/publish/api/publish';
-import { PublishSettings } from '@/features/publish/components/publish-settings';
 import { useUnsavedGuard } from '@/hooks/use-unsaved-guard';
 import { cn } from '@/utils/cn';
 
@@ -32,14 +30,12 @@ import { EditorPreviewDialog } from './editor-preview-dialog';
 export function EditorChrome({
   readOnlyReason,
   versions,
-  publishData,
-  canPublish,
+  publishSheet,
 }: {
   readOnlyReason: EditorReadOnlyReason;
   versions: VersionRow[];
-  /** 窄屏「发布」弹层要用的数据（页面取好传进来，避免这一层去碰 publish 的 api） */
-  publishData: PublishPageData | null;
-  canPublish: boolean;
+  /** 窄屏「发布」弹层的内容。由页面构造（`app` 层是 feature 的组合点）；为 null 时不渲染弹层入口 */
+  publishSheet: React.ReactNode | null;
 }) {
   // 断点写 1024：与 workspace 那边一致（`useIsDesktop` 默认 768 会让 768~1023 档错位）
   const isDesktop = useIsDesktop('(min-width: 1024px)');
@@ -102,7 +98,7 @@ export function EditorChrome({
         **窄屏是 P08-d 的底部弹层**（不再跳去一个独立页面 —— 那个页面在 375px 下
         曾经被挤成一条竖排的标签），桌面仍去独立页面（那里有空间铺开）。
       */}
-      {isDesktop || !publishData ? (
+      {isDesktop || !publishSheet ? (
         <Link
           href={`/app/q/${questionnaireId}/publish`}
           className="border-ink-200 text-ink-600 hover:border-ink-300 flex h-9 shrink-0 items-center rounded-[10px] border bg-white px-3.5 text-[13px] font-medium transition-colors duration-150"
@@ -117,10 +113,8 @@ export function EditorChrome({
             </Button>
           </SheetTrigger>
           <SheetContent title="发布设置" className="max-h-[88vh]">
-            {/* 同一块组件、同一份字段，只是壳换成弹层（见 PublishSettings 的 variant） */}
-            <div className="-mx-1">
-              <PublishSettings data={publishData} canEdit={canPublish} variant="sheet" />
-            </div>
+            {/* 同一块组件、同一份字段，只是壳换成弹层（由页面按 PublishSettings 的 variant 构造） */}
+            <div className="-mx-1">{publishSheet}</div>
           </SheetContent>
         </Sheet>
       )}

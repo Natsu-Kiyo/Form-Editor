@@ -8,6 +8,7 @@ import { MePanel } from '@/features/account/components/me-panel';
 import { getMembersPageData } from '@/features/members/api/members';
 import { ReadOnlyMembers } from '@/features/members/components/read-only-members';
 import { getWorkspacesForUser } from '@/features/workspace/api/workspaces';
+import { WorkspaceSwitcher } from '@/features/workspace/components/workspace-switcher';
 import { resolveActiveWorkspace } from '@/features/workspace/lib/active-workspace';
 import { requireUser } from '@/lib/auth/dal';
 import { getAccountSecurityInfo } from '@/lib/auth/users';
@@ -58,8 +59,9 @@ export default async function MePage() {
             security?.passwordUpdatedAt ? formatDisplayDate(security.passwordUpdatedAt) : null
           }
           activeSessionCount={activeSessionCount}
-          workspaces={workspaces}
-          activeWorkspaceId={active?.id ?? null}
+          workspaceSwitcherSlot={
+            <WorkspaceSwitcher workspaces={workspaces} activeId={active?.id ?? null} />
+          }
           questionnaireCount={questionnaireCount}
           memberCount={current?.memberCount ?? 0}
           notifications={notifications}

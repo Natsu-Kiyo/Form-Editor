@@ -7,8 +7,6 @@ import { Avatar } from '@/components/ui/avatar';
 import { Modal, ModalContent } from '@/components/ui/modal';
 import { RoleBadge } from '@/components/ui/role-badge';
 import type { Role } from '@/config/constants';
-import { WorkspaceSwitcher } from '@/features/workspace/components/workspace-switcher';
-import type { WorkspaceSummary } from '@/features/workspace/api/workspaces';
 import { cn } from '@/utils/cn';
 
 import { logoutAction } from '../actions/logout';
@@ -33,24 +31,23 @@ export function MePanel({
   role,
   passwordUpdatedAtLabel,
   activeSessionCount,
-  workspaces,
-  activeWorkspaceId,
   questionnaireCount,
   memberCount,
   notifications,
   unreadCount,
   membersSlot,
+  workspaceSwitcherSlot,
 }: {
   /** 成员只读列表（由页面注入：members 是另一个 feature，这一层不跨域引用） */
   membersSlot?: React.ReactNode;
+  /** 当前工作区切换器（由页面注入：workspace 是另一个 feature，理由同上） */
+  workspaceSwitcherSlot: React.ReactNode;
   userName: string;
   userEmail: string;
   /** 当前工作区里的角色（`RoleBadge` 自己把枚举翻成「所有者」这类文案） */
   role: Role;
   passwordUpdatedAtLabel: string | null;
   activeSessionCount: number;
-  workspaces: WorkspaceSummary[];
-  activeWorkspaceId: string | null;
   questionnaireCount: number;
   memberCount: number;
   notifications: NotificationItem[];
@@ -89,7 +86,7 @@ export function MePanel({
       <div className="px-5 pb-4">
         <div className="text-ink-400 mb-2 text-[11px] font-semibold tracking-wide">当前工作区</div>
         {/* 直接复用侧栏那个切换器：它本来就有「当前工作区 + 完整列表 + 新建」 */}
-        <WorkspaceSwitcher workspaces={workspaces} activeId={activeWorkspaceId} />
+        {workspaceSwitcherSlot}
         <p className="text-ink-400 mt-2 px-1 text-[11px]">
           {questionnaireCount} 份问卷 · {memberCount} 位成员
         </p>

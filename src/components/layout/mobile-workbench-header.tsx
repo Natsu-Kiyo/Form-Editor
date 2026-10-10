@@ -3,10 +3,6 @@
 import Link from 'next/link';
 
 import { Avatar } from '@/components/ui/avatar';
-import { NotificationPanel } from '@/features/account/components/notification-panel';
-import type { NotificationItem } from '@/features/account/api/notifications';
-import { WorkspaceSwitcher } from '@/features/workspace/components/workspace-switcher';
-import type { WorkspaceSummary } from '@/features/workspace/api/workspaces';
 
 /**
  * 移动工作台顶栏（设计稿 P04）。
@@ -16,31 +12,31 @@ import type { WorkspaceSummary } from '@/features/workspace/api/workspaces';
  * - 铃铛 → 复用桌面同一个通知面板
  * - 头像 → 进 P09「我的」
  *
+ * 切换器与通知面板由**页面注入**：它们分别属于 workspace 与 account 两个 feature，
+ * 而这一层在共享层里（共享层不得反向依赖 features）—— 组合点永远是 `app` 层，
+ * 与 `Topbar` 的 `notifications` 是同一个写法。
+ *
  * 与桌面顶栏的差别只剩「没有汉堡菜单」：导航已经在底部三格里了，
  * 再给一个抽屉入口等于把同一个导航放两处。
  */
 export function MobileWorkbenchHeader({
-  workspaces,
-  activeWorkspaceId,
+  workspaceSwitcher,
   notifications,
-  unreadCount,
   userName,
 }: {
-  workspaces: WorkspaceSummary[];
-  activeWorkspaceId: string | null;
-  notifications: NotificationItem[];
-  unreadCount: number;
+  /** 工作区切换器（页面注入：workspace 是另一个 feature） */
+  workspaceSwitcher: React.ReactNode;
+  /** 通知面板（页面注入：account 是另一个 feature） */
+  notifications: React.ReactNode;
   userName: string;
 }) {
   return (
     <header className="flex shrink-0 items-center justify-between gap-2 px-5 pt-4 pb-3 lg:hidden">
       {/* 切换器在侧栏里是通栏的，这里收窄到内容宽度 */}
-      <div className="max-w-[62%] min-w-0">
-        <WorkspaceSwitcher workspaces={workspaces} activeId={activeWorkspaceId} />
-      </div>
+      <div className="max-w-[62%] min-w-0">{workspaceSwitcher}</div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <NotificationPanel notifications={notifications} unreadCount={unreadCount} />
+        {notifications}
         <Link
           href="/app/me"
           // 不叫「我的」：底部那一格也叫「我的」，同名会让「点哪一个」说不清楚
