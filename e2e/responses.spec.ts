@@ -231,4 +231,44 @@ test.describe('答卷明细', () => {
 
     await page.unroute('**/responses*');
   });
+
+  test('每页条数：切 20/50 行数跟着变、翻页后切换会收回第 1 页、默认值不写进 URL', async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '答卷明细只在桌面形态有（窄屏是 C 级隐藏）');
+
+    await signIn(page);
+    await openStats(page);
+    await openResponses(page);
+
+    const sizeSelect = page.getByLabel('每页条数');
+
+    // ---- 默认每页 10 条，且 **URL 里不写 size**（分享链接保持干净）----
+    await expect(sizeSelect).toHaveValue('10');
+    await expect(page.getByText(/显示 1–10 条，共 \d+ 条/)).toBeVisible();
+    await expect(page.getByRole('row')).toHaveCount(11); // 表头 + 10 行
+    await expect(page).not.toHaveURL(/size=/);
+
+    // ---- 切 20：行数与文案跟着变，size 进 URL ----
+    await sizeSelect.selectOption('20');
+    await expect(page).toHaveURL(/size=20/);
+    await expect(page.getByText(/显示 1–20 条，共 \d+ 条/)).toBeVisible();
+    await expect(page.getByRole('row')).toHaveCount(21);
+
+    // ---- 先翻到第 2 页，再切 50：页码**收回第 1 页** ----
+    // （不收回的话，原第 2 页会整个落到新窗口之外，看起来"没反应"）
+    await page.getByRole('link', { name: '第 2 页' }).click();
+    await expect(page.getByText(/显示 21–\d+ 条/)).toBeVisible();
+
+    await page.getByLabel('每页条数').selectOption('50');
+    await expect(page.getByText(/显示 1–50 条，共 \d+ 条/)).toBeVisible();
+    await expect(page).toHaveURL(/size=50/);
+    await expect(page).not.toHaveURL(/page=/);
+    await expect(page.getByRole('row')).toHaveCount(51);
+
+    // ---- 切回默认 10：size 从 URL 上消失 ----
+    await page.getByLabel('每页条数').selectOption('10');
+    await expect(page.getByText(/显示 1–10 条，共 \d+ 条/)).toBeVisible();
+    await expect(page).not.toHaveURL(/size=/);
+  });
 });

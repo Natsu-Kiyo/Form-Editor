@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { SearchField } from '@/components/ui/search-field';
+import { DEFAULT_RESPONSES_PAGE_SIZE, RESPONSES_PAGE_SIZES } from '@/config/constants';
 import { cn } from '@/utils/cn';
 
 import { setResponseValidityAction } from '../actions/invalidate-response';
@@ -375,42 +376,62 @@ export function ResponsesPanel({
                     条
                   </span>
 
-                  {data.pageCount > 1 ? (
-                    <div className="flex items-center gap-1">
-                      <PageLink
-                        href={pageHref(data.page - 1)}
-                        disabled={data.page <= 1}
-                        aria-label="上一页"
-                      >
-                        上一页
-                      </PageLink>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/*
+                      每页条数（R77）：档位与数据层的白名单**同源**（`RESPONSES_PAGE_SIZES`）。
+                      切换时页码**收回第 1 页** —— 在第 5 页上把 10 改成 50，那一页会整个
+                      落到新窗口之外，不收回就会得到一个"看起来没反应"的页面。
+                      默认值（10）不写进 URL：分享出去的链接保持干净
+                    */}
+                    <FilterSelect
+                      label="每页条数"
+                      value={String(data.pageSize)}
+                      options={RESPONSES_PAGE_SIZES.map((size) => ({
+                        value: String(size),
+                        label: `每页 ${size} 条`,
+                      }))}
+                      onChange={(size) =>
+                        push({ size: size === String(DEFAULT_RESPONSES_PAGE_SIZE) ? null : size })
+                      }
+                    />
 
-                      {pageWindow(data.page, data.pageCount).map((item, index) =>
-                        item === '…' ? (
-                          <span key={`gap-${index}`} className="text-ink-400 px-1 text-[12px]">
-                            …
-                          </span>
-                        ) : (
-                          <PageLink
-                            key={item}
-                            href={pageHref(item)}
-                            current={item === data.page}
-                            aria-label={`第 ${item} 页`}
-                          >
-                            {item}
-                          </PageLink>
-                        ),
-                      )}
+                    {data.pageCount > 1 ? (
+                      <div className="flex items-center gap-1">
+                        <PageLink
+                          href={pageHref(data.page - 1)}
+                          disabled={data.page <= 1}
+                          aria-label="上一页"
+                        >
+                          上一页
+                        </PageLink>
 
-                      <PageLink
-                        href={pageHref(data.page + 1)}
-                        disabled={data.page >= data.pageCount}
-                        aria-label="下一页"
-                      >
-                        下一页
-                      </PageLink>
-                    </div>
-                  ) : null}
+                        {pageWindow(data.page, data.pageCount).map((item, index) =>
+                          item === '…' ? (
+                            <span key={`gap-${index}`} className="text-ink-400 px-1 text-[12px]">
+                              …
+                            </span>
+                          ) : (
+                            <PageLink
+                              key={item}
+                              href={pageHref(item)}
+                              current={item === data.page}
+                              aria-label={`第 ${item} 页`}
+                            >
+                              {item}
+                            </PageLink>
+                          ),
+                        )}
+
+                        <PageLink
+                          href={pageHref(data.page + 1)}
+                          disabled={data.page >= data.pageCount}
+                          aria-label="下一页"
+                        >
+                          下一页
+                        </PageLink>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
             </div>

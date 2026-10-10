@@ -460,6 +460,18 @@ export const ROLE_INVITE_HINT: Record<Role, string> = {
 export const DISSOLVE_CONFIRM_TEXT = '解散此工作区';
 
 /**
+ * 答卷明细每页条数的可选项：数据层查询、页面解析与服务端渲染的界面**同源**。
+ *
+ * 放在这里而不是 `features/responses/api/responses.ts`：那份模块带 `server-only`，
+ * 客户端组件只能引它的**类型**（会被擦除），引不动任何值 —— 而这组数字两边都要用。
+ */
+export const RESPONSES_PAGE_SIZES = [10, 20, 50] as const;
+
+export type ResponsesPageSize = (typeof RESPONSES_PAGE_SIZES)[number];
+
+export const DEFAULT_RESPONSES_PAGE_SIZE: ResponsesPageSize = RESPONSES_PAGE_SIZES[0];
+
+/**
  * 模板分类（W08 的分类胶囊）。
  *
  * **顺序就是界面上胶囊的顺序**，而它同时是「seed 里 8 张官方模板要覆盖的分类」——

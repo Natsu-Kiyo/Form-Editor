@@ -1,6 +1,12 @@
 import 'server-only';
 
-import { ratingBounds, type QuestionType } from '@/config/constants';
+import {
+  DEFAULT_RESPONSES_PAGE_SIZE,
+  RESPONSES_PAGE_SIZES,
+  ratingBounds,
+  type QuestionType,
+  type ResponsesPageSize,
+} from '@/config/constants';
 import { prisma } from '@/lib/db';
 import { formatDurationMs, formatShortDateTime } from '@/utils/format';
 
@@ -10,8 +16,6 @@ import { formatDurationMs, formatShortDateTime } from '@/utils/format';
  * 数字与文案**一律在服务端算好**再交给客户端组件：表格里那些「10-04 13:42」「2:08」
  * 都按展示时区格式化（服务器是 UTC，放客户端格式化会在水合时对不上）。
  */
-const PAGE_SIZE = 10;
-
 export type ResponsesQuery = {
   channelId: string | null;
   /** 搜索答卷内容；null = 不搜 */
@@ -20,7 +24,18 @@ export type ResponsesQuery = {
   includeInvalid: boolean;
   /** 从 1 开始 */
   page: number;
+  /** 每页条数（白名单见 `RESPONSES_PAGE_SIZES`） */
+  pageSize: ResponsesPageSize;
 };
+
+/** 把 URL 上的 `size` 收敛到白名单：手改 `?size=999` 静默回落（与 `page` 同一条规矩） */
+export function parseResponsesPageSize(value: string | undefined): ResponsesPageSize {
+  const parsed = Number.parseInt(value ?? '', 10);
+
+  return (RESPONSES_PAGE_SIZES as readonly number[]).includes(parsed)
+    ? (parsed as ResponsesPageSize)
+    : DEFAULT_RESPONSES_PAGE_SIZE;
+}
 
 export type ResponseListRow = {
   id: string;
@@ -94,8 +109,8 @@ export async function getResponsesPage(
         // `id` 参与排序是为了让分页稳定：`submittedAt` 相同时（导入的答卷常常同秒），
         // 只按时间排序会让某些行在两页里重复出现、另一些彻底看不到
         orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
-        skip: (query.page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
         select: {
           id: true,
           status: true,
@@ -141,9 +156,9 @@ export async function getResponsesPage(
     validCount,
     filteredCount,
     // 页码越界（手改 URL、或删到只剩一页）时收敛到最后一页，而不是给一个空表
-    page: Math.min(query.page, Math.max(1, Math.ceil(filteredCount / PAGE_SIZE))),
-    pageCount: Math.max(1, Math.ceil(filteredCount / PAGE_SIZE)),
-    pageSize: PAGE_SIZE,
+    page: Math.min(query.page, Math.max(1, Math.ceil(filteredCount / query.pageSize))),
+    pageCount: Math.max(1, Math.ceil(filteredCount / query.pageSize)),
+    pageSize: query.pageSize,
     channels: channels.map((channel) => ({
       id: channel.id,
       name: channel.name,
