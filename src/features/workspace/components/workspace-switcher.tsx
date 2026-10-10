@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Modal, ModalContent } from '@/components/ui/modal';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Spinner } from '@/components/ui/spinner';
 import { ROLE_LABEL } from '@/config/constants';
 import { EMPTY_FORM_STATE } from '@/types/form-state';
 import { cn } from '@/utils/cn';
@@ -28,13 +29,29 @@ export type WorkspaceSwitcherProps = {
  * 侧栏里显示的是**当前工作区**，点开才是完整列表 + 新建入口。
  * 切换写进 Cookie（服务端 action），而不是放进 URL —— 问卷、成员、日志
  * 全部挂在工作区下，URL 里再带一段工作区前缀会让每条链接都变长且易失效。
+ *
+ * 切换的等待态（R80）：点了哪一行，那一行就地把「N 位成员」换成「切换中…」+
+ * spinner，其余行禁用。**弹层要等到新工作区落地才关** —— action 返回 ≠ 页面
+ * 数据已换，提前关会露出「弹层没了、列表还是旧工作区」的中间态（R78 量过同类帧差）。
+ * 落地判断看 `activeId` 这个 prop 有没有变成点了的那个，不用计时器（R68 的规矩）。
  */
 export function WorkspaceSwitcher({ workspaces, activeId }: WorkspaceSwitcherProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  /** 正在切往哪个工作区；null = 没在切。由新 props 落地清除（见下） */
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
 
   const active = workspaces.find((workspace) => workspace.id === activeId) ?? workspaces[0] ?? null;
+
+  /*
+   * 切换完成 = 新工作区**落地**（`active` 变成点了的那个）：
+   * 渲染期根据 prop 调整 state（React 官方写法），收掉等待态并关弹层。
+   */
+  if (switchingId !== null && active?.id === switchingId) {
+    setSwitchingId(null);
+    setPopoverOpen(false);
+  }
 
   return (
     <>
@@ -63,18 +80,32 @@ export function WorkspaceSwitcher({ workspaces, activeId }: WorkspaceSwitcherPro
           <div className="space-y-0.5">
             {workspaces.map((workspace) => {
               const isActive = workspace.id === active?.id;
+              const isSwitching = switchingId === workspace.id;
 
               return (
                 <button
                   key={workspace.id}
                   type="button"
-                  disabled={pending}
-                  onClick={() =>
-                    startTransition(async () => {
-                      await switchWorkspaceAction(workspace.id);
+                  disabled={pending || switchingId !== null}
+                  aria-busy={isSwitching || undefined}
+                  onClick={() => {
+                    // 点当前工作区：不会有导航，直接收起（不然等待态永远等不到落地）
+                    if (isActive) {
                       setPopoverOpen(false);
-                    })
-                  }
+                      return;
+                    }
+                    setSwitchingId(workspace.id);
+                    startTransition(async () => {
+                      try {
+                        await switchWorkspaceAction(workspace.id);
+                        // 成功后什么都不做：等新工作区落地，上面的渲染期同步会收尾
+                      } catch (error) {
+                        // 失败：复位，用户可以再点
+                        setSwitchingId(null);
+                        throw error;
+                      }
+                    });
+                  }}
                   className={cn(
                     'flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left transition-colors duration-150',
                     isActive ? 'bg-brand-50' : 'hover:bg-ink-50',
@@ -86,10 +117,14 @@ export function WorkspaceSwitcher({ workspaces, activeId }: WorkspaceSwitcherPro
                       {workspace.name}
                     </span>
                     <span className="text-ink-400 block text-[10.5px]">
-                      {workspace.memberCount} 位成员 · {ROLE_LABEL[workspace.role]}
+                      {isSwitching
+                        ? '切换中…'
+                        : `${workspace.memberCount} 位成员 · ${ROLE_LABEL[workspace.role]}`}
                     </span>
                   </span>
-                  {isActive ? (
+                  {isSwitching ? (
+                    <Spinner />
+                  ) : isActive ? (
                     <CheckIcon className="text-brand-500 size-4 shrink-0" strokeWidth={2.6} />
                   ) : null}
                 </button>
@@ -101,6 +136,7 @@ export function WorkspaceSwitcher({ workspaces, activeId }: WorkspaceSwitcherPro
 
           <button
             type="button"
+            disabled={switchingId !== null}
             onClick={() => {
               setPopoverOpen(false);
               setDialogOpen(true);

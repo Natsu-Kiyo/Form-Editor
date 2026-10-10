@@ -18,6 +18,10 @@ import type {
  *
  * 「全部」的口径与列表一致：**不含已归档** —— 归档的语义就是「从列表折叠起来」，
  * 想找它们要点「已归档」那一颗。
+ *
+ * `onNavigate`（可选）：点某颗胶囊 / 某个排序时的通知，供外层摆「正在换这一份数据」
+ * 的等待态（R80，`QuestionnaireBoard` 用它把列表区换成骨架）。它是**通知**不是接管 ——
+ * 导航仍由链接自己走，所以右键、新标签页这些能力一个都不丢。
  */
 export function ListToolbar({
   filter,
@@ -25,12 +29,15 @@ export function ListToolbar({
   keyword,
   summary,
   basePath,
+  onNavigate,
 }: {
   filter: QuestionnaireFilter;
   sort: QuestionnaireSort;
   keyword: string;
   summary: QuestionnaireSummary;
   basePath: string;
+  /** 点筛选 / 排序时的通知（新目标的 URL 还没到达，等待态由外层摆） */
+  onNavigate?: (next: { status?: QuestionnaireFilter; sort?: QuestionnaireSort }) => void;
 }) {
   const pills: { value: QuestionnaireFilter; label: string; count: number }[] = [
     { value: 'ALL', label: '全部', count: summary.total },
@@ -70,6 +77,14 @@ export function ListToolbar({
             key={pill.value}
             href={href({ status: pill.value })}
             aria-current={active ? 'true' : undefined}
+            /*
+             * 只**通知**，不阻止默认导航。⌘/Ctrl/Shift/Alt + 点击会在新标签页打开，
+             * 当前页不会变 —— 那种点击不该让本页摆出等待态（摆了就永远等不到落地）。
+             */
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              onNavigate?.({ status: pill.value });
+            }}
             className={cn(
               'inline-flex h-8 items-center rounded-full px-3.5 text-[12.5px] transition-colors duration-150',
               active
@@ -96,6 +111,10 @@ export function ListToolbar({
             <Link
               key={item.value}
               href={href({ sort: item.value })}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                onNavigate?.({ sort: item.value });
+              }}
               className={cn(
                 'block rounded-lg px-3 py-2 text-[12.5px] transition-colors duration-150',
                 item.value === sort ? 'bg-brand-50 text-brand-600' : 'text-ink-700 hover:bg-ink-50',

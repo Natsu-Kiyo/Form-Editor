@@ -46,19 +46,32 @@ export function QuestionnaireListSkeleton() {
             <SkeletonStatic className="rounded-btn h-10 w-[120px]" />
           </div>
 
-          {/*
-            6 张而不是设计稿举例的 3 张：栅格是 `md:2 列 / xl:3 列`，3 张在 2 列宽度下
-            正好铺成 2 + 1，右下角空一格 —— 看起来像"少了东西"而不是"在加载"。
-            6 张两种列宽都能铺成整行，仍然只是两屏内的量，不会按总数渲染十几张。
-          */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {[0, 1, 2, 3, 4, 5].map((index) => (
-              <QuestionnaireCardSkeleton key={index} />
-            ))}
-          </div>
+          <QuestionnaireGridSkeleton />
         </div>
       </main>
     </>
+  );
+}
+
+/**
+ * 列表区骨架：卡片网格本身（6 张，不带 aria —— 由调用方决定这一段是不是"正在加载"）。
+ *
+ * 两处都复用它：整页的 `QuestionnaireListSkeleton`（首次进入 / 换工作区），
+ * 以及列表页内**切筛选 / 排序**时只换列表区的那一段（`QuestionnaireBoard`）。
+ * 一份实现，卡片形状才不会在两处漂移。
+ */
+export function QuestionnaireGridSkeleton() {
+  /*
+   * 6 张而不是设计稿举例的 3 张：栅格是 `md:2 列 / xl:3 列`，3 张在 2 列宽度下
+   * 正好铺成 2 + 1，右下角空一格 —— 看起来像"少了东西"而不是"在加载"。
+   * 6 张两种列宽都能铺成整行，仍然只是两屏内的量，不会按总数渲染十几张。
+   */
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {[0, 1, 2, 3, 4, 5].map((index) => (
+        <QuestionnaireCardSkeleton key={index} />
+      ))}
+    </div>
   );
 }
 

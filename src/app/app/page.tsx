@@ -1,13 +1,10 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 
-import { FileTextIcon, SearchIcon } from '@/components/icons/ui-icons';
 import { MobileTabBar } from '@/components/layout/mobile-tab-bar';
 import { MobileWorkbenchHeader } from '@/components/layout/mobile-workbench-header';
 import { Topbar } from '@/components/layout/topbar';
 import { getWorkspacesForUser } from '@/features/workspace/api/workspaces';
 import { CreateBlankFab } from '@/features/questionnaire/components/create-blank-fab';
-import { EmptyState } from '@/components/ui/empty-state';
 import { getNotifications, getUnreadNotificationCount } from '@/features/account/api/notifications';
 import { NotificationPanel } from '@/features/account/components/notification-panel';
 import {
@@ -17,8 +14,7 @@ import {
   type QuestionnaireSort,
 } from '@/features/questionnaire/api/questionnaires';
 import { CreateQuestionnaireDialog } from '@/features/questionnaire/components/create-questionnaire-dialog';
-import { ListToolbar } from '@/features/questionnaire/components/list-toolbar';
-import { QuestionnaireCardItem } from '@/features/questionnaire/components/questionnaire-card';
+import { QuestionnaireBoard } from '@/features/questionnaire/components/questionnaire-board';
 import { SearchField } from '@/components/ui/search-field';
 import { SummaryCards } from '@/features/questionnaire/components/summary-cards';
 import { requireActiveWorkspace } from '@/lib/auth/active-workspace';
@@ -92,8 +88,6 @@ export default async function DashboardHomePage({
     getWorkspacesForUser(user.id),
   ]);
 
-  const searching = keyword.trim().length > 0 || filter !== 'ALL';
-
   return (
     <>
       {/*
@@ -158,51 +152,20 @@ export default async function DashboardHomePage({
 
         <SummaryCards summary={summary} />
 
-        <ListToolbar
+        {/*
+          「工具条 + 列表区」交给客户端组件：切筛选 / 排序是同路由换参数，
+          `loading.tsx` 兜不住那一段，由它自己把列表区换成骨架（R80）
+        */}
+        <QuestionnaireBoard
+          list={list}
+          summary={summary}
           filter={filter}
           sort={sort}
           keyword={keyword}
-          summary={summary}
+          canEdit={canEdit}
+          canManage={canManage}
           basePath={LIST_PATH}
         />
-
-        {list.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {list.map((questionnaire) => (
-              <QuestionnaireCardItem
-                key={questionnaire.id}
-                questionnaire={questionnaire}
-                canEdit={canEdit}
-                canManage={canManage}
-              />
-            ))}
-          </div>
-        ) : searching ? (
-          <EmptyState
-            icon={<SearchIcon />}
-            title="没有匹配的问卷"
-            description={
-              keyword.trim()
-                ? `没有名称或简介包含「${keyword.trim()}」的问卷`
-                : '这个状态下还没有问卷'
-            }
-            action={
-              <Link
-                href={LIST_PATH}
-                className="border-ink-200 text-ink-700 hover:border-ink-300 inline-flex h-8 items-center rounded-lg border bg-white px-3.5 text-[12px] font-medium transition-colors duration-150"
-              >
-                清空筛选
-              </Link>
-            }
-          />
-        ) : (
-          <EmptyState
-            icon={<FileTextIcon />}
-            title="还没有问卷"
-            description="从空白创建，或挑一个模板开始"
-            action={canEdit ? <CreateQuestionnaireDialog variant="empty" /> : undefined}
-          />
-        )}
       </main>
 
       {/* 悬浮「＋」：直接建一份空白问卷进编辑器（设计稿 P04），只有编辑者看得到 */}

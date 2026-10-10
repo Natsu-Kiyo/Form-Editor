@@ -250,3 +250,38 @@ test('删除的等待态：弹窗与卡片在同一批消失（不会先关弹�
   const at = Number(log[closeIndex].match(/cards=(\d+)/)?.[1]);
   expect(at, `弹窗收起时卡片数应与之一并变化：${JSON.stringify(log)}`).toBe(before - 1);
 });
+
+test('切状态筛选有等待态：列表区换成骨架，工具条与汇总卡保持在场', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', '两端共用同一组件，桌面已覆盖');
+
+  await signIn(page);
+  await expect(page.getByRole('button', { name: '新建问卷' }).first()).toBeVisible();
+
+  /*
+   * 与模板中心切 Tab 那条同款手法：把这次导航的 RSC 请求按住 1.2 秒。
+   * 真实环境里骨架只闪一两百毫秒，直接断言会时有时无 —— 它验的是「时序存在」。
+   * 换筛选是**同路由换参数**，`loading.tsx` 的边界不会重挂，骨架得由
+   * `QuestionnaireBoard` 自己摆（R80）。
+   */
+  await page.route('**/app*', async (route) => {
+    if (route.request().url().includes('_rsc')) {
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+    }
+    await route.continue();
+  });
+
+  await page.getByRole('link', { name: /^草稿/ }).click();
+
+  // 骨架出现（含给读屏的那句），且**只换列表区**：刚点的胶囊与汇总卡保持在场
+  const skeleton = page.locator('main [aria-busy="true"]');
+  await expect(skeleton).toBeVisible();
+  await expect(skeleton.getByText('正在加载问卷列表…')).toBeAttached();
+  await expect(page.getByRole('link', { name: /^草稿/ })).toBeVisible();
+  await expect(page.getByText('全部问卷')).toBeVisible();
+
+  // 数据落地：骨架退场、URL 变、列表按新筛选渲染
+  await expect(skeleton).toHaveCount(0);
+  await expect(page).toHaveURL(/status=DRAFT/);
+
+  await page.unroute('**/app*');
+});
