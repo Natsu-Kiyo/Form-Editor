@@ -59,4 +59,14 @@ describe('resolveCollectionTransition', () => {
     expect(run('DRAFT', 'PAUSE').ok).toBe(false);
     expect(run('DRAFT', 'CLOSE').ok).toBe(false);
   });
+
+  it('伪造的动作名得到 { ok: false }，**不是** undefined（否则调用方读 .ok 直接抛）', () => {
+    // 动作名从 Server Action 的参数进来，运行时不保证是这四个字面量之一
+    const bogus = 'DROP' as CollectionAction;
+
+    expect(resolveCollectionTransition('PUBLISHED', bogus, NOT_PAST)).toEqual({
+      ok: false,
+      message: '不支持的操作',
+    });
+  });
 });

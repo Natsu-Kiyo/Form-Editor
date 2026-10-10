@@ -8,6 +8,7 @@ import { prisma } from '@/lib/db';
 import { writeOperationLog } from '@/lib/operation-log';
 
 import { resolveCollectionTransition, type CollectionAction } from '../lib/transitions';
+import { collectionActionSchema } from '../schemas';
 
 export type CollectionActionResult = { ok: true; message: string } | { ok: false; message: string };
 
@@ -34,8 +35,19 @@ const OPERATION_BY_ACTION: Record<CollectionAction, OperationType> = {
  */
 export async function changeCollectionStatusAction(
   questionnaireId: string,
-  action: CollectionAction,
+  requestedAction: CollectionAction,
 ): Promise<CollectionActionResult> {
+  /*
+   * 入参校验放最前面：Server Action 的参数是**客户端可控的入参**，
+   * 而 `CollectionAction` 这个联合类型编译完就没了 —— 伪造的动作名会让状态机与下面两张
+   * 文案表都查不到值（`lib/transitions.ts` 那边也补了 default 兜底，两层都要有）。
+   * 顺序沿用项目约定：zod → 权限断言 → 落库。
+   */
+  const parsedAction = collectionActionSchema.safeParse(requestedAction);
+  if (!parsedAction.success) return { ok: false, message: '不支持的操作' };
+
+  const action = parsedAction.data;
+
   const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'ADMIN');
 
   const row = await prisma.questionnaire.findUnique({

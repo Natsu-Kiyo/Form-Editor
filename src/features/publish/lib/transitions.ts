@@ -7,7 +7,13 @@ import type { QuestionnaireStatus } from '@/config/constants';
  * （哪个状态能暂停、暂停能不能恢复、截止为什么不可逆），
  * 而它必须被单测穷举 —— 这三种动作都会改数据库里的状态，靠手点验不完。
  */
-export type CollectionAction = 'PUBLISH' | 'PAUSE' | 'RESUME' | 'CLOSE';
+/**
+ * 允许的动作。**联合类型与 zod 校验都从它推导**（schema 在 `features/publish/schemas.ts`）——
+ * 增删动作时只有这一处，不会出现「类型里有、校验里没有」这种错配。
+ */
+export const COLLECTION_ACTIONS = ['PUBLISH', 'PAUSE', 'RESUME', 'CLOSE'] as const;
+
+export type CollectionAction = (typeof COLLECTION_ACTIONS)[number];
 
 export type TransitionResult =
   { ok: true; next: QuestionnaireStatus } | { ok: false; message: string };
@@ -58,5 +64,14 @@ export function resolveCollectionTransition(
         return { ok: false, message: '只有回收中或已暂停的问卷可以截止' };
       }
       return { ok: true, next: 'CLOSED' };
+
+    /*
+     * 兜底。**联合类型在运行时不存在的** —— 动作名从 Server Action 的参数进来，
+     * 是客户端可控的值（伪造的、或部署后未刷新的旧前端发来的已废弃动作名）。
+     * 少了这一支，函数会走完 switch 返回 `undefined`，调用方那句
+     * `if (!transition.ok)` 直接抛 `Cannot read properties of undefined`（实测复现过）。
+     */
+    default:
+      return { ok: false, message: '不支持的操作' };
   }
 }

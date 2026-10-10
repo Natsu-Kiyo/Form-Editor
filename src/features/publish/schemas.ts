@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import { parseDateTimeLocal } from '@/utils/format';
 
+import { COLLECTION_ACTIONS } from './lib/transitions';
+
 /**
  * 发布设置。
  *
@@ -56,6 +58,15 @@ export const publishSettingsSchema = z
   });
 
 export type PublishSettingsInput = z.infer<typeof publishSettingsSchema>;
+
+/**
+ * 回收开关的动作名（发布 / 暂停 / 恢复 / 截止）。
+ *
+ * 为什么要在 action 边界再校验一次：Server Action 的参数是**客户端可控的入参**，
+ * 联合类型是编译期的东西、运行时不存在。取值清单从 `lib/transitions.ts` 推导，
+ * 所以「类型里有、校验里没有」这种错配不可能出现。
+ */
+export const collectionActionSchema = z.enum(COLLECTION_ACTIONS);
 
 /**
  * 新建渠道。
