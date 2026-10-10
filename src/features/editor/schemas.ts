@@ -69,13 +69,3 @@ export const optionLabelSchema = z
   .trim()
   .min(1, { error: '选项不能为空' })
   .max(100, { error: '选项不超过 100 个字' });
-
-export const renameQuestionnaireSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(1, { error: '问卷标题不能为空' })
-    .max(80, { error: '标题不超过 80 个字' }),
-});
-
-export type RenameQuestionnaireInput = z.infer<typeof renameQuestionnaireSchema>;
