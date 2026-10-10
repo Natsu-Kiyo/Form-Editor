@@ -11,8 +11,6 @@ export type PasswordFieldProps = {
   label: string;
   autoComplete?: 'current-password' | 'new-password';
   placeholder?: string;
-  /** 失败回填用。见 form-state.ts 里对「React 19 会重置表单」的说明 */
-  defaultValue?: string;
   invalid?: boolean;
   required?: boolean;
 };
@@ -22,13 +20,16 @@ export type PasswordFieldProps = {
  *
  * 做成密码框自带切换而不是每个表单各写一遍 —— 否则两处的图标、位置、
  * aria 文案必然漂移（设计稿 W01 的密码框就带这个眼睛按钮）。
+ *
+ * **刻意没有 `defaultValue`**：失败时不回填口令（`values` 会进 action 的响应体与
+ * input 的 value 里，而浏览器本来就不会清空口令框 —— 理由见 `login.ts`）。
+ * 把这条规矩做成「没有这个 prop」比写在注释里更靠得住：想回填就得先加回这个口子。
  */
 export function PasswordField({
   name,
   label,
   autoComplete,
   placeholder,
-  defaultValue,
   invalid = false,
   required = false,
 }: PasswordFieldProps) {
@@ -48,7 +49,6 @@ export function PasswordField({
           type={visible ? 'text' : 'password'}
           autoComplete={autoComplete}
           placeholder={placeholder}
-          defaultValue={defaultValue}
           invalid={invalid}
           required={required}
           className="h-11 pr-11"

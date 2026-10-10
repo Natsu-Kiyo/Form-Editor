@@ -60,7 +60,6 @@ export function RegisterForm() {
             label="设置密码"
             autoComplete="new-password"
             placeholder="至少 8 位，含字母与数字"
-            defaultValue={state.values?.password}
             invalid={Boolean(state.fieldErrors?.password)}
             required
           />
@@ -73,7 +72,6 @@ export function RegisterForm() {
             label="确认密码"
             autoComplete="new-password"
             placeholder="再输入一次"
-            defaultValue={state.values?.confirmPassword}
             invalid={Boolean(state.fieldErrors?.confirmPassword)}
             required
           />

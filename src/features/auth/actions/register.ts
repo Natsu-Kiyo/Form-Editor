@@ -21,15 +21,15 @@ export async function registerAction(
     confirmPassword: formData.get('confirmPassword'),
   });
 
-  // 校验失败与邮箱已存在都要回填：注册表单有四个字段，清空重填的代价最大
+  // 校验失败与邮箱已存在都要回填：注册表单有四个字段，清空重填的代价最大。
+  // **但口令那两栏不回填** —— `values` 会进 action 的响应体与 input 的 value 里，
+  // 而浏览器本来就不会清空口令框（完整理由见 `login.ts` 里那段注释）。
   if (!parsed.success) {
     return {
       fieldErrors: toFieldErrors(parsed.error),
       values: {
         name: String(formData.get('name') ?? ''),
         email: String(formData.get('email') ?? ''),
-        password: String(formData.get('password') ?? ''),
-        confirmPassword: String(formData.get('confirmPassword') ?? ''),
       },
     };
   }
@@ -43,8 +43,6 @@ export async function registerAction(
       values: {
         name: parsed.data.name,
         email: parsed.data.email,
-        password: parsed.data.password,
-        confirmPassword: parsed.data.confirmPassword,
       },
     };
   }

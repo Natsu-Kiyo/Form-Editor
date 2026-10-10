@@ -11,6 +11,10 @@ import { DEMO_ACCOUNTS } from '@/config/constants';
  * 其中两条「失败时保留已填内容」的用例是回归测试：React 19 在
  * `<form action={fn}>` 的 action 结束后会重置非受控表单，
  * 若不把提交值回传给 `defaultValue`，用户会丢掉整张表单。
+ *
+ * ⚠️ **口令是刻意不回填的**（`values` 会进 action 的响应体与 DOM 的 value，见 `login.ts`），
+ * 所以这两条断言的是「邮箱 / 姓名保留、口令清空」—— 它们按 R89 的行为变更重写过，
+ * 不是「测试写错了」。
  */
 
 test('未登录访问管理台会被拦到登录页', async ({ page }) => {
@@ -34,7 +38,7 @@ test('演示账号可以登录并进入管理台', async ({ page }) => {
   await expect(page.getByText('2026 秋季社团招新报名').first()).toBeVisible();
 });
 
-test('注册时两次密码不一致会给出字段级提示，且不清空表单', async ({ page }) => {
+test('注册两次密码不一致：姓名与邮箱保留，口令清空（刻意不回填）', async ({ page }) => {
   await page.goto('/register');
 
   await page.getByLabel('姓名', { exact: true }).fill('测试用户');
@@ -47,14 +51,16 @@ test('注册时两次密码不一致会给出字段级提示，且不清空表�
   await expect(page.getByText('两次输入的密码不一致')).toBeVisible();
   await expect(page).toHaveURL(/\/register/);
 
-  // 四个字段都要原样保留，用户只需改错的那一处
+  // 姓名与邮箱原样保留，用户只需改错的那一处
   await expect(page.getByLabel('姓名', { exact: true })).toHaveValue('测试用户');
   await expect(page.getByLabel('邮箱', { exact: true })).toHaveValue('mismatch@example.com');
-  await expect(page.getByLabel('设置密码', { exact: true })).toHaveValue('demo1234');
-  await expect(page.getByLabel('确认密码', { exact: true })).toHaveValue('demo5678');
+
+  // 口令那两栏**是空的，而且这是刻意的**：口令一律不回填（理由见 `login.ts` 的注释）
+  await expect(page.getByLabel('设置密码', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('确认密码', { exact: true })).toHaveValue('');
 });
 
-test('登录失败时只提示错误，不动已填内容', async ({ page }) => {
+test('登录失败只提示错误：邮箱保留、口令清空（刻意不回填）', async ({ page }) => {
   await page.goto('/login');
 
   await page.getByLabel('邮箱', { exact: true }).fill(DEMO_ACCOUNTS.owner.email);
@@ -66,5 +72,6 @@ test('登录失败时只提示错误，不动已填内容', async ({ page }) => 
   await expect(page).toHaveURL(/\/login/);
 
   await expect(page.getByLabel('邮箱', { exact: true })).toHaveValue(DEMO_ACCOUNTS.owner.email);
-  await expect(page.getByLabel('密码', { exact: true })).toHaveValue('wrong-password-123');
+  // 口令不回填（同注册那条）：这是 R89 行为变更后重写的断言
+  await expect(page.getByLabel('密码', { exact: true })).toHaveValue('');
 });

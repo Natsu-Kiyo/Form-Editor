@@ -42,12 +42,12 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
           <FieldError messages={state.fieldErrors?.email} />
         </div>
 
+        {/* 不回填：口令只由用户自己再敲一次（理由见 `login.ts` 里那段注释） */}
         <PasswordField
           name="password"
           label="密码"
           autoComplete="current-password"
           placeholder="请输入密码"
-          defaultValue={state.values?.password}
           invalid={Boolean(state.fieldErrors?.password)}
           required
         />
