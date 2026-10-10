@@ -8,6 +8,7 @@ import { getCurrentUser } from '@/lib/auth/dal';
 import { prisma } from '@/lib/db';
 import { notifyUsers } from '@/lib/notify';
 import { toJsonColumn } from '@/lib/json';
+import { createRateLimiter } from '@/lib/rate-limit';
 
 import {
   findChannelId,
@@ -38,6 +39,25 @@ export type SubmitResponseResult =
 /** 匿名重复判定用的浏览器标识；由作答页在客户端种进 Cookie */
 const CLIENT_ID_COOKIE = 'qw_client_id';
 
+/**
+ * 提交的频率预算：**30 次 / 10 分钟**，按「来源 IP + slug」计数。
+ *
+ * 这里挡的不是暴力破解，是**读放大与刷量**：这是全站唯一免登录的写入口，每次提交都会
+ * 加载整份问卷（题目 + 选项 + 计数）并写一行答卷，而 `responseLimit` 为 null 时
+ * 没有任何天然终止条件。与解锁限流同一套实现（存储取舍见 `lib/rate-limit.ts`）。
+ */
+const SUBMIT_LIMIT = 30;
+const SUBMIT_WINDOW_MS = 10 * 60 * 1000;
+
+const submitLimiter = createRateLimiter({ limit: SUBMIT_LIMIT, windowMs: SUBMIT_WINDOW_MS });
+
+/** 来源标识：优先取代理链里的第一跳，取不到就退化成 'unknown'（这时按全站计数） */
+function forwardedIp(requestHeaders: { get: (name: string) => string | null }) {
+  const forwarded = requestHeaders.get('x-forwarded-for')?.split(',')[0]?.trim();
+
+  return forwarded || requestHeaders.get('x-real-ip') || 'unknown';
+}
+
 export async function submitResponseAction(input: {
   slug: string;
   answers: unknown;
@@ -45,12 +65,28 @@ export async function submitResponseAction(input: {
   /** 从打开作答页到点提交的毫秒数。统计页的「平均用时」用它 */
   durationMs: number | null;
 }): Promise<SubmitResponseResult> {
+  const requestHeaders = await headers();
+
+  /*
+   * 限流放在最前面（连问卷上下文都不加载）：这是**全站唯一免登录就能写库的入口**，
+   * 而它的防重复只认「同一个浏览器」—— 匿名作答靠客户端可控的 cookie（`fingerprint`），
+   * 换个 cookie 就是新的一位作答者。所以这里按「来源 IP + slug」计数，不按指纹：
+   * 指纹能伪造，IP 伪造成本高得多（取不到 IP 的已知边界见 docs/VERIFY.md §四）。
+   */
+  const limit = submitLimiter.consume(`${input.slug}:${forwardedIp(requestHeaders)}`);
+  if (!limit.ok) {
+    return {
+      ok: false,
+      kind: 'ERROR',
+      message: `提交过于频繁，请 ${Math.ceil(limit.retryAfterMs / 60_000)} 分钟后再试`,
+    };
+  }
+
   const context = await loadSubmissionContext(input.slug);
   if (!context) return { ok: false, kind: 'UNAVAILABLE', state: 'NOT_FOUND' };
 
   const now = new Date();
   const user = await getCurrentUser();
-  const requestHeaders = await headers();
   const userAgent = requestHeaders.get('user-agent');
 
   // ---- 身份闸门 ----
@@ -176,6 +212,13 @@ export async function submitResponseAction(input: {
      * 新插入的这份 `Response.status` 默认为 `VALID`，`+1` 才成立。
      * 代价是快照可能略旧（期间别人也提交了），只会让它**稍晚一点**关闭 ——
      * 下一个访客的预检一定会把最后那几份算进去，不会漏。
+     *
+     * ⚠️ 由此得到的是一个**软上限**，不是硬承诺：并发的 N 份提交可以各自看到
+     * `count = limit - 1` 而**各自插入成功**（数据库的唯一约束只约束「同一个人」，
+     * 不约束总数），实际份数的上界约 `limit + 并发数 - 1`。
+     * 要变成硬上限得在写入时做条件更新或对问卷行加锁（`SELECT … FOR UPDATE` 后重数一遍），
+     * 当前版本**刻意接受**这点偏差：超收对发起人无害，而「上限」在界面上是给人看的配额，
+     * 不是计费闸门 —— 别把它当成硬约束来依赖。
      */
     const validResponses = context._count.responses + 1;
 
