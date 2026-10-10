@@ -95,7 +95,7 @@ export function MembersPanel({
        */
       toast({
         title: '复制失败',
-        description: '浏览器拒绝了剪贴板访问（需要 https 或 localhost），请手动复制',
+        description: '浏览器拒绝了剪贴板访问，请手动选中复制',
         variant: 'error',
       });
     }

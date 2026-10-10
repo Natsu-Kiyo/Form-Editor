@@ -164,7 +164,7 @@ export function StatsPanel({
                   <span className="text-ink-300 ml-auto text-[13px]">›</span>
                 </button>
               </SheetTrigger>
-              <SheetContent title="筛选" description="与桌面端是同一组条件">
+              <SheetContent title="筛选">
                 <div className="space-y-4">{filterControls}</div>
               </SheetContent>
             </Sheet>

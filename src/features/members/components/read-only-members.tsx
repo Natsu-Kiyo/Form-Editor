@@ -47,11 +47,7 @@ export function ReadOnlyMembers({ members }: { members: MemberRow[] }) {
       </button>
 
       <Modal open={open} onOpenChange={setOpen}>
-        <ModalContent
-          title="成员与角色权限"
-          description="手机上只读查看；邀请与改角色在桌面端的「成员与权限」页"
-          width="md"
-        >
+        <ModalContent title="成员与角色权限" width="md">
           <ul className="divide-ink-100 border-ink-200 divide-y overflow-hidden rounded-xl border">
             {members.map((member) => (
               <li key={member.membershipId} className="flex items-center gap-3 px-3.5 py-3">

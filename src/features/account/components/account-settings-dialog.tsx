@@ -96,12 +96,7 @@ function ProfileForm({
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
-      <div className="flex items-center gap-3.5">
-        <Avatar name={userName} size="lg" tone="soft" />
-        <p className="text-ink-400 text-[10.5px] leading-5">
-          头像取姓名的首字。本版本没有对象存储，暂不支持上传图片。
-        </p>
-      </div>
+      <Avatar name={userName} size="lg" tone="soft" />
 
       <div>
         <Label htmlFor="profile-name" required>
@@ -124,9 +119,6 @@ function ProfileForm({
         <div className="text-ink-500 border-ink-200 bg-ink-50 text-body-s flex h-10 items-center rounded-lg border px-3.5">
           {userEmail}
         </div>
-        <p className="text-caption text-ink-400 mt-1.5">
-          邮箱同时是登录凭据，本版本暂不支持自助更换。
-        </p>
       </div>
 
       {state.success ? <p className="text-caption text-emerald-600">{state.success}</p> : null}

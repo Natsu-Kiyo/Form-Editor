@@ -237,7 +237,6 @@ export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
           <Sheet open={propertySheetOpen} onOpenChange={setPropertySheetOpen}>
             <SheetContent
               title={selected ? `第 ${selectedIndex + 1} 题属性` : '题目属性'}
-              description="与桌面端右栏是同一块面板"
               className="max-h-[85vh]"
             >
               <div className="[&>aside]:w-full [&>aside]:border-0 [&>aside]:p-0">

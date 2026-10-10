@@ -32,8 +32,7 @@ const FAQS = [
   },
   {
     question: '忘记密码怎么办？',
-    answer:
-      '本版本没有做自助找回密码，因为那需要真实的邮件投递服务。如果这是演示账号，直接使用页面上印的演示口令登录即可。',
+    answer: '此项目为个人项目，未使用真实邮箱，若忘记密码，建议寻找项目开发者帮助',
   },
   {
     question: '演示环境的数据会被清空吗？',
@@ -113,8 +112,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps) {
         )}
 
         <div className="border-ink-100 mt-5 border-t pt-4">
-          <div className="text-ink-800 text-[12.5px] font-medium">没找到答案？</div>
-          <div className="text-ink-400 mt-0.5 mb-2.5 text-[11px]">直接写给我们，会尽快回复。</div>
+          <div className="text-ink-800 text-[12.5px] font-medium">使用中遇到问题？</div>
+          <div className="text-ink-400 mt-0.5 mb-2.5 text-[11px]">直接写给我们，会尽快修复。</div>
 
           {open ? <FeedbackForm /> : null}
         </div>

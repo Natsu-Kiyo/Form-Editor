@@ -26,11 +26,7 @@ export function EditorPreviewDialog({
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent
-        title="预览"
-        description="按当前草稿渲染（含未保存的改动），只读示意"
-        width="lg"
-      >
+      <ModalContent title="预览" width="lg">
         {questions.length === 0 ? (
           <p className="text-ink-400 py-8 text-center text-[12.5px]">
             还没有题目。先从题型面板加一道，再回来看它长什么样。

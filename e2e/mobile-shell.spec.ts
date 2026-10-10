@@ -232,7 +232,9 @@ test.describe('移动外壳', () => {
     // ---- 预览：真的能看（不是灰显按钮），且预览的是**当前草稿** ----
     await page.getByRole('button', { name: '预览', exact: true }).click();
     const preview = page.getByRole('dialog');
-    await expect(preview.getByText(/按当前草稿渲染/)).toBeVisible();
+    await expect(preview.getByRole('heading', { name: '预览' })).toBeVisible();
+    // 刚加的那道题已经在预览里（还没保存 —— 草稿直接渲染，不是空态）
+    await expect(preview.getByText('新题目').first()).toBeVisible();
     await page.keyboard.press('Escape');
 
     // ---- P08-d 发布设置：窄屏是**弹层**，字段与桌面是同一块组件 ----

@@ -116,11 +116,7 @@ export function EditorChrome({
               发布
             </Button>
           </SheetTrigger>
-          <SheetContent
-            title="发布设置"
-            description="与桌面端是同一组字段"
-            className="max-h-[88vh]"
-          >
+          <SheetContent title="发布设置" className="max-h-[88vh]">
             {/* 同一块组件、同一份字段，只是壳换成弹层（见 PublishSettings 的 variant） */}
             <div className="-mx-1">
               <PublishSettings data={publishData} canEdit={canPublish} variant="sheet" />

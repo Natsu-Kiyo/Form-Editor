@@ -171,7 +171,11 @@ export function PublishSettings({
           hint="达到上限后自动截止，避免超收。留空表示不限制。"
         >
           <div className="flex items-center gap-4">
-            <div className="flex w-40 items-center">
+            {/*
+              输入框窄屏收窄（`w-28`，桌面维持 `w-40`）：375px 的发布弹层里原来留 160px，
+              右侧「当前已回收 N 份」与「不限制」被挤到换行、进度条也被压扁（R84）
+            */}
+            <div className="flex w-28 items-center sm:w-40">
               <Input
                 type="number"
                 min={1}
