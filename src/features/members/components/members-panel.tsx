@@ -64,16 +64,23 @@ export function MembersPanel({
   const [transferring, setTransferring] = useState<Role | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const { toast } = useToast();
 
+  /*
+   * 失败必须**复位转圈 + 说出来**：这三处动作的失败都在预期内（别人刚把他移出、
+   * 两个管理员同时点移除、邀请已被接受/撤回），留着转圈等于把「没改成」伪装成「还在改」。
+   */
   const changeRole = (membershipId: string, role: string) => {
     setPendingId(membershipId);
     startTransition(async () => {
-      await changeMemberRoleAction(membershipId, role);
+      const result = await changeMemberRoleAction(membershipId, role);
       setPendingId(null);
+
+      if (!result.ok) {
+        toast({ title: '没能修改角色', description: result.message, variant: 'error' });
+      }
     });
   };
-
-  const { toast } = useToast();
 
   /**
    * 复制某条邀请的链接。
@@ -405,8 +412,16 @@ export function MembersPanel({
 
                 setPendingId(target.id);
                 startTransition(async () => {
-                  await removeMemberAction(target.id);
+                  const result = await removeMemberAction(target.id);
                   setPendingId(null);
+
+                  if (!result.ok) {
+                    // 弹层**留着**：这多半是「这位成员已经不在列表里了」，
+                    // 关掉它只会让用户以为自己点成功了
+                    toast({ title: '没能移除成员', description: result.message, variant: 'error' });
+                    return;
+                  }
+
                   setRemoving(null);
                 });
               }}
@@ -454,8 +469,14 @@ export function MembersPanel({
 
                 setPendingId(target.id);
                 startTransition(async () => {
-                  await revokeInvitationAction(target.id);
+                  const result = await revokeInvitationAction(target.id);
                   setPendingId(null);
+
+                  if (!result.ok) {
+                    toast({ title: '没能撤回邀请', description: result.message, variant: 'error' });
+                    return;
+                  }
+
                   setRevoking(null);
                 });
               }}

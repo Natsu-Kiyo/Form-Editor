@@ -367,6 +367,7 @@ function DeleteTemplateDialog({
    * （action 返回了），按钮若变回「确认删除」，用户能再点一次。
    */
   const [submitted, setSubmitted] = useState(false);
+  const { toast } = useToast();
   const busy = pending || submitted;
 
   return (
@@ -407,13 +408,13 @@ function DeleteTemplateDialog({
             onClick={() => {
               setSubmitted(true);
               startTransition(async () => {
-                try {
-                  await deleteTemplateAction(templateId);
-                  // 成功后**什么都不做**：等列表落地、卡片卸载、弹窗随之消失（见函数头）
-                } catch (error) {
-                  // 失败：复位，用户可重试或取消；错误照旧抛出去（不吞）
+                const result = await deleteTemplateAction(templateId);
+
+                // 失败：复位（用户可重试或取消）并把原因说出来；
+                // 成功后**什么都不做** —— 等列表落地、卡片卸载、弹窗随之消失（见函数头）
+                if (!result.ok) {
                   setSubmitted(false);
-                  throw error;
+                  toast({ title: '没能删除模板', description: result.message, variant: 'error' });
                 }
               });
             }}

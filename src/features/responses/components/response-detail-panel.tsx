@@ -6,6 +6,7 @@ import { useTransition } from 'react';
 import { CheckCircleIcon, CloseIcon, InfoIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { useToast } from '@/components/ui/toast';
 import { cn } from '@/utils/cn';
 
 import { setResponseValidityAction } from '../actions/invalidate-response';
@@ -45,10 +46,19 @@ export function ResponseDetailPanel({
   onClose?: () => void;
 }) {
   const [pending, startTransition] = useTransition();
+  const { toast } = useToast();
 
   const toggle = (invalid: boolean) =>
     startTransition(async () => {
-      await setResponseValidityAction({ responseId: detail.id, invalid });
+      const result = await setResponseValidityAction({ responseId: detail.id, invalid });
+
+      if (!result.ok) {
+        toast({
+          title: invalid ? '没能标记无效' : '没能恢复',
+          description: result.message,
+          variant: 'error',
+        });
+      }
     });
 
   return (

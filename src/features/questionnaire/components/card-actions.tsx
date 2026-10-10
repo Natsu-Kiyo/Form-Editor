@@ -19,6 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useToast } from '@/components/ui/toast';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 
 import { archiveQuestionnaireAction } from '../actions/archive-questionnaire';
@@ -57,6 +58,7 @@ export function CardActions({
   const [menuOpen, setMenuOpen] = useState(false);
   const [dialog, setDialog] = useState<OpenDialog>(null);
   const [pending, startTransition] = useTransition();
+  const { toast } = useToast();
 
   const archived = questionnaire.status === 'ARCHIVED';
 
@@ -93,7 +95,11 @@ export function CardActions({
               onSelect={() => {
                 setMenuOpen(false);
                 startTransition(async () => {
-                  await copyQuestionnaireAction(questionnaire.id);
+                  const result = await copyQuestionnaireAction(questionnaire.id);
+
+                  if (!result.ok) {
+                    toast({ title: '没能复制', description: result.message, variant: 'error' });
+                  }
                 });
               }}
             >

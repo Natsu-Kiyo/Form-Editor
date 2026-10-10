@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { SearchField } from '@/components/ui/search-field';
+import { useToast } from '@/components/ui/toast';
 import { DEFAULT_RESPONSES_PAGE_SIZE, RESPONSES_PAGE_SIZES } from '@/config/constants';
 import { cn } from '@/utils/cn';
 
@@ -61,6 +62,7 @@ export function ResponsesPanel({
   const [exportOpen, setExportOpen] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const { toast } = useToast();
 
   /**
    * 右栏这次导航的意图：**打开**（含从一份切到另一份）摆骨架、**关闭**给「正在离开」态。
@@ -136,8 +138,11 @@ export function ResponsesPanel({
   const restore = (responseId: string) => {
     setPendingId(responseId);
     startTransition(async () => {
-      await setResponseValidityAction({ responseId, invalid: false });
+      const result = await setResponseValidityAction({ responseId, invalid: false });
       setPendingId(null);
+
+      // 失败必须复位 + 说明：留着转圈等于把「没改成」伪装成「还在改」
+      if (!result.ok) toast({ title: '没能恢复', description: result.message, variant: 'error' });
     });
   };
 

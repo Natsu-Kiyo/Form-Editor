@@ -22,22 +22,27 @@ import { responseSerial } from '@/lib/response-serial';
  *   已发布问卷的统计结果，属于「必须能查出是谁改的」那一类。
  * - 已经是目标状态时直接返回，不做无谓的写与审计字段覆盖。
  */
+export type ResponseValidityResult = { ok: true } | { ok: false; message: string };
+
 export async function setResponseValidityAction(input: {
   responseId: string;
   invalid: boolean;
   /** 标无效的原因（可选，会写进 invalidReason） */
   reason?: string;
-}) {
+}): Promise<ResponseValidityResult> {
   const response = await prisma.response.findUnique({
     where: { id: input.responseId },
     select: { id: true, questionnaireId: true, status: true, submittedAt: true },
   });
 
-  if (!response) throw new Error('NOT_FOUND');
+  // 答卷已不在（别人先删了这份问卷、页面开着没刷新）是**预期失败**：返回而不是抛
+  // —— 抛出去调用侧只会卡住且不说明原因（理由同 `manage-member.ts`）
+  if (!response) return { ok: false, message: '这份答卷已不存在，刷新后再试' };
 
   const { user } = await requireQuestionnaireAccess(response.questionnaireId, 'EDITOR');
 
-  if ((response.status === 'INVALID') === input.invalid) return;
+  // 已经是目标状态：不写库、也不记日志
+  if ((response.status === 'INVALID') === input.invalid) return { ok: true };
 
   await prisma.response.update({
     where: { id: response.id },
@@ -74,4 +79,6 @@ export async function setResponseValidityAction(input: {
   revalidatePath('/app/logs');
   // 统计页必须立刻反映：标无效 = 从图表里排除，这是 M6 验收里明确写着的一条
   revalidatePath(`/app/q/${response.questionnaireId}/stats`);
+
+  return { ok: true };
 }

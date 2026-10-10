@@ -18,6 +18,7 @@ import { writeOperationLog } from '@/lib/operation-log';
 import type { FormState } from '@/types/form-state';
 
 import { inviteMemberSchema } from '../schemas';
+import type { MemberActionResult } from './manage-member';
 
 /**
  * 邀请成员。
@@ -105,8 +106,8 @@ export async function inviteMemberAction(
   };
 }
 
-/** 撤回一条待接受的邀请 */
-export async function revokeInvitationAction(invitationId: string) {
+/** 撤回一条待接受的邀请。失败一律**返回**（理由见 `manage-member.ts` 顶部的说明） */
+export async function revokeInvitationAction(invitationId: string): Promise<MemberActionResult> {
   const { user, workspace } = await requireActiveWorkspace('ADMIN');
 
   const invitation = await prisma.invitation.findFirst({
@@ -116,7 +117,8 @@ export async function revokeInvitationAction(invitationId: string) {
 
   // 不属于本工作区、或已经不是「待接受」的，一律当不存在：撤回一条已接受的邀请没有意义，
   // 而「猜 id」不该从错误信息里区分出「存在但无权」
-  if (!invitation) throw new Error('NOT_FOUND');
+  if (!invitation)
+    return { ok: false, message: '这条邀请已不在了（可能已被接受或撤回），刷新后再试' };
 
   await prisma.invitation.update({
     where: { id: invitation.id },
@@ -134,6 +136,8 @@ export async function revokeInvitationAction(invitationId: string) {
   });
 
   revalidatePath('/app/members');
+
+  return { ok: true };
 }
 
 /**

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useTransition } from 'react';
 
+import { useToast } from '@/components/ui/toast';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 import { cn } from '@/utils/cn';
 
@@ -62,6 +63,7 @@ export function CardPrimaryActions({
 }) {
   const isDesktop = useIsDesktop();
   const [pending, startTransition] = useTransition();
+  const { toast } = useToast();
 
   const archived = questionnaire.status === 'ARCHIVED';
   const closed = questionnaire.status === 'CLOSED';
@@ -97,7 +99,11 @@ export function CardPrimaryActions({
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                await copyQuestionnaireAction(questionnaire.id);
+                const result = await copyQuestionnaireAction(questionnaire.id);
+
+                if (!result.ok) {
+                  toast({ title: '没能复制', description: result.message, variant: 'error' });
+                }
               })
             }
             className={cn(item, 'disabled:opacity-45')}

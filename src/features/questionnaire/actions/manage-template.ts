@@ -109,11 +109,20 @@ export async function loadTemplateForPreviewAction(templateId: string) {
   };
 }
 
-export async function deleteTemplateAction(templateId: string) {
+export type DeleteTemplateResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * 删除「我的模板」。
+ *
+ * 「模板已不可编辑」是用户可达的预期失败（另一个管理员刚删了它、页面开着没刷新），
+ * 所以**返回**而不是抛 —— 抛出去调用侧只会把确认弹层复位，用户看不到任何原因。
+ */
+export async function deleteTemplateAction(templateId: string): Promise<DeleteTemplateResult> {
   const { user, workspace } = await requireActiveWorkspace('EDITOR');
 
   const template = await findEditableTemplate(templateId, workspace.id);
-  if (!template) throw new Error('NOT_FOUND');
+  if (!template)
+    return { ok: false, message: '这个模板已不可编辑（可能已被删除或不属于本工作区）' };
 
   await prisma.template.delete({ where: { id: template.id } });
 
@@ -130,6 +139,8 @@ export async function deleteTemplateAction(templateId: string) {
 
   revalidatePath('/app/templates');
   revalidatePath('/app/logs');
+
+  return { ok: true };
 }
 
 /**
