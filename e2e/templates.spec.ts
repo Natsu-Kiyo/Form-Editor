@@ -390,4 +390,77 @@ test.describe('模板中心', () => {
 
     await page.unroute('**/app/templates*');
   });
+
+  test('删除的等待态：弹窗与卡片在同一批消失（不会先关弹窗、再"闪"一下列表）', async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '要写数据库，只在一个 project 跑');
+    test.setTimeout(120_000);
+
+    const created = `E2E 删除时序 ${Date.now()}`;
+
+    await signIn(page);
+
+    // ---- 造一张自己的模板（列表卡片「⋯」→ 另存为模板）----
+    await page
+      .getByRole('button', { name: /更多操作/ })
+      .first()
+      .click();
+    await page.getByRole('menuitem', { name: '另存为模板' }).click();
+    await page.getByLabel('模板名称').fill(created);
+    await page.getByRole('combobox', { name: '模板分类' }).click();
+    await page.getByRole('option', { name: '信息收集', exact: true }).click();
+    await page.getByRole('button', { name: '保存模板' }).click();
+
+    await openTemplates(page);
+    await page.getByRole('button', { name: /^我的模板/ }).click();
+    await expect(previewButton(page, created)).toBeVisible();
+
+    /*
+     * 采样器：每次 DOM 变化后记一行「弹窗数 + 卡片数」。
+     *
+     * - 在 DOM 层数、不用 `getByRole`：弹窗打开时 Radix 会给背景加 `aria-hidden`，
+     *   卡片在可访问性树里"消失" —— 用 getByRole 数只能得到永远为 0 的假象；
+     * - observer 必须存到 window：不存引用会被 GC，观察会悄悄停掉（问卷删除那轮踩过）。
+     */
+    await page.evaluate(() => {
+      const w = window as unknown as { __log: string[]; __observer?: MutationObserver };
+      w.__log = [];
+      let last = '';
+      const snap = () => {
+        const state = `dialog=${document.querySelectorAll('[role="dialog"]').length} cards=${
+          document.querySelectorAll('button[aria-label^="更多操作「"]').length
+        }`;
+        if (state === last) return;
+        last = state;
+        w.__log.push(state);
+      };
+      snap();
+      w.__observer = new MutationObserver(snap);
+      w.__observer.observe(document.body, { childList: true, subtree: true });
+    });
+
+    // ---- 删除 ----
+    await page.getByRole('button', { name: `更多操作「${created}」` }).click();
+    await page.getByRole('menuitem', { name: '删除模板' }).click();
+    await page.getByRole('button', { name: '确认删除' }).click();
+    // 等弹窗真的从 DOM 消失（CSS 定位 —— 不看可访问性树）
+    await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+    await page.waitForTimeout(400);
+
+    const log = await page.evaluate(() => (window as unknown as { __log: string[] }).__log);
+
+    // 弹窗收起（dialog 1 → 0）的那一批里，卡片必须**同时**少一张。
+    // 旧实现先关弹窗、之后才更新列表 —— 那一批是「dialog=0 cards=N」，
+    // 用户看到的就是「弹窗没了，列表过一会儿才闪一下」（R79，与问卷删除同款）
+    const closeIndex = log.findIndex(
+      (line, index) =>
+        index > 0 && line.includes('dialog=0') && log[index - 1].includes('dialog=1'),
+    );
+    expect(closeIndex, `没找到弹窗收起的时刻：${JSON.stringify(log)}`).toBeGreaterThan(0);
+
+    const before = Number(log[closeIndex - 1].match(/cards=(\d+)/)?.[1]);
+    const at = Number(log[closeIndex].match(/cards=(\d+)/)?.[1]);
+    expect(at, `弹窗收起时卡片数应与之一并变化：${JSON.stringify(log)}`).toBe(before - 1);
+  });
 });

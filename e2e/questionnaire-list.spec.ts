@@ -33,6 +33,41 @@ function cardTitle(page: Page, title: string) {
   return page.getByRole('heading', { name: title, exact: true });
 }
 
+/**
+ * 走完「⋯ → 删除问卷 → 确认删除」，一直到**弹窗真的从 DOM 里消失**。
+ *
+ * 等弹窗、而不是直接等卡片标题消失：R78 起弹窗会一直停到列表落地才退场，
+ * 「弹窗没了」就等于「这张卡片也没了」。反过来用 `getByRole` 等标题会**假通过** ——
+ * 弹窗开着时 Radix 会给背景加 `aria-hidden`，标题在可访问性树里"已经消失"了。
+ */
+async function deleteCard(page: Page, title: string) {
+  await openCardMenu(page, title);
+  await page.getByRole('menuitem', { name: '删除问卷' }).click();
+  await page.getByRole('button', { name: '确认删除' }).click();
+  await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+}
+
+/**
+ * 清掉可能残留的「未命名问卷*」卡片（上一次跑失败留下的）。
+ *
+ * 用 CSS 定位而不是 `getByRole`：删除进行中弹窗会给背景加 `aria-hidden`，
+ * 拿可访问性树数卡片会数出一个假的 0、循环提前结束（R78 这轮踩到）。
+ * 定位器直接复用（连「（副本）」变体一起删），不走 `deleteCard` 的标题匹配。
+ */
+async function clearUnnamedLeftovers(page: Page) {
+  const leftovers = page.locator('button[aria-label^="「未命名问卷"]');
+
+  // 先等列表**渲染出来**再数残留：`count()` 在卡片出现前会安静地返回 0
+  await expect(page.getByRole('button', { name: '新建问卷' }).first()).toBeVisible();
+
+  while ((await leftovers.count()) > 0) {
+    await leftovers.first().click();
+    await page.getByRole('menuitem', { name: '删除问卷' }).click();
+    await page.getByRole('button', { name: '确认删除' }).click();
+    await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+  }
+}
+
 test('列表渲染汇总数字、状态胶囊与问卷卡片', async ({ page }) => {
   await signIn(page);
 
@@ -98,34 +133,11 @@ test('全链路：新建 → 复制 → 归档 → 恢复 → 删除', async ({ 
 
   await signIn(page);
 
-  // ---- 先清掉可能存在的残留 ----
-  // 空白创建的标题一律是「未命名问卷」，上一次失败留下的卡片会让后面的断言命中多个同名元素。
-  // 与其让用例变得「一失败就再也跑不过」，不如自己收拾干净。
-  const clearLeftovers = async () => {
-    // 正则匹配**所有变体**：失败的那一轮可能停在「复制」之后，留下的是「未命名问卷（副本）」
-    const leftovers = page.getByRole('button', { name: /^「未命名问卷/ });
-
-    /*
-     * 先等列表**渲染出来**再数残留。
-     *
-     * 少了这一句，`count()` 会在卡片出现之前返回 0 —— 函数安静地什么都不做，
-     * 几十行之后的同名断言才炸，而且报的是「命中 2 个元素」，
-     * **看上去像断言写错，其实是这里少等了一步**（我们为此查了两轮）。
-     */
-    await expect(page.getByRole('button', { name: '新建问卷' }).first()).toBeVisible();
-
-    for (let remaining = await leftovers.count(); remaining > 0; remaining -= 1) {
-      await leftovers.first().click();
-      await page.getByRole('menuitem', { name: '删除问卷' }).click();
-      await page.getByRole('button', { name: '确认删除' }).click();
-      await expect(leftovers).toHaveCount(remaining - 1);
-    }
-  };
-
+  // ---- 先清掉可能存在的残留（定义见上面的 helper）----
   // 注意：这里只清默认列表里的残留。
   // 如果某一轮**失败在「归档」之后**，那份副本会留在「已归档」里，
   // 需要人工清一次（归档卡的「⋯」菜单与普通卡不同，套用同一段清理会点不到「确认删除」）。
-  await clearLeftovers();
+  await clearUnnamedLeftovers(page);
 
   // ---- 新建（空白创建）→ 应该**直接进编辑器**，而不是回到列表 ----
   await page.getByRole('button', { name: '新建问卷' }).first().click();
@@ -175,9 +187,66 @@ test('全链路：新建 → 复制 → 归档 → 恢复 → 删除', async ({ 
   // ---- 删除两张卡，收尾 ----
   for (const title of [printed, '未命名问卷']) {
     await page.goto('/app');
-    await openCardMenu(page, title);
-    await page.getByRole('menuitem', { name: '删除问卷' }).click();
-    await page.getByRole('button', { name: '确认删除' }).click();
-    await expect(cardTitle(page, title)).toHaveCount(0);
+    await deleteCard(page, title);
   }
+});
+
+test('删除的等待态：弹窗与卡片在同一批消失（不会先关弹窗、再"闪"一下列表）', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', '会写数据库，只在一个 project 跑');
+  test.setTimeout(120_000);
+
+  await signIn(page);
+  await clearUnnamedLeftovers(page);
+
+  // 新建一张空白问卷（0 份答卷 → 删除本身快，量到的是"先后"而不是"服务端慢"）
+  await page.getByRole('button', { name: '新建问卷' }).first().click();
+  await page.getByRole('button', { name: '创建', exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
+  await page.goto('/app');
+
+  const target = page.locator('button[aria-label^="「未命名问卷」"]');
+  await expect(target).toHaveCount(1);
+
+  /*
+   * 采样器：每次 DOM 变化后记一行「弹窗数 + 卡片数」。
+   *
+   * - 在 DOM 层数、不用 `getByRole`：弹窗打开时 Radix 会给背景加 `aria-hidden`，
+   *   卡片在可访问性树里"消失" —— 用 getByRole 数只能得到永远为 0 的假象（本轮踩过）；
+   * - observer 必须存到 window：不存引用会被 GC，观察会悄悄停掉（本轮也踩过）。
+   */
+  await page.evaluate(() => {
+    const w = window as unknown as { __log: string[]; __observer?: MutationObserver };
+    w.__log = [];
+    let last = '';
+    const snap = () => {
+      const state = `dialog=${document.querySelectorAll('[role="dialog"]').length} cards=${
+        document.querySelectorAll('button[aria-label$="」更多操作"]').length
+      }`;
+      if (state === last) return;
+      last = state;
+      w.__log.push(state);
+    };
+    snap();
+    w.__observer = new MutationObserver(snap);
+    w.__observer.observe(document.body, { childList: true, subtree: true });
+  });
+
+  await deleteCard(page, '未命名问卷');
+  await page.waitForTimeout(400);
+
+  const log = await page.evaluate(() => (window as unknown as { __log: string[] }).__log);
+
+  // 弹窗收起（dialog 1 → 0）的那一批里，卡片必须**同时**少一张。
+  // 旧实现会先关弹窗、一秒多之后才更新列表 —— 那一批是「dialog=0 cards=N」，
+  // 用户看到的就是「弹窗没了，列表过一会儿才闪一下」。
+  const closeIndex = log.findIndex(
+    (line, index) => index > 0 && line.includes('dialog=0') && log[index - 1].includes('dialog=1'),
+  );
+  expect(closeIndex, `没找到弹窗收起的时刻：${JSON.stringify(log)}`).toBeGreaterThan(0);
+
+  const before = Number(log[closeIndex - 1].match(/cards=(\d+)/)?.[1]);
+  const at = Number(log[closeIndex].match(/cards=(\d+)/)?.[1]);
+  expect(at, `弹窗收起时卡片数应与之一并变化：${JSON.stringify(log)}`).toBe(before - 1);
 });

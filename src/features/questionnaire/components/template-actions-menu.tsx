@@ -342,6 +342,15 @@ function RenameTemplateDialog({
   );
 }
 
+/**
+ * 删除模板的二次确认（与问卷删除同一套卡）。
+ *
+ * **成功后不主动关**（R79）：删除请求返回 ≠ 列表已更新 —— 主动关会露出一段
+ * 「弹窗没了、卡片还在」（问卷删除那边本地量到约 1.4s），看起来就是「闪了一下」。
+ * 这里让弹窗一直停在「删除中…」，等 revalidate 后的新列表落地 —— 卡片卸载，
+ * 弹窗随之消失：**两者是同一帧**。等待态由数据落地清除、不用计时器
+ * （与答卷详情 R68、问卷删除 R78 是同一条规矩）。
+ */
 function DeleteTemplateDialog({
   templateId,
   title,
@@ -352,9 +361,22 @@ function DeleteTemplateDialog({
   onClose: () => void;
 }) {
   const [pending, startTransition] = useTransition();
+  /**
+   * 点过「确认删除」之后就一直是真（只有失败才复位）。
+   * 它管住的是**成功之后、列表落地之前**那段：那时 transition 的 pending 已经结束
+   * （action 返回了），按钮若变回「确认删除」，用户能再点一次。
+   */
+  const [submitted, setSubmitted] = useState(false);
+  const busy = pending || submitted;
 
   return (
-    <Modal open onOpenChange={(next) => !next && onClose()}>
+    <Modal
+      open
+      onOpenChange={(next) => {
+        // 删除进行中（含数据落地前的等待）：Esc / 点遮罩都不关 —— 关掉会露出「弹窗没了、卡片还在」
+        if (!next && !busy) onClose();
+      }}
+    >
       {/* 与另外三处危险确认同一套卡（设计稿把它们收在一个样本里） */}
       <ModalContent title="确定删除这个模板？" hideTitle width="sm" className="p-6">
         <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-rose-50">
@@ -374,22 +396,29 @@ function DeleteTemplateDialog({
         </div>
 
         <div className="flex gap-2.5">
-          <Button variant="outline" className="flex-1" onClick={onClose}>
+          <Button variant="outline" className="flex-1" disabled={busy} onClick={onClose}>
             取消
           </Button>
           <Button
-            loading={pending}
+            loading={busy}
             variant="danger"
             className="flex-1"
-            disabled={pending}
-            onClick={() =>
+            disabled={busy}
+            onClick={() => {
+              setSubmitted(true);
               startTransition(async () => {
-                await deleteTemplateAction(templateId);
-                onClose();
-              })
-            }
+                try {
+                  await deleteTemplateAction(templateId);
+                  // 成功后**什么都不做**：等列表落地、卡片卸载、弹窗随之消失（见函数头）
+                } catch (error) {
+                  // 失败：复位，用户可重试或取消；错误照旧抛出去（不吞）
+                  setSubmitted(false);
+                  throw error;
+                }
+              });
+            }}
           >
-            {pending ? '删除中…' : '确认删除'}
+            {busy ? '删除中…' : '确认删除'}
           </Button>
         </div>
       </ModalContent>
