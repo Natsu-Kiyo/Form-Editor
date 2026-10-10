@@ -20,7 +20,7 @@ import { buildFingerprint } from '../lib/fingerprint';
 import { isUnlocked } from '../lib/unlock';
 
 export type SubmitResponseResult =
-  | { ok: true; responseId: string; serial: number }
+  | { ok: true; responseId: string }
   | { ok: false; kind: 'VALIDATION'; fieldErrors: Record<string, string> }
   | { ok: false; kind: 'UNAVAILABLE'; state: UnavailableKind | 'NOT_FOUND' }
   | { ok: false; kind: 'ERROR'; message: string };
@@ -166,13 +166,18 @@ export async function submitResponseAction(input: {
       return created;
     });
 
-    // 编号 = 这是这份问卷的第几份有效答卷（设计稿 W14 的「你的答卷编号为 #128」）
-    const serial = await prisma.response.count({
-      where: { questionnaireId: context.id, status: 'VALID' },
-    });
+    /*
+     * 收满就自动截止：让「已达上限」是一个真实存在的状态，而不是每次进来才算一遍。
+     *
+     * 份数取 `context._count.responses + 1`（加载上下文时的总数 + 刚插入的这一份），
+     * **不再单独 count 一次**：一是不必多花一次跨区域往返，二是与上面的预检口径一致
+     * （预检也用总数，不是「有效份数」）。
+     * 代价是快照可能略旧（期间别人也提交了），只会让它**稍晚一点**关闭 ——
+     * 下一个访客的预检一定会把最后那几份算进去，不会漏。
+     */
+    const totalResponses = context._count.responses + 1;
 
-    // 收满就自动截止：让「已达上限」是一个真实存在的状态，而不是每次进来才算一遍
-    if (context.responseLimit !== null && serial >= context.responseLimit) {
+    if (context.responseLimit !== null && totalResponses >= context.responseLimit) {
       await prisma.questionnaire.update({
         where: { id: context.id },
         data: { status: 'CLOSED', closeReason: 'LIMIT_REACHED', closedAt: new Date() },
@@ -201,7 +206,7 @@ export async function submitResponseAction(input: {
 
     revalidatePath(`/s/${input.slug}`);
 
-    return { ok: true, responseId: response.id, serial };
+    return { ok: true, responseId: response.id };
   } catch (error) {
     // 两个标签页同时提交会撞上唯一约束（那正是它存在的意义）：这不是错误，是「已提交过」
     if (isUniqueViolation(error)) {
