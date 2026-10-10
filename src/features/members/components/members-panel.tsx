@@ -20,20 +20,28 @@ import { cn } from '@/utils/cn';
 import { changeMemberRoleAction, removeMemberAction } from '../actions/manage-member';
 import { revokeInvitationAction } from '../actions/invite-member';
 import type { MembersPageData } from '../api/members';
+import { DissolveWorkspaceDialog } from './dissolve-workspace-dialog';
 import { InviteMemberDialog } from './invite-dialog';
+import { LeaveWorkspaceDialog } from './leave-workspace-dialog';
 import { PermissionMatrix } from './permission-matrix';
+import { TransferOwnershipDialog } from './transfer-ownership-dialog';
 
 const ASSIGNABLE_ROLES: Role[] = ['ADMIN', 'EDITOR', 'VIEWER'];
 
 /**
  * 成员与权限（W09）。
  *
- * 三处刻意的处理：
- * - **所有者的那一行不给控件**：角色不可改、人不可移除（工作区所有权转让属 2.0）。
- *   给一个点了就报错的控件比不给控件糟得多。
+ * 四处刻意的处理：
+ * - **自己那一行的操作是「解散」/「退出」**（R75）：所有者只有「解散」，其他成员有「退出」；
+ *   「移除」只出现在**别人**那一行 —— 管理员把自己"移除"掉是个不会多想的误操作，
+ *   而「退出」把同一件事说清楚了。
+ * - **所有者自己那一行的角色下拉是「转让」的入口**（R76）：选到哪一档，转让完成后
+ *   自己就是哪一档（弹窗里再指定继承人），选回「所有者」不触发任何事；
+ *   别人那一行的角色下拉才是直接改角色。
  * - 看不到的入口就是没有权限：**查看者进这个页面看不到「邀请成员」「移除」「角色」**
- *   （服务端还会再拒一次，界面不是安全边界）。
- * - 移除成员要二次确认：它会让对方立刻失去这个工作区的全部访问权。
+ *   （服务端还会再拒一次，界面不是安全边界）；但**自己那一行的「退出」人人都有** ——
+ *   它是"离开"，不是管理。
+ * - 移除 / 退出 / 解散都要二次确认：它们都会让某人（或所有人）立刻失去访问权。
  */
 export function MembersPanel({
   data,
@@ -48,6 +56,12 @@ export function MembersPanel({
   const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
   // 待撤回的邀请。与 `removing` 同形：**先记下目标、弹层确认后才动它**
   const [revoking, setRevoking] = useState<{ id: string; email: string } | null>(null);
+  /** 解散工作区（入口只在所有者自己那一行）。不用记目标：能解散的只有当前这一个 */
+  const [dissolving, setDissolving] = useState(false);
+  /** 退出工作区（入口在自己那一行，非所有者） */
+  const [leaving, setLeaving] = useState(false);
+  /** 转让所有权：值 = 自己降级成哪一档（就是角色下拉里选的那个值）；null = 弹窗关着 */
+  const [transferring, setTransferring] = useState<Role | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -132,6 +146,7 @@ export function MembersPanel({
               <tbody className="divide-ink-100 divide-y">
                 {data.members.map((member) => {
                   const isOwner = member.role === 'OWNER';
+                  const isSelf = member.userId === viewerId;
                   const editable = canManage && !isOwner;
 
                   return (
@@ -167,6 +182,27 @@ export function MembersPanel({
                               label: ROLE_LABEL[role],
                             }))}
                           />
+                        ) : isSelf && isOwner ? (
+                          /*
+                           * 所有者自己那一行的下拉（R76）：**它是"转让"的入口**，不直接改角色 ——
+                           * 工作区必须始终有所有者，所以"把自己改成管理员"这件事只能连同
+                           * 「指定继承人」一起做。选到哪一档，转让完成后自己就是哪一档；
+                           * 选回「所有者」（当前值）不触发（原生 select 也不会为相同的值触发 change）。
+                           */
+                          <FilterSelect
+                            label={`${member.name}的角色`}
+                            value="OWNER"
+                            options={[
+                              { value: 'OWNER', label: ROLE_LABEL.OWNER },
+                              ...ASSIGNABLE_ROLES.map((role) => ({
+                                value: role,
+                                label: ROLE_LABEL[role],
+                              })),
+                            ]}
+                            onChange={(role) => {
+                              if (role !== 'OWNER') setTransferring(role as Role);
+                            }}
+                          />
                         ) : (
                           <span
                             className={cn(
@@ -185,7 +221,27 @@ export function MembersPanel({
                       </td>
 
                       <td className="px-6 py-4 text-right">
-                        {editable ? (
+                        {isSelf ? (
+                          // 自己那一行：所有者只有「解散」（转让在角色列那个下拉里），
+                          // 其他人是「退出」。两者都**不经过** `editable` —— 退出不是管理动作
+                          isOwner ? (
+                            <button
+                              type="button"
+                              onClick={() => setDissolving(true)}
+                              className="text-[12.5px] font-semibold text-rose-600 transition-colors duration-150 hover:text-rose-700"
+                            >
+                              解散
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setLeaving(true)}
+                              className="text-ink-500 text-[12.5px] transition-colors duration-150 hover:text-rose-600"
+                            >
+                              退出
+                            </button>
+                          )
+                        ) : editable ? (
                           <button
                             type="button"
                             onClick={() =>
@@ -285,6 +341,36 @@ export function MembersPanel({
       </main>
 
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+
+      {/* 自己那一行的两个动作（R75）：所有者「解散」、其他成员「退出」 */}
+      <DissolveWorkspaceDialog
+        open={dissolving}
+        onOpenChange={setDissolving}
+        workspaceName={data.workspaceName}
+      />
+      <LeaveWorkspaceDialog
+        open={leaving}
+        onOpenChange={setLeaving}
+        workspaceName={data.workspaceName}
+      />
+
+      {/* 转让所有权（R76）：入口在所有者自己那一行的角色下拉 */}
+      <TransferOwnershipDialog
+        open={transferring !== null}
+        onOpenChange={(next) => {
+          if (!next) setTransferring(null);
+        }}
+        workspaceName={data.workspaceName}
+        selfRole={transferring ?? 'ADMIN'}
+        candidates={data.members
+          .filter((member) => member.userId !== viewerId)
+          .map((member) => ({
+            userId: member.userId,
+            name: member.name,
+            email: member.email,
+            role: member.role,
+          }))}
+      />
 
       {/* 危险确认走设计稿那一套卡（三角告警 + 标题 + 说明 + 浅灰提示块 + 两枚等宽按钮） */}
       <Modal open={removing !== null} onOpenChange={(next) => !next && setRemoving(null)}>

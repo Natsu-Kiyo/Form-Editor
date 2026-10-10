@@ -178,6 +178,24 @@ export function describeOperation(input: {
         extra: String(detail.email ?? '') || null,
       };
 
+    case OPERATION_TYPE.MEMBER_LEAVE:
+      // 与「被移除」读起来必须是两件事：一个是自己走的，一个是被请走的
+      return {
+        group: OPERATION_TYPE_GROUP_OF.MEMBER_LEAVE,
+        typeLabel,
+        sentence: build('', name, ' 主动退出了工作区'),
+        extra: String(detail.email ?? '') || null,
+      };
+
+    case OPERATION_TYPE.OWNER_TRANSFER:
+      // 一次动作改了两个人的角色，第二行说清发起人自己变成了什么
+      return {
+        group: OPERATION_TYPE_GROUP_OF.OWNER_TRANSFER,
+        typeLabel,
+        sentence: build('把工作区所有权转让给了', name, ''),
+        extra: detail.selfRole ? `自己转为「${String(detail.selfRole)}」` : null,
+      };
+
     case OPERATION_TYPE.ARCHIVE:
       return {
         group: OPERATION_TYPE_GROUP_OF.ARCHIVE,

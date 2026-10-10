@@ -15,7 +15,8 @@ import { changeRoleSchema } from '../schemas';
  * 两条共同的前提（缺一个就会漏一种越权）：
  * - 权限 **ADMIN**；
  * - **所有者的成员关系不可改也不可移除** —— 工作区所有者是 `Workspace.ownerId`，
- *   把他降级或踢出去会让工作区失去所有者（转让属 2.0，不在本版本里）。
+ *   把他降级或踢出去会让工作区失去所有者。所有者想降级自己只有一条路：**转让**
+ *   （R76：成员页自己那一行的角色下拉 → `transfer-ownership.ts`）。
  */
 async function loadTarget(membershipId: string) {
   const { user, workspace } = await requireActiveWorkspace('ADMIN');

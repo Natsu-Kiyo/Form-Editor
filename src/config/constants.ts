@@ -292,6 +292,10 @@ export const OPERATION_TYPE = {
   MEMBER_JOIN: 'MEMBER_JOIN',
   MEMBER_ROLE: 'MEMBER_ROLE',
   MEMBER_REMOVE: 'MEMBER_REMOVE',
+  /** 成员自己退出工作区（R75）—— 与「被移除」分开记：日志里读起来是两件事 */
+  MEMBER_LEAVE: 'MEMBER_LEAVE',
+  /** 所有者把工作区转让给别人（R76）—— 一次动作改两条成员关系，单独记 */
+  OWNER_TRANSFER: 'OWNER_TRANSFER',
   // 设计稿 W10 的日志里还有这三类（渠道 / 答卷状态 / 导出），一并记上
   CHANNEL_CREATE: 'CHANNEL_CREATE',
   RESPONSE_INVALIDATE: 'RESPONSE_INVALIDATE',
@@ -322,6 +326,8 @@ export const OPERATION_TYPE_LABEL: Record<OperationType, string> = {
   MEMBER_JOIN: '成员加入',
   MEMBER_ROLE: '调整成员角色',
   MEMBER_REMOVE: '移除成员',
+  MEMBER_LEAVE: '退出工作区',
+  OWNER_TRANSFER: '转让所有权',
   CHANNEL_CREATE: '新建渠道',
   RESPONSE_INVALIDATE: '标记答卷无效',
   RESPONSE_RESTORE: '恢复答卷有效',
@@ -360,6 +366,8 @@ export const OPERATION_TYPE_GROUP_OF: Record<OperationType, OperationTypeGroup> 
   MEMBER_JOIN: OPERATION_TYPE_GROUP.MEMBER,
   MEMBER_ROLE: OPERATION_TYPE_GROUP.MEMBER,
   MEMBER_REMOVE: OPERATION_TYPE_GROUP.MEMBER,
+  MEMBER_LEAVE: OPERATION_TYPE_GROUP.MEMBER,
+  OWNER_TRANSFER: OPERATION_TYPE_GROUP.MEMBER,
   CHANNEL_CREATE: OPERATION_TYPE_GROUP.DISTRIBUTION,
   RESPONSE_INVALIDATE: OPERATION_TYPE_GROUP.DATA,
   RESPONSE_RESTORE: OPERATION_TYPE_GROUP.DATA,
@@ -437,11 +445,19 @@ export function hasAtLeastRole(role: Role, min: Role) {
 
 /** 邀请弹层里每种角色的一句话说明（与权限矩阵同源，见 `members/lib/permissions-matrix.ts`） */
 export const ROLE_INVITE_HINT: Record<Role, string> = {
-  OWNER: '所有者：工作区的唯一拥有者，不可邀请 —— 转让属 2.0',
+  OWNER: '所有者：工作区的唯一拥有者，不可邀请（转让在成员页自己那一行的角色下拉里操作）',
   ADMIN: '管理员：可管理成员与全部问卷，但不能解散工作区',
   EDITOR: '编辑者：可创建与编辑问卷、发布回收、导出数据',
   VIEWER: '查看者：只能看问卷、数据与日志，不能修改任何东西',
 };
+
+/**
+ * 「解散工作区」的确认文字：**前后端共用**。
+ *
+ * 界面上「输入对了才可点」只是即时反馈 —— 服务端还会再比对一次，
+ * 那才是安全边界（与其它校验同一条规矩）。
+ */
+export const DISSOLVE_CONFIRM_TEXT = '解散此工作区';
 
 /**
  * 模板分类（W08 的分类胶囊）。

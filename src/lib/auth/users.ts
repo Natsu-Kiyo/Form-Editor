@@ -1,10 +1,9 @@
 import 'server-only';
 
-import { randomBytes } from 'node:crypto';
-
 import { prisma } from '@/lib/db';
 
 import { hashPassword } from './password';
+import { randomWorkspaceSlug } from './workspace-lifecycle';
 
 /**
  * User 记录的读写。
@@ -30,11 +29,6 @@ export async function getUserPasswordHash(userId: string) {
   });
 
   return user?.passwordHash ?? null;
-}
-
-/** 工作区 slug。目前只用于唯一标识，不进 URL（切换工作区靠 Cookie），所以随机即可 */
-function randomWorkspaceSlug() {
-  return `ws-${randomBytes(4).toString('hex')}`;
 }
 
 /**

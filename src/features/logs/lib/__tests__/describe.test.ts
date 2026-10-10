@@ -68,6 +68,32 @@ describe('describeOperation', () => {
     expect(invite.extra).toBe('编辑者 · 等待接受');
   });
 
+  it('退出工作区：与「被移除」是两句话（一个是自己走，一个是被请走）', () => {
+    const leave = describeOperation({
+      type: OPERATION_TYPE.MEMBER_LEAVE,
+      targetName: '王嘉禾',
+      detail: { email: 'wang.jh@example.com', role: '编辑者' },
+    });
+
+    expect(leave.sentence.target).toBe('王嘉禾');
+    expect(leave.sentence.suffix).toContain('主动退出了工作区');
+    expect(leave.extra).toBe('wang.jh@example.com');
+    expect(leave.group).toBe('成员管理');
+  });
+
+  it('转让所有权：对象是继承人，第二行说清发起人自己变成了什么', () => {
+    const transfer = describeOperation({
+      type: OPERATION_TYPE.OWNER_TRANSFER,
+      targetName: '陈思远',
+      detail: { email: 'chen.sy@example.com', selfRole: '管理员' },
+    });
+
+    expect(transfer.sentence.prefix).toContain('把工作区所有权转让给了');
+    expect(transfer.sentence.target).toBe('陈思远');
+    expect(transfer.extra).toBe('自己转为「管理员」');
+    expect(transfer.group).toBe('成员管理');
+  });
+
   it('模板公开与取消公开：对象是模板名，第二行带分类', () => {
     const publish = describeOperation({
       type: OPERATION_TYPE.TEMPLATE_PUBLISH,
