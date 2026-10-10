@@ -4,17 +4,15 @@ import { getResponsesForExport } from '@/features/analytics/api/analytics';
 import { parseAnalyticsFilter } from '@/features/analytics/lib/filter';
 import { OPERATION_TYPE } from '@/config/constants';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
+import { toCsv } from '@/lib/csv';
 import { writeOperationLog } from '@/lib/operation-log';
 import { formatDateTimeLocal } from '@/utils/format';
 
 /**
  * 导出答卷 CSV。
  *
- * 两个刻意的细节：
- * - **带 UTF-8 BOM**：不加 BOM 的 UTF-8 CSV 在中文 Windows 上双击打开会变成乱码，
- *   而「导出后双击就能看」正是这个功能的全部意义。
- * - 每个单元格都加引号并把内部引号翻倍：题目文案、填空答案里出现逗号与换行是常态，
- *   不加引号会把一行拆成好几列。
+ * 转义全在 `@/lib/csv`：BOM、引号翻倍、**公式注入中和**共用同一份实现
+ * ——这里是唯一能让答题人的填空内容进到发起人 Excel 里的出口。
  *
  * 权限要求 `EDITOR`：统计页本身对查看者开放，但把全部原始回答打包带走不是。
  */
@@ -100,9 +98,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     ];
   });
 
-  const csv = [header, ...body].map((row) => row.map(escapeCell).join(',')).join('\r\n');
-
-  return new NextResponse(`\uFEFF${csv}\r\n`, {
+  return new NextResponse(toCsv([header, ...body]), {
     headers: {
       'content-type': 'text/csv; charset=utf-8',
       // RFC 5987：文件名含中文时必须这样写，直接写 filename 会乱码
@@ -126,8 +122,4 @@ function formatCell(value: unknown) {
   }
 
   return String(value);
-}
-
-function escapeCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
 }

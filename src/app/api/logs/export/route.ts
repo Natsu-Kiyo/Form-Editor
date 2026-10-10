@@ -3,12 +3,13 @@ import { NextResponse } from 'next/server';
 import { getOperationLogs } from '@/features/logs/api/logs';
 import { parseLogsQuery } from '@/features/logs/lib/filter';
 import { requireActiveWorkspace } from '@/lib/auth/active-workspace';
+import { toCsv } from '@/lib/csv';
 
 /**
  * 导出操作日志 CSV。
  *
- * 与答卷导出同一套约定：**带 UTF-8 BOM**（否则中文 Windows 上双击打开是乱码）、
- * 每个单元格加引号并把内部引号翻倍。
+ * 与答卷导出共用 `@/lib/csv`：BOM、引号翻倍与公式注入中和只有一处实现
+ * （成员姓名、问卷标题都会进到这张表里）。
  *
  * 权限 **ADMIN**：查看日志对所有成员开放，但把整份审计记录打包带走不是。
  * 筛选解析与页面共用 `parseLogsQuery` —— 页面上筛的是谁，导出的就是谁。
@@ -39,9 +40,7 @@ export async function GET(request: Request) {
     ]),
   );
 
-  const csv = [header, ...rows].map((row) => row.map(escapeCell).join(',')).join('\r\n');
-
-  return new NextResponse(`\uFEFF${csv}\r\n`, {
+  return new NextResponse(toCsv([header, ...rows]), {
     headers: {
       'content-type': 'text/csv; charset=utf-8',
       // RFC 5987：文件名含中文时必须这样写
@@ -50,8 +49,4 @@ export async function GET(request: Request) {
       )}`,
     },
   });
-}
-
-function escapeCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
 }
