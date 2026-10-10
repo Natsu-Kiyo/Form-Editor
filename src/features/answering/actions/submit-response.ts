@@ -169,15 +169,17 @@ export async function submitResponseAction(input: {
     /*
      * 收满就自动截止：让「已达上限」是一个真实存在的状态，而不是每次进来才算一遍。
      *
-     * 份数取 `context._count.responses + 1`（加载上下文时的总数 + 刚插入的这一份），
-     * **不再单独 count 一次**：一是不必多花一次跨区域往返，二是与上面的预检口径一致
-     * （预检也用总数，不是「有效份数」）。
+     * 份数取 `context._count.responses + 1`（加载上下文时的**有效**份数 + 刚插入的这一份），
+     * **不再单独 count 一次**：一是不必多花一次跨区域往返，二是与上面的预检**同源** ——
+     * `loadSubmissionContext` 那个 `_count` 带 `where: { status: 'VALID' }` 过滤，
+     * 上面的预检读的就是它，所以两边都是「有效份数」而不是总份数。
+     * 新插入的这份 `Response.status` 默认为 `VALID`，`+1` 才成立。
      * 代价是快照可能略旧（期间别人也提交了），只会让它**稍晚一点**关闭 ——
      * 下一个访客的预检一定会把最后那几份算进去，不会漏。
      */
-    const totalResponses = context._count.responses + 1;
+    const validResponses = context._count.responses + 1;
 
-    if (context.responseLimit !== null && totalResponses >= context.responseLimit) {
+    if (context.responseLimit !== null && validResponses >= context.responseLimit) {
       await prisma.questionnaire.update({
         where: { id: context.id },
         data: { status: 'CLOSED', closeReason: 'LIMIT_REACHED', closedAt: new Date() },
