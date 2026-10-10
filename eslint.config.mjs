@@ -88,7 +88,14 @@ const eslintConfig = defineConfig([
         },
       ],
 
-      // 禁止 barrel 文件
+      // 禁止 barrel 文件。
+      //
+      // 两条已知边界写在这里，免得读的人以为它管得更宽（用行注释是因为正文里
+      // 那个 glob 自带 `星号+斜杠`，放进块注释会把注释提前终止）：
+      // - 只覆盖 `@/features/[名字]/index` 这种**别名**写法，相对路径的 `./index` 不在管辖内
+      //   （本项目跨目录导入一律走 `@/` 别名，相对路径只出现在同 feature 内部）；
+      // - 全仓目前**没有任何 barrel 文件**，这条是给将来兜底的：一旦有人建了 `index.ts`，
+      //   报错会落在 import 那一行，而不是等代码跑起来才发现。
       'no-restricted-imports': [
         'error',
         {
@@ -96,7 +103,7 @@ const eslintConfig = defineConfig([
             {
               group: ['@/features/*/index'],
               message:
-                '禁止 barrel 文件：请直接从具体文件导入，例如 @/features/comments/api/get-comments。',
+                '禁止 barrel 文件：请直接从具体文件导入，例如 @/features/editor/api/questionnaires。',
             },
           ],
         },
@@ -115,9 +122,9 @@ const eslintConfig = defineConfig([
         {
           'src/features/**/!(__tests__)': 'KEBAB_CASE',
           'src/components/**/!(__tests__)': 'KEBAB_CASE',
+          'src/config/**/!(__tests__)': 'KEBAB_CASE',
           'src/hooks/**/!(__tests__)': 'KEBAB_CASE',
           'src/lib/**/!(__tests__)': 'KEBAB_CASE',
-          'src/stores/**/!(__tests__)': 'KEBAB_CASE',
           'src/types/**/!(__tests__)': 'KEBAB_CASE',
           'src/utils/**/!(__tests__)': 'KEBAB_CASE',
         },
