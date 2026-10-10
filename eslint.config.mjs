@@ -10,16 +10,17 @@ import checkFile from 'eslint-plugin-check-file';
  * 否则「feature 之间禁止互相导入」的约束对该 feature 不生效。
  */
 const FEATURES = [
-  'auth',
   'account',
-  'workspace',
-  'questionnaire',
-  'editor',
-  'publish',
-  'answering',
   'analytics',
+  'answering',
+  'auth',
+  'editor',
+  'logs',
+  'members',
+  'publish',
+  'questionnaire',
   'responses',
-  'templates',
+  'workspace',
 ];
 
 /** 共享层：不得反向依赖 features 或 app */
@@ -52,6 +53,21 @@ const eslintConfig = defineConfig([
 
   {
     plugins: { 'import-x': importX, 'check-file': checkFile },
+    /**
+     * import-x 内置的 node resolver 默认只认 .js/.mjs/.cjs/.json/.node，
+     * 既解析不了本项目的无扩展名 .ts/.tsx 导入，也不认 tsconfig 的 `@/*` 别名 ——
+     * 解析失败时 `no-restricted-paths` 会静默跳过（规则里直接 return），
+     * 于是「反向依赖禁止」这条红线长期没有守卫。
+     * 这两个选项（extensions + tsconfig）把它补回来；不需要额外安装 resolver 包。
+     */
+    settings: {
+      'import-x/resolver': {
+        node: {
+          extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'],
+          tsconfig: { configFile: './tsconfig.json' },
+        },
+      },
+    },
     rules: {
       // 单向依赖：app -> features -> shared，反向禁止
       'import-x/no-restricted-paths': [
