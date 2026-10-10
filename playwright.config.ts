@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { defineConfig, devices } from '@playwright/test';
 
 /**
@@ -34,12 +37,30 @@ const remoteBaseURL = process.env.E2E_BASE_URL?.trim() || null;
 const baseURL = remoteBaseURL ?? `http://localhost:${e2ePort}`;
 
 /**
- * 默认跑 `next dev`（改代码即生效，日常用）。
- * 设 `E2E_USE_BUILD=1` 则跑构建产物（`next start`）—— 它**不受项目级锁影响**，
- * 也不会因为 dev server 的模块图过期而出现假失败，适合在「本机已开着别的 dev server」
- * 或需要在干净产物上验证时使用。前提是先 `pnpm build`。
+ * **默认跑构建产物**（`next start`）；要 dev 的「改代码即生效」就显式设 `E2E_USE_DEV=1`。
+ *
+ * 为什么默认反过来（R86）：在 dev 上跑会得到**假失败**，而且假得很像用例写错了 ——
+ * - 热更新留下的双 React 树会让同一个输入框在 DOM 里出现 2 个（`_r_` 与 `_R_` 两族 id），
+ *   `getByLabel(...)` 当场 strict mode violation；
+ * - Next 的开发浮层（`<nextjs-portal>`）会盖住按钮，把一次点击吃到 240 秒超时。
+ * 两者都**只在 dev 里存在**，production 产物里没有这些代码（详见 PLAN.md R85 与复核 B.4）。
+ * 代价是跑之前得先 `pnpm build` —— 下面那道检查负责把「忘了构建」说清楚。
+ *
+ * `E2E_USE_BUILD=1` 仍然认（它现在等价于默认值），旧命令与文档不改也能跑。
  */
-const useBuildOutput = process.env.E2E_USE_BUILD === '1';
+const useBuildOutput = process.env.E2E_USE_DEV !== '1';
+
+/**
+ * 忘了 `pnpm build` 就直接跑：在**这里**报一句能看懂的话，而不是让 `next start`
+ * 抛一句 `Could not find a production build`（那时人已经在等测试结果了）。
+ * 只判本地自起服务的情况；指向远端时（`E2E_BASE_URL`）本来就没有本地产物什么事。
+ */
+if (useBuildOutput && !remoteBaseURL && !existsSync(join(process.cwd(), '.next', 'BUILD_ID'))) {
+  throw new Error(
+    '[e2e] 找不到构建产物（.next/BUILD_ID）：先跑 `pnpm build`，' +
+      '或者设 `E2E_USE_DEV=1` 用 dev server 跑（那条路会接受 dev 带来的假失败）。',
+  );
+}
 
 export default defineConfig({
   testDir: './e2e',
