@@ -115,7 +115,7 @@ export function parseDateTimeLocal(value: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})$/.exec(value.trim());
   if (!match) return null;
 
-  const [, year, month, day, hour, minute] = match.map(Number) as unknown as number[];
+  const [, year, month, day, hour, minute] = match.map(Number);
   const guess = Date.UTC(year, month - 1, day, hour, minute);
 
   return new Date(guess - zoneOffsetMinutes(new Date(guess)) * 60_000);
@@ -133,7 +133,7 @@ export function parseDisplayDate(value: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
   if (!match) return null;
 
-  const [, year, month, day] = match.map(Number) as unknown as number[];
+  const [, year, month, day] = match.map(Number);
   const guess = Date.UTC(year, month - 1, day);
   const asUtc = new Date(guess);
   const exists =
