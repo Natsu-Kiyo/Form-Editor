@@ -69,6 +69,11 @@ export async function createUserWithDefaultWorkspace(input: {
   const now = new Date();
 
   return prisma.$transaction(async (tx) => {
+    /*
+     * `select` 只取 id：这道「别把口令哈希带进任何会外传的对象」的规矩
+     * 与 `getUserByEmail` / `getUserCredentials` 是同一条 —— 调用方（register action）
+     * 要的只有 id，而返回值会顺着 action 的调用栈走（R92）。
+     */
     const user = await tx.user.create({
       data: {
         name: input.name,
@@ -76,6 +81,7 @@ export async function createUserWithDefaultWorkspace(input: {
         passwordHash,
         passwordUpdatedAt: now,
       },
+      select: { id: true },
     });
 
     const workspace = await tx.workspace.create({
@@ -94,18 +100,21 @@ export async function createUserWithDefaultWorkspace(input: {
   });
 }
 
+/** 改密码。**不返回整行** —— 调用方只用它的副作用，返回值没理由带着新的口令哈希（R92） */
 export async function updateUserPassword(userId: string, password: string) {
   const passwordHash = await hashPassword(password);
 
-  return prisma.user.update({
+  await prisma.user.update({
     where: { id: userId },
     // 一并记录修改时间：账号与安全页要如实展示「上次修改」
     data: { passwordHash, passwordUpdatedAt: new Date() },
+    select: { id: true },
   });
 }
 
-export function updateUserName(userId: string, name: string) {
-  return prisma.user.update({ where: { id: userId }, data: { name } });
+/** 改昵称。理由同上，只做写入、不返回整行 */
+export async function updateUserName(userId: string, name: string) {
+  await prisma.user.update({ where: { id: userId }, data: { name }, select: { id: true } });
 }
 
 /** 账号与安全页要展示的信息 */
