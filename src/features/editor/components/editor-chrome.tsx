@@ -251,7 +251,13 @@ function UnsavedChangesDialog({
   const [saving, setSaving] = useState(false);
 
   return (
-    <Modal open={open} onOpenChange={(next) => (!next ? onStay() : undefined)}>
+    /*
+     * `saving` 也要挡住 Esc / 点遮罩 / 右上角 ×：这三个出口都走 `onOpenChange(false)`，
+     * 而它们和「放弃并离开」是同一件事（离开本页）—— 保存中放人走，等于把正在保存的改动丢下，
+     * 且 `onSave()` 不会因此中止，返回 true 后照样 `onLeave()`（R92 · F1）。
+     * 拦法是不回调 `onStay`：Modal 是受控的，父层 `open` 不变，弹层就不会关。
+     */
+    <Modal open={open} onOpenChange={(next) => (!next && !saving ? onStay() : undefined)}>
       <ModalContent title="有未保存的修改" width="sm">
         <p className="text-ink-500 mb-5 text-[12.5px] leading-5">
           {isBackNavigation
