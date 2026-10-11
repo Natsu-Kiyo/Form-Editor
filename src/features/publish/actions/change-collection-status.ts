@@ -7,24 +7,24 @@ import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
 import { writeOperationLog } from '@/lib/operation-log';
 
-import {
-  resolveCollectionTransition,
-  type CollectionAction,
-  type CollectionUiAction,
-} from '../lib/transitions';
+import { resolveCollectionTransition, type CollectionUiAction } from '../lib/transitions';
 import { collectionActionSchema } from '../schemas';
 
 export type CollectionActionResult = { ok: true; message: string } | { ok: false; message: string };
 
-const ACTION_LABEL: Record<CollectionAction, string> = {
-  PUBLISH: '发布',
+/*
+ * 两张表都按**接口能收到的动作**声明（`CollectionUiAction`，不含 `PUBLISH`）。
+ * 这里不能图省事用全集 `CollectionAction`：那会让表里留一个这个接口永远收不到的 `PUBLISH` 条目，
+ * 而 `OPERATION_BY_ACTION` 又恰好写着「发布」这个操作类型 —— 读代码的人很容易以为
+ * 这条接口真能发布（R92 · F2）。发布只走 `publishQuestionnaireAction`。
+ */
+const ACTION_LABEL: Record<CollectionUiAction, string> = {
   PAUSE: '暂停回收',
   RESUME: '恢复回收',
   CLOSE: '截止回收',
 };
 
-const OPERATION_BY_ACTION: Record<CollectionAction, OperationType> = {
-  PUBLISH: OPERATION_TYPE.PUBLISH,
+const OPERATION_BY_ACTION: Record<CollectionUiAction, OperationType> = {
   PAUSE: OPERATION_TYPE.PAUSE,
   RESUME: OPERATION_TYPE.RESUME,
   CLOSE: OPERATION_TYPE.CLOSE,
