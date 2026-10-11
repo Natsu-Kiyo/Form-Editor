@@ -91,6 +91,28 @@ export async function getResponsesPage(
       : {}),
   };
 
+  /**
+   * 一页答卷。抽成函数是为了**页码越界时能按收敛后的页码再取一次**（见下面那段）——
+   * 上面那一批查询是并行发出的，取的时候还不知道「总共几页」。
+   *
+   * `id` 参与排序是为了让分页稳定：`submittedAt` 相同时（导入的答卷常常同秒），
+   * 只按时间排序会让某些行在两页里重复出现、另一些彻底看不到。
+   */
+  const rowsFor = (page: number) =>
+    prisma.response.findMany({
+      where,
+      orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
+      skip: (page - 1) * query.pageSize,
+      take: query.pageSize,
+      select: {
+        id: true,
+        status: true,
+        submittedAt: true,
+        durationMs: true,
+        channel: { select: { name: true } },
+      },
+    });
+
   const [questionnaire, statusCounts, filteredCount, rows, channels, allSubmissions] =
     await Promise.all([
       prisma.questionnaire.findUnique({
@@ -104,21 +126,7 @@ export async function getResponsesPage(
         _count: { _all: true },
       }),
       prisma.response.count({ where }),
-      prisma.response.findMany({
-        where,
-        // `id` 参与排序是为了让分页稳定：`submittedAt` 相同时（导入的答卷常常同秒），
-        // 只按时间排序会让某些行在两页里重复出现、另一些彻底看不到
-        orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-        select: {
-          id: true,
-          status: true,
-          submittedAt: true,
-          durationMs: true,
-          channel: { select: { name: true } },
-        },
-      }),
+      rowsFor(query.page),
       prisma.channel.findMany({
         where: { questionnaireId },
         orderBy: { createdAt: 'asc' },
@@ -144,6 +152,17 @@ export async function getResponsesPage(
   const total = statusCounts.reduce((sum, row) => sum + row._count._all, 0);
   const validCount = statusCounts.find((row) => row.status === 'VALID')?._count._all ?? 0;
 
+  // 页码越界（手改 URL、或删到只剩一页）时收敛到最后一页，而不是给一个空表
+  const pageCount = Math.max(1, Math.ceil(filteredCount / query.pageSize));
+  const page = Math.min(query.page, pageCount);
+
+  /*
+   * 上面那一批查询是**并行**发出的，取的时候还不知道总页数，所以用的是未收敛的页码 ——
+   * 越界时拿到的是一张空表，而界面显示的是收敛后的「第 3 页 / 共 3 页」。
+   * 只有真越界时才按收敛后的页码补一次查询：正常路径仍然只花那一批（境外库的往返很贵）。
+   */
+  const pageRows = page === query.page ? rows : await rowsFor(page);
+
   const serials = new Map<string, number>();
   allSubmissions.forEach((submission, index) => {
     // 倒序排第 index 位的答卷，编号是「总数 − index」：最早的编号为 1，最新的是总数
@@ -155,16 +174,16 @@ export async function getResponsesPage(
     total,
     validCount,
     filteredCount,
-    // 页码越界（手改 URL、或删到只剩一页）时收敛到最后一页，而不是给一个空表
-    page: Math.min(query.page, Math.max(1, Math.ceil(filteredCount / query.pageSize))),
-    pageCount: Math.max(1, Math.ceil(filteredCount / query.pageSize)),
+    // 与上面那次查询**共用**同一个收敛后的页码：两者不一致就会出现「第 3 页 / 共 3 页」配空表
+    page,
+    pageCount,
     pageSize: query.pageSize,
     channels: channels.map((channel) => ({
       id: channel.id,
       name: channel.name,
       count: channel._count.responses,
     })),
-    rows: rows.map((row) => ({
+    rows: pageRows.map((row) => ({
       id: row.id,
       serial: serials.get(row.id) ?? 0,
       submittedAtLabel: formatShortDateTime(row.submittedAt),

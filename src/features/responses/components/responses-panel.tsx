@@ -168,7 +168,13 @@ export function ResponsesPanel({
             <SearchField
               basePath={basePath}
               initialKeyword={search ?? ''}
-              preserveQuery={{ channel: channelId ?? '', invalid: includeInvalid ? '1' : '' }}
+              /*
+               * `'hide'` 而不是 `'1'`：服务端的判据是「有没有等于 'hide'」（见
+               * `app/app/q/[id]/responses/page.tsx` 里那句 `query.invalid !== 'hide'`）。
+               * 这里原先传的是 `'1'`（勾选框那边用的是 `'hide'`）—— 两处口径不一致，
+               * 结果是「取消勾选后再用搜索框就一定把筛选抹掉」，而且勾选框自己会变回勾上（R91 · S1）。
+               */
+              preserveQuery={{ channel: channelId ?? '', invalid: includeInvalid ? '' : 'hide' }}
               placeholder="搜索答卷内容…"
               label="搜索答卷内容"
             />
