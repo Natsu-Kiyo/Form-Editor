@@ -1,9 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { headers } from 'next/headers';
 
 import { createRateLimiter } from '@/lib/rate-limit';
+import { clientIp } from '@/lib/request-ip';
 
 import { getAccessPassword } from '../api/public-questionnaire';
 import { verifyAccessCode } from '../lib/access-code';
@@ -24,14 +24,6 @@ const UNLOCK_LIMIT = 5;
 const UNLOCK_WINDOW_MS = 10 * 60 * 1000;
 
 const limiter = createRateLimiter({ limit: UNLOCK_LIMIT, windowMs: UNLOCK_WINDOW_MS });
-
-/** 来源标识：优先取代理链里的第一跳，取不到就退化成 'unknown'（这时限流是按全站算的） */
-async function clientKey() {
-  const store = await headers();
-  const forwarded = store.get('x-forwarded-for')?.split(',')[0]?.trim();
-
-  return forwarded || store.get('x-real-ip') || 'unknown';
-}
 
 /**
  * 口令访问的解锁。
@@ -63,7 +55,7 @@ export async function unlockQuestionnaireAction(
   const value = typeof password === 'string' ? password.trim() : '';
   if (value.length === 0) return { ok: false, message: '请输入访问口令' };
 
-  const key = `${questionnaire.id}:${await clientKey()}`;
+  const key = `${questionnaire.id}:${await clientIp()}`;
   const gate = limiter.consume(key);
 
   if (!gate.ok) {

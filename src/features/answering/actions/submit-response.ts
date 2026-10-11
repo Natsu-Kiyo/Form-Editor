@@ -9,6 +9,7 @@ import { prisma } from '@/lib/db';
 import { notifyUsers } from '@/lib/notify';
 import { toJsonColumn } from '@/lib/json';
 import { createRateLimiter } from '@/lib/rate-limit';
+import { clientIp } from '@/lib/request-ip';
 
 import {
   findChannelId,
@@ -51,13 +52,6 @@ const SUBMIT_WINDOW_MS = 10 * 60 * 1000;
 
 const submitLimiter = createRateLimiter({ limit: SUBMIT_LIMIT, windowMs: SUBMIT_WINDOW_MS });
 
-/** 来源标识：优先取代理链里的第一跳，取不到就退化成 'unknown'（这时按全站计数） */
-function forwardedIp(requestHeaders: { get: (name: string) => string | null }) {
-  const forwarded = requestHeaders.get('x-forwarded-for')?.split(',')[0]?.trim();
-
-  return forwarded || requestHeaders.get('x-real-ip') || 'unknown';
-}
-
 export async function submitResponseAction(input: {
   slug: string;
   answers: unknown;
@@ -73,7 +67,7 @@ export async function submitResponseAction(input: {
    * 换个 cookie 就是新的一位作答者。所以这里按「来源 IP + slug」计数，不按指纹：
    * 指纹能伪造，IP 伪造成本高得多（取不到 IP 的已知边界见 docs/VERIFY.md §四）。
    */
-  const limit = submitLimiter.consume(`${input.slug}:${forwardedIp(requestHeaders)}`);
+  const limit = submitLimiter.consume(`${input.slug}:${await clientIp()}`);
   if (!limit.ok) {
     return {
       ok: false,

@@ -7,6 +7,7 @@ import { verifyPassword } from '@/lib/auth/password';
 import { createSession } from '@/lib/auth/session';
 import { getUserByEmail } from '@/lib/auth/users';
 import { createRateLimiter } from '@/lib/rate-limit';
+import { clientIp } from '@/lib/request-ip';
 import type { FormState } from '@/types/form-state';
 import { toFieldErrors } from '@/utils/zod-errors';
 
@@ -33,14 +34,6 @@ const limiter = createRateLimiter({ limit: LOGIN_LIMIT, windowMs: LOGIN_WINDOW_M
 const DUMMY_HASH =
   '$argon2id$v=19$m=19456,t=2,p=1$HEHQVqFgYEvErODnekBtmQ$ezWrnnt/SEHAAFX86pUZAbVEUPU/9R2YRNEbAr4m3tA';
 
-/** 来源标识：优先取代理链里的第一跳，取不到就退化成 'unknown'（这时限流按全站算） */
-async function clientKey() {
-  const store = await headers();
-  const forwarded = store.get('x-forwarded-for')?.split(',')[0]?.trim();
-
-  return forwarded || store.get('x-real-ip') || 'unknown';
-}
-
 /** 只接受站内相对路径，避免被构造成开放重定向 */
 function safeNextPath(value: FormDataEntryValue | null) {
   if (typeof value !== 'string') return '/app';
@@ -62,7 +55,7 @@ export async function loginAction(_prevState: FormState, formData: FormData): Pr
   }
 
   // 限流放在校验之后、查库之前：格式不合法的提交不该花掉真实的试错预算
-  const key = `${parsed.data.email.toLowerCase()}:${await clientKey()}`;
+  const key = `${parsed.data.email.toLowerCase()}:${await clientIp()}`;
   const limit = limiter.consume(key);
   if (!limit.ok) {
     return {
