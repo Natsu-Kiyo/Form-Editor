@@ -245,8 +245,11 @@ function UnsavedChangesDialog({
   isBackNavigation: boolean;
   onStay: () => void;
   onLeave: () => void;
-  onSave: () => void;
+  /** 保存；返回**是否成功** —— 只有成功了才离开本页 */
+  onSave: () => Promise<boolean>;
 }) {
+  const [saving, setSaving] = useState(false);
+
   return (
     <Modal open={open} onOpenChange={(next) => (!next ? onStay() : undefined)}>
       <ModalContent title="有未保存的修改" width="sm">
@@ -256,21 +259,43 @@ function UnsavedChangesDialog({
             : '离开当前页面会丢掉这次的改动。要先保存吗？'}
         </p>
         <div className="flex flex-col gap-2.5 sm:flex-row">
-          <Button type="button" variant="outline" className="flex-1" onClick={onStay}>
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1"
+            disabled={saving}
+            onClick={onStay}
+          >
             留在本页
-          </Button>
-          <Button type="button" variant="outline" className="flex-1" onClick={onLeave}>
-            放弃并离开
           </Button>
           <Button
             type="button"
+            variant="outline"
             className="flex-1"
-            onClick={() => {
-              onSave();
-              onLeave();
+            disabled={saving}
+            onClick={onLeave}
+          >
+            放弃并离开
+          </Button>
+          {/* 保存中禁掉另外两个出口：这时候放人走，等于把「正在保存」的改动丢掉 */}
+          <Button
+            type="button"
+            className="flex-1"
+            loading={saving}
+            onClick={async () => {
+              /*
+               * **先保存、成功了再走**：不等就导航会出现「用户以为存上了、其实服务端拒绝了，
+               * 而他已经不在这一页」—— 改动静默丢失（R91 · S4）。
+               * 失败时留在本页：顶栏会显示「保存失败」并给重试入口。
+               */
+              setSaving(true);
+              const saved = await onSave();
+              setSaving(false);
+
+              if (saved) onLeave();
             }}
           >
-            保存并离开
+            {saving ? '保存中…' : '保存并离开'}
           </Button>
         </div>
       </ModalContent>

@@ -2,7 +2,6 @@
 
 import {
   createContext,
-  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -182,7 +181,11 @@ type EditorDraftValue = {
   reorderOptions: (questionKey: string, keys: string[]) => void;
   insertPageBreakAfter: (questionKey: string) => void;
   removePageBreakAt: (pageIndex: number) => void;
-  save: () => void;
+  /**
+   * 保存草稿。**返回这次保存是否成功** —— 「保存并离开」必须等它：
+   * 不等就导航会出现「用户以为存上了、其实服务端拒绝了，而他已经在别的页面上」（R91 · S4）。
+   */
+  save: () => Promise<boolean>;
   discard: () => void;
 };
 
@@ -231,8 +234,8 @@ export function EditorDraftProvider({
     setErrorMessage(null);
   }, []);
 
-  const save = useCallback(() => {
-    if (readOnly) return;
+  const save = useCallback(async (): Promise<boolean> => {
+    if (readOnly) return false;
 
     setState('saving');
     setErrorMessage(null);
@@ -264,24 +267,33 @@ export function EditorDraftProvider({
       }),
     };
 
-    startTransition(async () => {
-      try {
-        const result = await saveEditorDraftAction(questionnaireId, payload);
+    /*
+     * 直接 `await` 而不是包进 `startTransition`：**要把结果给调用方** ——
+     * 「保存并离开」得知道存没存上才决定走不走（R91 · S4）。
+     * 等待期的样子由 `state === 'saving'` 表达（顶栏读的就是它），不依赖 transition 的 pending。
+     */
+    try {
+      const result = await saveEditorDraftAction(questionnaireId, payload);
 
-        if (result.ok) {
-          setDirty(false);
-          setState('idle');
-        } else {
-          setErrorMessage(result.message);
-          setState('error');
-        }
-      } catch {
-        // 网络断了、权限被改了、结构被冻结了 —— 都落到这里。
-        // 不吞掉：顶栏显示「保存失败」并给重试入口
-        setErrorMessage('保存失败，请检查网络后重试');
-        setState('error');
+      if (result.ok) {
+        setDirty(false);
+        setState('idle');
+
+        return true;
       }
-    });
+
+      setErrorMessage(result.message);
+      setState('error');
+
+      return false;
+    } catch {
+      // 网络断了、权限被改了、结构被冻结了 —— 都落到这里。
+      // 不吞掉：顶栏显示「保存失败」并给重试入口
+      setErrorMessage('保存失败，请检查网络后重试');
+      setState('error');
+
+      return false;
+    }
   }, [questionnaireId, readOnly]);
 
   /** 放弃本次修改，回到服务端那一份 */

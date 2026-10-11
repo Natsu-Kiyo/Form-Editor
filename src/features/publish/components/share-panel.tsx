@@ -268,12 +268,28 @@ function MobileAction({
         type="button"
         className={className}
         onClick={() => {
-          // `navigator.share` 只在移动端与安全上下文可用；不可用时退回复制链接，
-          // 而不是给一个点了没反应的按钮（也不做「检测到不支持就不渲染」——
-          // 服务端渲染时无从判断，客户端再判断会导致布局跳动）
-          void navigator
-            .share?.({ title: share.title, url: share.url })
-            .catch(() => navigator.clipboard?.writeText(share.url).catch(() => undefined));
+          /*
+           * `navigator.share` 只在移动端与安全上下文可用；不可用时退回复制链接，
+           * 而不是给一个点了没反应的按钮（也不做「检测到不支持就不渲染」——
+           * 服务端渲染时无从判断，客户端再判断会导致布局跳动）。
+           *
+           * 注意**不能**写成 `navigator.share?.().catch(...)`：可选链会把整条链短路
+           *（`navigator.share` 是 undefined 时 `.catch` 根本不会被求值），
+           * 结果恰好与意图相反 —— 不支持的浏览器上点了什么都不发生（R91 · S2 修）。
+           */
+          if (typeof navigator.share === 'function') {
+            navigator.share({ title: share.title, url: share.url }).catch((error: unknown) => {
+              // 用户在原生分享面板点「取消」会抛 AbortError —— 那不是失败，
+              // 别顺手把链接塞进剪贴板（用户没有要求复制）
+              if ((error as DOMException | undefined)?.name === 'AbortError') return;
+
+              void navigator.clipboard?.writeText(share.url).catch(() => undefined);
+            });
+
+            return;
+          }
+
+          void navigator.clipboard?.writeText(share.url).catch(() => undefined);
         }}
       >
         {icon}
