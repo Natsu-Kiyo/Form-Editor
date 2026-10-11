@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { parseDateTimeLocal } from '@/utils/format';
 
-import { COLLECTION_ACTIONS } from './lib/transitions';
+import { COLLECTION_UI_ACTIONS } from './lib/transitions';
 
 /**
  * 发布设置。
@@ -60,13 +60,17 @@ export const publishSettingsSchema = z
 export type PublishSettingsInput = z.infer<typeof publishSettingsSchema>;
 
 /**
- * 回收开关的动作名（发布 / 暂停 / 恢复 / 截止）。
+ * 回收开关的动作名（暂停 / 恢复 / 截止 —— **刻意不含 `PUBLISH`**）。
  *
  * 为什么要在 action 边界再校验一次：Server Action 的参数是**客户端可控的入参**，
  * 联合类型是编译期的东西、运行时不存在。取值清单从 `lib/transitions.ts` 推导，
  * 所以「类型里有、校验里没有」这种错配不可能出现。
+ *
+ * 而推导的是 **UI 那三个**（`COLLECTION_UI_ACTIONS`）而不是状态机全集：发布要跑的
+ * preflight / publishedAt / 版本快照都在 `publishQuestionnaireAction` 里，
+ * 这条接口收下 `'PUBLISH'` 就等于开了一条绕过整套发布校验的旁路（R91 修）。
  */
-export const collectionActionSchema = z.enum(COLLECTION_ACTIONS);
+export const collectionActionSchema = z.enum(COLLECTION_UI_ACTIONS);
 
 /**
  * 新建渠道。

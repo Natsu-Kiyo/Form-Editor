@@ -8,12 +8,29 @@ import type { QuestionnaireStatus } from '@/config/constants';
  * 而它必须被单测穷举 —— 这三种动作都会改数据库里的状态，靠手点验不完。
  */
 /**
- * 允许的动作。**联合类型与 zod 校验都从它推导**（schema 在 `features/publish/schemas.ts`）——
- * 增删动作时只有这一处，不会出现「类型里有、校验里没有」这种错配。
+ * 状态机的动作**全集**（含 `PUBLISH`）—— 描述的是「DRAFT 能变成 PUBLISHED」这条迁移，
+ * 是这一块唯一的事实来源，被单测穷举。
+ *
+ * ⚠️ **它不是接口的白名单**：`changeCollectionStatusAction`（回收开关那条轻接口）
+ * 只接受 `COLLECTION_UI_ACTIONS` 那三个。拿全集当入参白名单，等于任何一个有 ADMIN 的人
+ * （或一段伪造请求）发一个 `'PUBLISH'` 就能绕过**整套发布校验**（preflight、publishedAt、
+ * 版本快照、发布设置落库）—— 这条旁路在 R91 被修掉，别再混用这两个常量。
  */
 export const COLLECTION_ACTIONS = ['PUBLISH', 'PAUSE', 'RESUME', 'CLOSE'] as const;
 
 export type CollectionAction = (typeof COLLECTION_ACTIONS)[number];
+
+/**
+ * **回收开关接口**允许的动作 —— 比状态机少一个 `PUBLISH`。
+ *
+ * 为什么刻意少这一个：发布会写 `publishedAt`、跑 `preflight`、落发布设置、写版本快照，
+ * 整套校验都在 `publishQuestionnaireAction` 里；回收开关这条接口只该做「暂停 / 恢复 / 截止」
+ * 三件事（设计稿上它就是三个按钮）。两个集合分开之后，
+ * 「接口能收什么」与「状态机能表达什么」各自只有一处，且不会互相偷偷放行。
+ */
+export const COLLECTION_UI_ACTIONS = ['PAUSE', 'RESUME', 'CLOSE'] as const;
+
+export type CollectionUiAction = (typeof COLLECTION_UI_ACTIONS)[number];
 
 export type TransitionResult =
   { ok: true; next: QuestionnaireStatus } | { ok: false; message: string };

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveCollectionTransition, type CollectionAction } from '../transitions';
+import { collectionActionSchema } from '../../schemas';
+import {
+  COLLECTION_ACTIONS,
+  COLLECTION_UI_ACTIONS,
+  resolveCollectionTransition,
+  type CollectionAction,
+} from '../transitions';
 
 /**
  * 这三条迁移都会改数据库里的状态，其中「截止」还不可逆 ——
@@ -67,6 +73,36 @@ describe('resolveCollectionTransition', () => {
     expect(resolveCollectionTransition('PUBLISHED', bogus, NOT_PAST)).toEqual({
       ok: false,
       message: '不支持的操作',
+    });
+  });
+});
+
+/**
+ * R91 的回归（第七轮 B1）：**回收开关接口的白名单不含 `PUBLISH`**。
+ *
+ * 这条旁路曾经真的存在 —— schema 用的是状态机全集，于是任何一个有 ADMIN 的人（或一段
+ * 伪造请求）发一个 `'PAUSE'` 以外的东西就能「发布」，绕过 preflight / publishedAt /
+ * 版本快照；而 `publishedAt` 为空又会让「归档后恢复」把一份**收过答卷**的问卷变回草稿，
+ * 编辑器再一保存就把题目（连带级联的答卷）删了。
+ *
+ * 断言落在 schema 上：它是这条接口的第一道闸，接口收什么就是它收什么。
+ */
+describe('collectionActionSchema（回收开关接口的入参白名单）', () => {
+  it('拒绝 PUBLISH —— 发布必须走发布设置那一套校验', () => {
+    expect(collectionActionSchema.safeParse('PUBLISH').success).toBe(false);
+  });
+
+  it('放行 UI 真正会发的三个动作', () => {
+    for (const action of COLLECTION_UI_ACTIONS) {
+      expect(collectionActionSchema.safeParse(action).success).toBe(true);
+    }
+  });
+
+  it('状态机仍认识 PUBLISH（两个集合刻意不同，别混用）', () => {
+    expect(COLLECTION_ACTIONS).toContain('PUBLISH');
+    expect(resolveCollectionTransition('DRAFT', 'PUBLISH', NOT_PAST)).toEqual({
+      ok: true,
+      next: 'PUBLISHED',
     });
   });
 });
