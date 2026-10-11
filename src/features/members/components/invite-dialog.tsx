@@ -5,6 +5,7 @@ import { useActionState, useState } from 'react';
 import { CopyIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalContent } from '@/components/ui/modal';
+import { useToast } from '@/components/ui/toast';
 import {
   INVITATION_EXPIRES_DAYS,
   ROLE_INVITE_HINT,
@@ -36,7 +37,18 @@ export function InviteMemberDialog({
     {},
   );
   const [role, setRole] = useState<Role>('EDITOR');
-  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  /*
+   * 记的是「刚复制的是**哪一条**链接」，而不是一个布尔 ——「已复制」于是可以**派生**出来：
+   * 生成第二条邀请时链接变了，它自然就不再成立。
+   *
+   * 此前存的是布尔、且一旦置真不再复位，于是新链接出来时按钮上已经写着「已复制」，
+   * 而用户根本没点过（R91 · N6）—— 正是项目最不想要的那种「假反馈」；
+   * 用 effect 去复位又会撞上 `react-hooks/set-state-in-effect`（本项目自己的规矩）。
+   */
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const copied = copiedLink !== null && copiedLink === state.inviteLink;
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
@@ -106,9 +118,22 @@ export function InviteMemberDialog({
                 variant="outline"
                 size="sm"
                 className="mt-2.5 w-full"
-                onClick={() => {
-                  void navigator.clipboard.writeText(state.inviteLink ?? '');
-                  setCopied(true);
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(state.inviteLink ?? '');
+                    setCopiedLink(state.inviteLink ?? null);
+                  } catch {
+                    /*
+                     * 剪贴板只在安全上下文（https / localhost）可用，失败**必须说出来** ——
+                     * 静默无反应的按钮与假入口没有区别（与 `CopyButton` 同一条理由）。
+                     * 注意别在这里 `setCopied(true)`：那会让「已复制」在没复制成功时显示出来。
+                     */
+                    toast({
+                      title: '复制失败',
+                      description: '浏览器拒绝了剪贴板访问，请手动选中复制',
+                      variant: 'error',
+                    });
+                  }
                 }}
               >
                 <CopyIcon className="size-3.5" />

@@ -43,6 +43,8 @@ export async function GET(request: Request) {
   return new NextResponse(toCsv([header, ...rows]), {
     headers: {
       'content-type': 'text/csv; charset=utf-8',
+      // 带完整审计记录的一次性下载：显式 no-store（与答卷导出同一条理由）
+      'cache-control': 'no-store',
       // RFC 5987：文件名含中文时必须这样写
       'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(
         `操作日志-${workspace.name}-最近${filter.days}天.csv`,

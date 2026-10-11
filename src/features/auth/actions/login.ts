@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 
 import { verifyPassword } from '@/lib/auth/password';
 import { createSession } from '@/lib/auth/session';
-import { getUserByEmail } from '@/lib/auth/users';
+import { getUserCredentials } from '@/lib/auth/users';
 import { createRateLimiter } from '@/lib/rate-limit';
 import { clientIp } from '@/lib/request-ip';
 import type { FormState } from '@/types/form-state';
@@ -64,7 +64,8 @@ export async function loginAction(_prevState: FormState, formData: FormData): Pr
     };
   }
 
-  const user = await getUserByEmail(parsed.data.email);
+  // 只取 `{ id, passwordHash }`：口令哈希不进任何会外传的对象（见 lib/auth/users.ts）
+  const user = await getUserCredentials(parsed.data.email);
 
   /*
    * 「邮箱不存在」与「密码错误」返回**同一句提示** —— 否则这个接口可以用来枚举账号。

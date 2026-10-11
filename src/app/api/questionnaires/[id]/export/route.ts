@@ -25,6 +25,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return new NextResponse(`${JSON.stringify(data.payload, null, 2)}\n`, {
     headers: {
       'content-type': 'application/json; charset=utf-8',
+      // 一次性下载：显式 no-store（与答卷 / 日志导出同一条理由）
+      'cache-control': 'no-store',
       // RFC 5987 的写法：文件名含中文时必须用它，直接写 filename 会变乱码
       'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(payloadFileName(data.title))}`,
     },

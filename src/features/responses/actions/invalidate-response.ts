@@ -8,6 +8,8 @@ import { prisma } from '@/lib/db';
 import { writeOperationLog } from '@/lib/operation-log';
 import { responseSerial } from '@/lib/response-serial';
 
+import { setResponseValiditySchema } from '../schemas';
+
 /**
  * 标记为无效 / 恢复有效。
  *
@@ -24,14 +26,19 @@ import { responseSerial } from '@/lib/response-serial';
  */
 export type ResponseValidityResult = { ok: true } | { ok: false; message: string };
 
-export async function setResponseValidityAction(input: {
-  responseId: string;
-  invalid: boolean;
-  /** 标无效的原因（可选，会写进 invalidReason） */
-  reason?: string;
-}): Promise<ResponseValidityResult> {
+export async function setResponseValidityAction(input: unknown): Promise<ResponseValidityResult> {
+  /*
+   * 入参是**客户端可控的**：先过 zod（类型 + 长度），再谈权限与落库 ——
+   * 少了这一道，`reason` 传个非字符串就会在 `?.trim()` 上抛 `TypeError`（→ 500），
+   * `invalid` 传字符串 `'false'` 也会被真值判断当成真（R91 · N2）。
+   */
+  const parsed = setResponseValiditySchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: '参数不合法' };
+
+  const { responseId, invalid, reason } = parsed.data;
+
   const response = await prisma.response.findUnique({
-    where: { id: input.responseId },
+    where: { id: responseId },
     select: { id: true, questionnaireId: true, status: true, submittedAt: true },
   });
 
@@ -42,16 +49,16 @@ export async function setResponseValidityAction(input: {
   const { user } = await requireQuestionnaireAccess(response.questionnaireId, 'EDITOR');
 
   // 已经是目标状态：不写库、也不记日志
-  if ((response.status === 'INVALID') === input.invalid) return { ok: true };
+  if ((response.status === 'INVALID') === invalid) return { ok: true };
 
   await prisma.response.update({
     where: { id: response.id },
-    data: input.invalid
+    data: invalid
       ? {
           status: 'INVALID',
           invalidatedAt: new Date(),
           invalidatedById: user.id,
-          invalidReason: input.reason?.trim() || null,
+          invalidReason: reason || null,
         }
       : { status: 'VALID', invalidatedAt: null, invalidatedById: null, invalidReason: null },
   });
@@ -66,7 +73,7 @@ export async function setResponseValidityAction(input: {
     await writeOperationLog({
       workspaceId: questionnaire.workspaceId,
       actorId: user.id,
-      type: input.invalid ? OPERATION_TYPE.RESPONSE_INVALIDATE : OPERATION_TYPE.RESPONSE_RESTORE,
+      type: invalid ? OPERATION_TYPE.RESPONSE_INVALIDATE : OPERATION_TYPE.RESPONSE_RESTORE,
       targetType: 'QUESTIONNAIRE',
       targetId: response.questionnaireId,
       targetName: questionnaire.title,

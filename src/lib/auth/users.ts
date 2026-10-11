@@ -13,12 +13,34 @@ import { randomWorkspaceSlug } from './workspace-lifecycle';
  * 一律上提到 shared 层；只服务于单一业务的实体数据仍留在各自 feature 的 `api/`。
  */
 
+/**
+ * 账号的公开信息（**不含口令哈希**）。
+ *
+ * 返回值会经 action 流进页面与 props，所以字段在这里就收窄 ——
+ * 免得某天顺手把它塞进了传给客户端组件的 props（R91 · N8）。
+ */
 export function getUserByEmail(email: string) {
-  return prisma.user.findUnique({ where: { email } });
+  return prisma.user.findUnique({
+    where: { email },
+    select: { id: true, name: true, email: true },
+  });
 }
 
 /**
- * 只取密码哈希用于校验。
+ * 登录校验专用：**只**取 id 与口令哈希。
+ *
+ * 单独一个函数而不是让 `getUserByEmail` 带上哈希 —— 与下面 `getUserPasswordHash`
+ * 同一个理由：**别把 passwordHash 带进任何会外传的对象**。
+ */
+export function getUserCredentials(email: string) {
+  return prisma.user.findUnique({
+    where: { email },
+    select: { id: true, passwordHash: true },
+  });
+}
+
+/**
+ * 只取密码哈希用于校验（按 id）。
  * 单独开一个函数而不是复用 getUserByEmail：**别把 passwordHash 带进任何会外传的对象**，
  * 免得某天顺手把它塞进了传给客户端组件的 props。
  */

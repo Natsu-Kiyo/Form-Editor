@@ -101,6 +101,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   return new NextResponse(toCsv([header, ...body]), {
     headers: {
       'content-type': 'text/csv; charset=utf-8',
+      // 带全部原始回答的一次性下载：**显式**不缓存，而不是靠「依赖 cookies() 所以 Next 不会缓存」
+      // 这条框架默认行为（同目录 qr 的 no-store 是同一条理由）
+      'cache-control': 'no-store',
       // RFC 5987：文件名含中文时必须这样写，直接写 filename 会乱码
       'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(
         `${questionnaire.title}-答卷.csv`,
