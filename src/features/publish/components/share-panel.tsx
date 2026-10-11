@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 import { QuestionnaireTopbar } from '@/components/layout/questionnaire-topbar';
-import { DownloadIcon, LinkIcon, ShareIcon } from '@/components/icons/ui-icons';
+import { CheckIcon, DownloadIcon, LinkIcon, ShareIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
 import {
   COLLECTION_STATE_LABEL,
@@ -253,6 +255,40 @@ function MobileAction({
   const className =
     'border-ink-200 flex h-[58px] flex-col items-center justify-center gap-1.5 rounded-[14px] border bg-white text-[11px] text-ink-600';
 
+  /*
+   * 回退到剪贴板时的回执（R92 · F3）。
+   *
+   * 「系统分享」在桌面端**几乎总是**走回退路径（`navigator.share` 只有移动端与安全上下文有），
+   * 而原来那条回退是静默的：复制成功没提示、失败也没提示 —— 与同目录的 `CopyButton`
+   * （「已复制 / 复制失败」+ 手动复制的提示）两套口径。这里对齐过来。
+   */
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  // 与 CopyButton 同一条规矩：定时器在卸载时清掉，别 setState 打在已卸载的组件上
+  useEffect(() => {
+    if (copyState === 'idle') return;
+
+    const timer = setTimeout(() => setCopyState('idle'), copyState === 'copied' ? 2000 : 3000);
+    return () => clearTimeout(timer);
+  }, [copyState]);
+
+  /**
+   * 复制链接（两条回退路径共用）。
+   *
+   * 刻意**不用**可选链：`navigator.clipboard` 在不安全上下文里是 `undefined`，
+   * `navigator.clipboard?.writeText(...)` 会静默什么都不做；
+   * 直接调用则会在 try 里抛 TypeError，正好落进 catch 变成「复制失败」——
+   * 用户至少知道要手动复制，而不是点了没反应。
+   */
+  const copyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyState('copied');
+    } catch {
+      setCopyState('failed');
+    }
+  };
+
   if (href) {
     return (
       <a href={href} download className={className}>
@@ -267,6 +303,7 @@ function MobileAction({
       <button
         type="button"
         className={className}
+        title={copyState === 'failed' ? '浏览器拒绝了剪贴板访问，请手动选中复制' : undefined}
         onClick={() => {
           /*
            * `navigator.share` 只在移动端与安全上下文可用；不可用时退回复制链接，
@@ -283,17 +320,18 @@ function MobileAction({
               // 别顺手把链接塞进剪贴板（用户没有要求复制）
               if ((error as DOMException | undefined)?.name === 'AbortError') return;
 
-              void navigator.clipboard?.writeText(share.url).catch(() => undefined);
+              // 分享本身失败了（而不是取消）：退回复制，并且**说出来**
+              void copyLink(share.url);
             });
 
             return;
           }
 
-          void navigator.clipboard?.writeText(share.url).catch(() => undefined);
+          void copyLink(share.url);
         }}
       >
-        {icon}
-        {label}
+        {copyState === 'copied' ? <CheckIcon className="size-[18px]" /> : icon}
+        {copyState === 'copied' ? '已复制' : copyState === 'failed' ? '复制失败' : label}
       </button>
     );
   }
