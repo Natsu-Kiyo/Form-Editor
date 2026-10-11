@@ -140,6 +140,33 @@ function tempKey(prefix: string) {
 const DEFAULT_OPTION_COUNT = 2;
 
 /**
+ * 这一串文本项在这道题里叫什么：矩阵题是「行」，其余是「选项」。
+ *
+ * 存在的意义是**只写一遍**：新建题的默认项、添加按钮的占位文案、输入框的无障碍名
+ * 都要说同一个词，各写一遍就会出现「添加」给的是「选项 3」、而输入框自称「行文案」。
+ */
+export function optionUnit(type: DraftQuestion['type']) {
+  return type === 'MATRIX' ? '行' : '选项';
+}
+
+/**
+ * 找一个**不重名**的占位文案：`选项 1`、`选项 2`…… 给「添加」与「清空后失焦补占位」共用。
+ *
+ * 为什么不是「数量 + 1」：删掉中间一个再添加就会当场撞名
+ * （`[选项 1, 选项 3]` 里添加又得到「选项 3」），而重名从 R92 起会被 schema 拦下 ——
+ * 用户会撞上一句「保存不了」却看不出自己哪里做错了。
+ * 从 1 开始取第一个空着的编号：既不撞名，删完再加还会把空出来的编号补上。
+ */
+export function nextFreeOptionLabel(unit: string, labels: readonly string[]) {
+  const taken = new Set(labels.map((label) => label.trim()));
+
+  let index = 1;
+  while (taken.has(`${unit} ${index}`)) index += 1;
+
+  return `${unit} ${index}`;
+}
+
+/**
  * 草稿里的矩阵列，**原样返回、不过滤空串**。
  *
  * 与 `constants.matrixColumns()`（读取侧：收敛上限 + 丢掉空值）**刻意分开**：
@@ -362,7 +389,7 @@ export function EditorDraftProvider({
                   { length: type === 'MATRIX' ? MATRIX_LIMITS.MIN_ROWS : DEFAULT_OPTION_COUNT },
                   (_, index) => ({
                     key: tempKey('o'),
-                    label: type === 'MATRIX' ? `行 ${index + 1}` : `选项 ${index + 1}`,
+                    label: `${optionUnit(type)} ${index + 1}`,
                   }),
                 )
               : [],
@@ -406,7 +433,14 @@ export function EditorDraftProvider({
                   ...question,
                   options: [
                     ...question.options,
-                    { key: tempKey('o'), label: `选项 ${question.options.length + 1}` },
+                    {
+                      key: tempKey('o'),
+                      // 占位文案要避开已有的名字：撞名当场就是一个保存不了的草稿
+                      label: nextFreeOptionLabel(
+                        optionUnit(question.type),
+                        question.options.map((option) => option.label),
+                      ),
+                    },
                   ],
                 }
               : question,

@@ -23,10 +23,11 @@ import {
   ratingBounds,
   type QuestionType,
 } from '@/config/constants';
+import { duplicateLabels } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
 import type { DraftQuestion, EditableQuestionType } from './editor-draft';
-import { draftMatrixColumns, useEditorDraft } from './editor-draft';
+import { draftMatrixColumns, nextFreeOptionLabel, useEditorDraft } from './editor-draft';
 
 /** 题目类型下拉的全部选项。R62 起 8 个题型全开放（顺序 = 常量里的定义顺序） */
 const EDITABLE_TYPES = Object.keys(QUESTION_TYPE_LABEL) as QuestionType[];
@@ -412,6 +413,8 @@ function MatrixColumnsField({
   const columns = draftMatrixColumns(question.config);
   const canDelete = columns.length > MATRIX_LIMITS.MIN_COLUMNS;
   const canAdd = columns.length < MATRIX_LIMITS.MAX_COLUMNS;
+  // 重名判据与保存时那道闸门同源（见 lib/questionnaire-structure 的 duplicateLabels）
+  const duplicated = duplicateLabels(columns);
 
   const commit = (next: string[]) =>
     updateQuestion(question.key, { config: { ...question.config, columns: next } });
@@ -424,24 +427,33 @@ function MatrixColumnsField({
           <div
             // key 用「题 + 序号」：列没有稳定 id，而重排/删除都会重建列表 —— 序号足够
             key={`${question.key}-col-${index}`}
-            className="border-ink-200 focus-within:border-brand-500 flex h-9 items-center gap-2 rounded-lg border px-3 transition-colors duration-150"
+            className={cn(
+              'border-ink-200 focus-within:border-brand-500 flex h-9 items-center gap-2 rounded-lg border px-3 transition-colors duration-150',
+              // 重名：描红（与画布上的选项目同一套反馈）
+              duplicated.includes(label.trim()) && 'border-rose-400 focus-within:border-rose-400',
+            )}
           >
             <input
               value={label}
               maxLength={MATRIX_LIMITS.MAX_COLUMN_LENGTH}
               disabled={readOnly}
               aria-label={`第 ${index + 1} 列`}
+              aria-invalid={duplicated.includes(label.trim()) || undefined}
+              title={
+                duplicated.includes(label.trim()) ? `有另一列也叫「${label.trim()}」` : undefined
+              }
               onChange={(event) =>
                 commit(
                   columns.map((item, position) => (position === index ? event.target.value : item)),
                 )
               }
               onBlur={() => {
-                // 空白列补一个占位：与画布上的选项/行同一条规矩，空文案会拖到保存时被 schema 拒
+                // 空白列补一个占位：与画布上的选项/行同一条规矩，空文案会拖到保存时被 schema 拒。
+                // 占位文案同样要避开已有的名字（比如用户自己敲过一个「列 2」）
                 if (!label.trim()) {
                   commit(
                     columns.map((item, position) =>
-                      position === index ? `列 ${index + 1}` : item,
+                      position === index ? nextFreeOptionLabel('列', columns) : item,
                     ),
                   );
                 }
@@ -467,7 +479,7 @@ function MatrixColumnsField({
           <button
             type="button"
             disabled={!canAdd}
-            onClick={() => commit([...columns, `列 ${columns.length + 1}`])}
+            onClick={() => commit([...columns, nextFreeOptionLabel('列', columns)])}
             className="border-ink-300 hover:border-brand-400 flex h-9 w-full items-center gap-2.5 rounded-lg border border-dashed px-3 transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <PlusIcon className="text-ink-400 size-3.5" />
@@ -478,6 +490,12 @@ function MatrixColumnsField({
       <p className="text-caption text-ink-400 mt-1.5">
         {MATRIX_LIMITS.MIN_COLUMNS}–{MATRIX_LIMITS.MAX_COLUMNS} 列，顺序即横向顺序；行在画布上直接改
       </p>
+      {duplicated.length > 0 ? (
+        <p role="alert" className="text-caption mt-1 text-rose-600">
+          有列重名（{duplicated.map((label) => `「${label}」`).join('、')}）：作答结果按文案记录，
+          同名会让两份答案混在一起，保存也会被拦下
+        </p>
+      ) : null}
     </div>
   );
 }

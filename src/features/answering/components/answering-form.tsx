@@ -554,6 +554,12 @@ function AnswerControl({
 
             return (
               <button
+                /*
+                 * 用**选项文案**做 key（本文件里所有选项 / 矩阵行列的列表都如此）：
+                 * 文案就是这一项的身份 —— 作答结果里存的也是它，所以要按文案取值、按文案提交。
+                 * 它不重复这件事由结构闸门保证（`questionnairePayloadSchema` 禁止重名，R92 · N7），
+                 * 因而不会有「两个 key 相同」的列表。
+                 */
                 key={option}
                 type="button"
                 aria-pressed={isOn}

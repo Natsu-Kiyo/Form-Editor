@@ -14,6 +14,7 @@ import { DEMO_ACCOUNTS } from '@/config/constants';
 /** 试验田问卷的标题。带前缀是为了永远不与别的用例、别的残留撞车 */
 const THROWAWAY_TITLE = 'E2E 编辑器用例';
 const M3B_TITLE = 'E2E M3b 用例';
+const DUPLICATE_TITLE = 'E2E 重名选项用例';
 
 /**
  * 清掉指定标题的**全部**残留卡片。
@@ -126,6 +127,43 @@ test.describe('编辑器', () => {
     await page.goto('/app');
     await clearLeftovers(page, THROWAWAY_TITLE);
     await expect(page.getByRole('heading', { name: THROWAWAY_TITLE, exact: true })).toHaveCount(0);
+  });
+
+  test('重名的选项：当场提示，保存被 schema 拦下（R92 · N7）', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '编辑器只在桌面端有入口');
+    await signIn(page);
+    await clearLeftovers(page, DUPLICATE_TITLE);
+
+    await page.getByRole('button', { name: '新建问卷' }).first().click();
+    await page.getByRole('button', { name: '创建', exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
+    await page.getByLabel('问卷标题').fill(DUPLICATE_TITLE);
+    await page.getByRole('button', { name: '单选', exact: true }).click();
+
+    // ---- 两个选项改成同一个文案：画布上当场提示，不必等到保存 ----
+    const options = page.getByLabel('选项文案');
+    await options.nth(0).fill('满意');
+    await options.nth(1).fill('满意');
+    await expect(page.getByText('有选项重名')).toBeVisible();
+
+    // ---- 保存被拦下：报错来自 schema 那道闸门，与界面标红同源 ----
+    // 文案只在 title 里（顶栏位置有限，界面上只说「保存失败」，细节挂在悬停提示上）
+    await page.getByRole('button', { name: '保存' }).click();
+    const failed = banner(page).getByText('保存失败');
+    await expect(failed).toBeVisible();
+    await expect(failed).toHaveAttribute('title', /选项不能重名/);
+
+    // ---- 改回不重名：提示消失，保存通过 ----
+    await options.nth(1).fill('不满意');
+    await options.nth(1).blur();
+    await expect(page.getByText('有选项重名')).toHaveCount(0);
+
+    await page.getByRole('button', { name: '保存' }).click();
+    await expect(banner(page).getByText('已保存')).toBeVisible();
+
+    // ---- 收尾 ----
+    await page.goto('/app');
+    await clearLeftovers(page, DUPLICATE_TITLE);
   });
 
   test('手动保存：改动先落草稿，按保存才写库', async ({ page }, testInfo) => {

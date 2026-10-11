@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { payloadFileName, questionnairePayloadSchema } from '@/lib/questionnaire-structure';
+import {
+  duplicateLabels,
+  payloadFileName,
+  questionnairePayloadSchema,
+} from '@/lib/questionnaire-structure';
 
 /**
  * 这套 schema 同时守着三条通路：模板 payload、导出 JSON、导入 JSON。
@@ -220,6 +224,92 @@ describe('条件显示（R65）', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+/**
+ * 不得重名（R92 · N7）。
+ *
+ * 这条规矩的落点不是「React 列表 key 会警告」——那只是症状；
+ * 真正的问题是**作答结果按选项文案记录**：两个同名选项在数据里分不开。
+ */
+describe('选项 / 行 / 列不得重名', () => {
+  const ask = (question: unknown) =>
+    questionnairePayloadSchema.safeParse({
+      formatVersion: 1,
+      title: '重名检查',
+      questions: [question],
+    });
+
+  it('拒绝重名的选项，并点名是哪一个', () => {
+    const result = ask({ type: 'SINGLE', title: '满意吗？', options: ['满意', '一般', '满意'] });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('「满意」');
+    }
+  });
+
+  it('「满意」与「满意 」算重名（界面上看不出差别就不该是两个选项）', () => {
+    expect(ask({ type: 'SINGLE', title: '满意吗？', options: ['满意', '满意 '] }).success).toBe(
+      false,
+    );
+  });
+
+  it('矩阵的行也在 options 里，报错说的是「行」', () => {
+    const result = ask({
+      type: 'MATRIX',
+      title: '请为各个环节打分',
+      options: ['报名流程', '报名流程'],
+      config: { columns: ['满意', '不满意'] },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('行不能重名');
+    }
+  });
+
+  it('矩阵的列（config.columns）同样不能重名', () => {
+    const result = ask({
+      type: 'MATRIX',
+      title: '请为各个环节打分',
+      options: ['报名流程', '现场组织'],
+      config: { columns: ['满意', '一般', '满意'] },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('列不能重名');
+    }
+  });
+
+  it('不误伤：文案各不相同的题照常通过', () => {
+    expect(
+      ask({ type: 'SINGLE', title: '满意吗？', options: ['满意', '一般', '不满意'] }).success,
+    ).toBe(true);
+    expect(
+      ask({
+        type: 'MATRIX',
+        title: '请为各个环节打分',
+        options: ['报名流程', '现场组织'],
+        config: { columns: ['满意', '一般', '不满意'] },
+      }).success,
+    ).toBe(true);
+  });
+});
+
+describe('duplicateLabels', () => {
+  it('返回重复出现的那些文案，按首次出现去重', () => {
+    expect(duplicateLabels(['甲', '乙', '甲', '丙', '乙', '乙'])).toEqual(['甲', '乙']);
+  });
+
+  it('空串不参与判定：清空重输是编辑器里真实的中间态', () => {
+    expect(duplicateLabels(['', '', '甲'])).toEqual([]);
+  });
+
+  it('比较前先 trim', () => {
+    expect(duplicateLabels(['甲', ' 甲 '])).toEqual(['甲']);
   });
 });
 

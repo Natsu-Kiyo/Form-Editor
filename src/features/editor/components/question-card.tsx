@@ -21,11 +21,16 @@ import { useRef, useState } from 'react';
 
 import { GripIcon, TrashIcon } from '@/components/icons/ui-icons';
 import { MATRIX_LIMITS, QUESTION_TYPE_LABEL, RATING_SCALE, ratingBounds } from '@/config/constants';
-import { hasOptionList } from '@/lib/questionnaire-structure';
+import { duplicateLabels, hasOptionList } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
 import type { DraftQuestion } from './editor-draft';
-import { draftMatrixColumns, useEditorDraft } from './editor-draft';
+import {
+  draftMatrixColumns,
+  nextFreeOptionLabel,
+  optionUnit,
+  useEditorDraft,
+} from './editor-draft';
 
 function isChoiceType(type: DraftQuestion['type']) {
   return type === 'SINGLE' || type === 'MULTI' || type === 'DROPDOWN';
@@ -273,6 +278,12 @@ function OptionList({ question, readOnly }: { question: DraftQuestion; readOnly:
   const { addOption, reorderOptions } = useEditorDraft();
   // 矩阵题的这份列表是「行」：下限 2（一格不叫矩阵）、上限 10
   const isMatrix = question.type === 'MATRIX';
+  const unit = optionUnit(question.type);
+  /*
+   * 重名提示。判据直接从 `@/lib/questionnaire-structure` 取 —— 与保存时那道闸门
+   * 用同一个函数，界面上标红的东西一定就是保存会被拦下的东西（R92 · N7）。
+   */
+  const duplicated = duplicateLabels(question.options.map((option) => option.label));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -331,8 +342,20 @@ function OptionList({ question, readOnly }: { question: DraftQuestion; readOnly:
               className="border-ink-300 hover:border-brand-400 flex h-9 w-full items-center gap-2.5 rounded-lg border border-dashed px-3 transition-colors duration-150"
             >
               <span className="size-4 shrink-0" aria-hidden="true" />
-              <span className="text-ink-400 text-[13px]">{isMatrix ? '添加行' : '添加选项'}</span>
+              <span className="text-ink-400 text-[13px]">{`添加${unit}`}</span>
             </button>
+          ) : null}
+
+          {/*
+            重名提示（R92 · N7）。**说清后果**而不只是「不能重名」：
+            作答结果里存的就是选项文案，两个同名项在统计里分不开。
+            只在可编辑时提示 —— 已发布/只读的问卷改不了，说了也没用。
+          */}
+          {!readOnly && duplicated.length > 0 ? (
+            <p role="alert" className="text-caption text-rose-600">
+              有{unit}重名（{duplicated.map((label) => `「${label}」`).join('、')}
+              ）：作答结果按文案记录，同名会让两份答案混在一起，保存也会被拦下
+            </p>
           ) : null}
         </div>
       </SortableContext>
@@ -363,7 +386,14 @@ function OptionRow({
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
   // 矩阵题这一行是「行」，其余题型是「选项」—— 文案跟着走，无障碍名称才不会说错
-  const unit = question.type === 'MATRIX' ? '行' : '选项';
+  const unit = optionUnit(question.type);
+  /*
+   * 自己这一格是不是重名之一。判据与保存时那道闸门同源（`duplicateLabels`）；
+   * 空文案不会被判重名 —— 清空重输是中间态，那半秒里不该标红。
+   */
+  const duplicated = duplicateLabels(question.options.map((option) => option.label)).includes(
+    label.trim(),
+  );
 
   const {
     attributes,
@@ -384,6 +414,8 @@ function OptionRow({
       }}
       className={cn(
         'group border-ink-200 hover:border-brand-300 hover:bg-brand-50/40 flex h-9 items-center gap-2.5 rounded-lg border px-3 transition-colors duration-150',
+        // 重名：整行描红（与列表下方那句提示同一件事的两个层次：哪一行 / 为什么）
+        duplicated && 'border-rose-400 hover:border-rose-400',
         isDragging && 'shadow-pop z-10 opacity-70',
       )}
     >
@@ -420,10 +452,22 @@ function OptionRow({
         onFocus={() => setFocused(true)}
         onBlur={() => {
           setFocused(false);
-          // 失焦时把空白项补回一个占位文案：空着等于这道题有个坏选项（矩阵则是坏行）
-          if (!label.trim()) updateOption(question.key, optionKey, unit);
+          // 失焦时把空白项补回一个占位文案：空着等于这道题有个坏选项（矩阵则是坏行）。
+          // 占位文案要避开已有的名字 —— 把两格都清空再依次失焦，就是一次真实的撞名
+          if (!label.trim()) {
+            updateOption(
+              question.key,
+              optionKey,
+              nextFreeOptionLabel(
+                unit,
+                question.options.map((option) => option.label),
+              ),
+            );
+          }
         }}
         readOnly={readOnly}
+        aria-invalid={duplicated || undefined}
+        title={duplicated ? `有另一个${unit}也叫「${label.trim()}」` : undefined}
         aria-label={`${unit}文案`}
         className={cn('text-ink-700 min-w-0 flex-1 bg-transparent text-[13px] outline-none')}
         data-focused={focused || undefined}

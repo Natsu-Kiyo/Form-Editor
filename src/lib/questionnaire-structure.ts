@@ -27,6 +27,33 @@ const PAYLOAD_QUESTION_TYPES = [
   'MATRIX',
 ] as const satisfies readonly QuestionType[];
 
+/**
+ * 找出**重名**的文案：选项、矩阵的行与列都按它判。
+ *
+ * 三条约定：
+ * - **比较前先 `trim`**：「满意」与「满意 」在界面上看不出差别，当成两个选项只会让人困惑；
+ * - **空串不参与**：空文案另有自己的报错（`min(1)` / 「矩阵题要有 N 列」），
+ *   而且编辑器里「清空重输」是个真实的中间态，不该在那半秒里冒出一句重名；
+ * - 返回值是**重复出现的那些文案**（去重后），好让报错能直接点名。
+ *
+ * 为什么放在这一层（而不是各写各的）：**闸门与界面必须是同一个判据** ——
+ * schema 用它拦保存，编辑器那圈红框也用它画；两边各写一遍，迟早出现
+ * 「框没红、保存却被拒」这种最难解释的不一致。
+ */
+export function duplicateLabels(labels: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const repeated = new Set<string>();
+
+  for (const label of labels) {
+    const key = label.trim();
+    if (!key) continue;
+    if (seen.has(key)) repeated.add(key);
+    seen.add(key);
+  }
+
+  return [...repeated];
+}
+
 export const payloadQuestionSchema = z
   .object({
     type: z.enum(PAYLOAD_QUESTION_TYPES),
@@ -45,12 +72,34 @@ export const payloadQuestionSchema = z
     options: z.array(z.string().trim().min(1).max(100)).default([]),
   })
   /**
-   * 矩阵题的额外要求（R62）：行 2–10（在 `options` 里）、列 2–5（在 `config.columns` 里）。
+   * 矩阵题的额外要求（R62）：行 2–10（在 `options` 里）、列 2–5（在 `config.columns` 里），
+   * 加上 R92 起的**不得重名**。
    *
-   * 校验放在这里 —— 这是编辑器保存 / 模板 / JSON 导入**三通路的唯一闸门**；
-   * 界面上「删到下限就不给删」只是即时反馈，不是安全边界。
+   * 校验放在这里 —— 这是编辑器保存 / 版本回滚 / 模板 / JSON 导入**通路的唯一闸门**；
+   * 界面上「删到下限就不给删」「重名标红」只是即时反馈，不是安全边界。
    */
   .superRefine((question, ctx) => {
+    /*
+     * 重名检查（R92 · N7）。放在题型分支**之前**，因为选项不是矩阵题专有。
+     *
+     * 这不只是 React key 的问题：**作答结果里存的就是选项文案**——
+     * 两个都叫「满意」的选项在数据里无法区分：统计会把它们合成一项，
+     * 条件显示（`showIf.options`）也会指到错的那个上。
+     * 而 schema 是唯一能兜住三条写入通路的地方（编辑器 / 模板 / 导入 JSON）。
+     */
+    const unit = question.type === 'MATRIX' ? '行' : '选项';
+    const duplicatedOptions = duplicateLabels(question.options);
+
+    if (duplicatedOptions.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['options'],
+        message: `${unit}不能重名：${duplicatedOptions
+          .map((label) => `「${label}」`)
+          .join('、')}出现了不止一次`,
+      });
+    }
+
     if (question.type !== 'MATRIX') return;
 
     if (
@@ -64,23 +113,43 @@ export const payloadQuestionSchema = z
       });
     }
 
-    const columns = question.config?.columns;
-    const columnsOk =
-      Array.isArray(columns) &&
-      columns.length >= MATRIX_LIMITS.MIN_COLUMNS &&
-      columns.length <= MATRIX_LIMITS.MAX_COLUMNS &&
-      columns.every(
-        (item) =>
-          typeof item === 'string' &&
-          item.trim().length > 0 &&
-          item.length <= MATRIX_LIMITS.MAX_COLUMN_LENGTH,
-      );
+    const rawColumns = question.config?.columns;
+    const columns =
+      Array.isArray(rawColumns) && rawColumns.every((item) => typeof item === 'string')
+        ? (rawColumns as string[])
+        : null;
 
-    if (!columnsOk) {
+    /*
+     * 形状不合就到此为止：下面那条重名检查要在「有一个能比的字符串数组」的前提下做，
+     * 混在一起写会让「列只有 1 个」和「两列同名」共用一句含糊的报错。
+     */
+    if (
+      columns === null ||
+      columns.length < MATRIX_LIMITS.MIN_COLUMNS ||
+      columns.length > MATRIX_LIMITS.MAX_COLUMNS ||
+      !columns.every(
+        (item) => item.trim().length > 0 && item.length <= MATRIX_LIMITS.MAX_COLUMN_LENGTH,
+      )
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['config', 'columns'],
         message: `矩阵题要有 ${MATRIX_LIMITS.MIN_COLUMNS}–${MATRIX_LIMITS.MAX_COLUMNS} 列`,
+      });
+
+      return;
+    }
+
+    // 列同样不能重名 —— 判据与行完全一样（作答结果按文案记录），只是位置在 config 里
+    const duplicatedColumns = duplicateLabels(columns);
+
+    if (duplicatedColumns.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['config', 'columns'],
+        message: `列不能重名：${duplicatedColumns
+          .map((label) => `「${label}」`)
+          .join('、')}出现了不止一次`,
       });
     }
   });
