@@ -13,7 +13,13 @@ export type FormState = {
   message?: string;
   /** 成功提示（保存完成、反馈提交这类不跳转的流程） */
   success?: string;
-  /** 失败时原样回传的提交值，界面用它做 defaultValue */
+  /**
+   * 失败时回传的提交值，界面用它做 `defaultValue` —— **口令类字段除外**。
+   *
+   * 口令一旦进这里，就会被序列化进 action 的响应体、落进 DOM 的 value，
+   * 而浏览器本来就不会清空口令框（回填换不来体验收益）。完整理由见
+   * `features/auth/actions/login.ts` 里那段注释。
+   */
   values?: Record<string, string | undefined>;
 };
 
