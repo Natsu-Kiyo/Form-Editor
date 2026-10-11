@@ -22,8 +22,7 @@ const UNTITLED = '未命名问卷';
 export async function createQuestionnaireAction(): Promise<FormState> {
   const { user, workspace } = await requireActiveWorkspace('EDITOR');
 
-  const created = await createBlank({ workspaceId: workspace.id, ownerId: user.id });
-  if (!created.ok) return { message: created.message };
+  const id = await createBlank({ workspaceId: workspace.id, ownerId: user.id });
 
   revalidatePath('/app');
 
@@ -31,7 +30,7 @@ export async function createQuestionnaireAction(): Promise<FormState> {
   // 是纯粹的白跑一趟（弹层里没有标题输入，此时列表里这一行也叫「未命名问卷」，
   // 一排同名卡片里挑错是很自然的事）。
   // 注意：`redirect()` 靠抛错来跳转，所以它必须在任何 try/catch **之外**调用。
-  redirect(`/app/q/${created.id}/edit`);
+  redirect(`/app/q/${id}/edit`);
 }
 
 /**
@@ -40,8 +39,12 @@ export async function createQuestionnaireAction(): Promise<FormState> {
  * **「从模板创建」现在只有这一个入口**（R64）：新建弹层那张卡是跳转到这里，
  * 挑中哪张卡再点它，落地即编辑器、**中间不加确认层** ——
  * 它在问一个用户刚刚已经回答过的问题（我点了「使用此模板」）。
+ *
+ * 失败**返回**而不是抛（与 §1 那批 action 同一口径）：模板刚被取消公开 / 刚被删除是
+ * 用户可达的预期失败，而错误边界刻意不渲染 `error.message` —— 抛出去等于把
+ * 「这个模板已不可用，换一个试试」这句写好的话丢掉，只剩一句通用的「这一步没能完成」。
  */
-export async function createFromTemplateAction(templateId: string) {
+export async function createFromTemplateAction(templateId: string): Promise<FormState> {
   const { user, workspace } = await requireActiveWorkspace('EDITOR');
 
   const created = await createFromTemplate({
@@ -50,7 +53,7 @@ export async function createFromTemplateAction(templateId: string) {
     ownerId: user.id,
   });
 
-  if (!created.ok) throw new Error(created.message);
+  if (!created.ok) return { message: created.message };
 
   revalidatePath('/app');
   redirect(`/app/q/${created.id}/edit`);
@@ -66,11 +69,10 @@ export async function createFromTemplateAction(templateId: string) {
 export async function createBlankQuestionnaireAction() {
   const { user, workspace } = await requireActiveWorkspace('EDITOR');
 
-  const created = await createBlank({ workspaceId: workspace.id, ownerId: user.id });
-  if (!created.ok) throw new Error(created.message);
+  const id = await createBlank({ workspaceId: workspace.id, ownerId: user.id });
 
   revalidatePath('/app');
-  redirect(`/app/q/${created.id}/edit`);
+  redirect(`/app/q/${id}/edit`);
 }
 
 async function createFromTemplate(input: {
@@ -97,15 +99,16 @@ async function createFromTemplate(input: {
   return { ok: true, id: questionnaire.id };
 }
 
-async function createBlank(input: {
-  workspaceId: string;
-  ownerId: string;
-}): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
+/**
+ * 空白创建。**没有失败分支**：写库要么成功要么抛（连接类错误由 db 层重试兜），
+ * 所以这里返回的是 id 而不是 `{ ok, id }` —— 调用方不必写一个永远走不到的分支。
+ */
+async function createBlank(input: { workspaceId: string; ownerId: string }) {
   const questionnaire = await createQuestionnaireWithPayload({
     workspaceId: input.workspaceId,
     ownerId: input.ownerId,
     payload: { formatVersion: 1, title: UNTITLED, intro: null, questions: [] },
   });
 
-  return { ok: true, id: questionnaire.id };
+  return questionnaire.id;
 }

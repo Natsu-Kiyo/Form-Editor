@@ -110,10 +110,15 @@ export function TemplateGallery({
   const use = (templateId: string) => {
     setUsingId(templateId);
     startActionTransition(async () => {
-      // 成功后服务端会 redirect 到编辑器，这里不需要处理结果；
-      // 失败（比如结构损坏 / 已被取消公开）会抛出，由下一帧的 error boundary 接住
-      await createFromTemplateAction(templateId);
+      /*
+       * 成功时服务端会 `redirect` 到编辑器 —— 这里根本收不到返回值。
+       * 能走到下面那句的**一定是失败**（模板刚被取消公开 / 刚被删除），
+       * 要说清是哪一种：抛出去只会落到错误边界，而那页刻意不显示原因。
+       */
+      const result = await createFromTemplateAction(templateId);
       setUsingId(null);
+
+      toast({ title: '没能使用这个模板', description: result.message, variant: 'error' });
     });
   };
 
