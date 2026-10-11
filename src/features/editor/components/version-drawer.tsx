@@ -32,7 +32,8 @@ export function VersionDrawer({
 }) {
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState<VersionRow | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  /** 回滚结果横幅：**带语气** —— 失败不能长得像成功（R91 · S3） */
+  const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const rollback = () => {
@@ -40,7 +41,12 @@ export function VersionDrawer({
 
     startTransition(async () => {
       const result = await rollbackVersionAction(questionnaireId, target.id);
-      setMessage(result.ok ? result.message : result.message);
+
+      /*
+       * 此前两个分支写的是同一句 `setMessage(result.message)`，而横幅的样式写死 emerald ——
+       * 于是「这个版本不存在」被渲染成一条绿色的「成功」回执，还用 `role="status"` 播报。
+       */
+      setMessage({ tone: result.ok ? 'ok' : 'error', text: result.message });
       setTarget(null);
       if (result.ok) setOpen(false);
     });
@@ -61,10 +67,16 @@ export function VersionDrawer({
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {message ? (
               <p
-                role="status"
-                className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] text-emerald-700"
+                // 失败用 alert（读屏会立刻打断），成功才用 status
+                role={message.tone === 'error' ? 'alert' : 'status'}
+                className={cn(
+                  'mb-3 rounded-lg px-3 py-2 text-[12.5px]',
+                  message.tone === 'error'
+                    ? 'bg-rose-50 text-rose-700'
+                    : 'bg-emerald-50 text-emerald-700',
+                )}
               >
-                {message}
+                {message.text}
               </p>
             ) : null}
 

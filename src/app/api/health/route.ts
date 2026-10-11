@@ -21,13 +21,13 @@ export async function GET() {
 
     return Response.json({ ok: true, elapsedMs: Date.now() - startedAt });
   } catch (error) {
-    return Response.json(
-      {
-        ok: false,
-        elapsedMs: Date.now() - startedAt,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      { status: 503 },
-    );
+    /*
+     * 原始错误**只写服务端日志，不回给调用方**：这个地址是公开的（不在 proxy 的保护前缀里，
+     * E2E 的 globalSetup 也要匿名打它），而 pg 的连接错误文本常带主机名 / 端口 / SSL 细节
+     *（如 `getaddrinfo ENOTFOUND ep-xxx.ap-southeast-1.aws.neon.tech`）—— 那是基础设施信息（R91 · S7）。
+     */
+    console.error('[health] 数据库探活失败', error);
+
+    return Response.json({ ok: false, elapsedMs: Date.now() - startedAt }, { status: 503 });
   }
 }

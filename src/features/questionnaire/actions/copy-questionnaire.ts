@@ -32,7 +32,8 @@ export async function copyQuestionnaireAction(
   });
   if (!source) return { ok: false, message: '这份问卷已不存在，刷新后再试' };
 
-  await requireMembership(source.workspaceId, 'EDITOR');
+  // 取当前操作者：日志要记的是**他**，不是源问卷的所有者（R91 · S6）
+  const { user } = await requireMembership(source.workspaceId, 'EDITOR');
 
   const data = await getQuestionnairePayload(questionnaireId);
   if (!data) return { ok: false, message: '读不到这份问卷的结构（可能刚被删除），刷新后再试' };
@@ -50,7 +51,10 @@ export async function copyQuestionnaireAction(
 
   await writeOperationLog({
     workspaceId: source.workspaceId,
-    actorId: source.ownerId,
+    // 操作者是**点复制的那个人**。此前记成了 `source.ownerId`，于是「编辑者 B 复制了 A 的问卷」
+    // 在日志里显示成「A 复制了这份问卷」—— 审计记录的错误归因（R91 · S6）。
+    // 注意：副本本身仍归源问卷所有者（`ownerId: source.ownerId`），那是产品决策，未动。
+    actorId: user.id,
     type: OPERATION_TYPE.COPY,
     targetType: 'QUESTIONNAIRE',
     // 记**源问卷**：日志的句子是「复制了问卷 X」，X 是那份被复制的
