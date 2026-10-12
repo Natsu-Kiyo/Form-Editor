@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 
+import { CharCount } from '@/components/ui/char-count';
+import { PAYLOAD_LIMITS } from '@/config/constants';
 import { cn } from '@/utils/cn';
 
 import { useEditorDraft } from './editor-draft';
@@ -58,7 +60,7 @@ export function IntroCard({
       ref={areaRef}
       value={intro}
       rows={2}
-      maxLength={500}
+      maxLength={PAYLOAD_LIMITS.INTRO}
       aria-label="卷首语"
       onChange={(event) => setIntro(event.target.value)}
       placeholder="写一句说明：这份问卷用来做什么、大概要几分钟（可留空）"
@@ -74,6 +76,10 @@ export function IntroCard({
     <>
       <div className="mb-2.5 flex items-start gap-3">
         <span className="text-ink-400 shrink-0 pt-0.5 font-mono text-[13px]">卷首语</span>
+        {/* 快满 / 到顶时的计数器（R97）：截停不能是静默的 */}
+        {editable ? (
+          <CharCount value={intro} max={PAYLOAD_LIMITS.INTRO} className="ml-auto shrink-0 pt-0.5" />
+        ) : null}
         {/* 窄屏：`›` 是「点开编辑弹层」的提示（与题卡同一个记号） */}
         {clickable ? (
           <span className="text-ink-300 -mt-0.5 shrink-0 text-[15px]" aria-hidden="true">

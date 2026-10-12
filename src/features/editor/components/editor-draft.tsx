@@ -296,11 +296,25 @@ export function EditorDraftProvider({
     questionsRef.current = questions;
   });
 
-  const mutate = useCallback((updater: (list: DraftQuestion[]) => DraftQuestion[]) => {
-    setQuestions((list) => updater(list));
-    setDirty(true);
+  /**
+   * 一有改动就收掉「保存失败」（R96）。
+   *
+   * 那条状态说的是**上一次尝试**；用户改了内容之后它已经过期，
+   * 继续挂着（而且原因被清空成 null）只会让人以为「现在这份也存不上」。
+   */
+  const clearSaveError = useCallback(() => {
     setErrorMessage(null);
+    setState((current) => (current === 'error' ? 'idle' : current));
   }, []);
+
+  const mutate = useCallback(
+    (updater: (list: DraftQuestion[]) => DraftQuestion[]) => {
+      setQuestions((list) => updater(list));
+      setDirty(true);
+      clearSaveError();
+    },
+    [clearSaveError],
+  );
 
   const save = useCallback(async (): Promise<boolean> => {
     if (readOnly) return false;
@@ -415,10 +429,12 @@ export function EditorDraftProvider({
       setTitle: (next) => {
         setTitleState(next);
         setDirty(true);
+        clearSaveError();
       },
       setIntro: (next) => {
         setIntroState(next);
         setDirty(true);
+        clearSaveError();
       },
       addQuestion: (type, afterKey) => {
         const key = tempKey('q');
@@ -565,7 +581,19 @@ export function EditorDraftProvider({
       save,
       discard,
     }),
-    [questionnaireId, title, intro, questions, dirty, state, errorMessage, mutate, save, discard],
+    [
+      questionnaireId,
+      title,
+      intro,
+      questions,
+      dirty,
+      state,
+      errorMessage,
+      mutate,
+      clearSaveError,
+      save,
+      discard,
+    ],
   );
 
   return <EditorDraftContext.Provider value={value}>{children}</EditorDraftContext.Provider>;

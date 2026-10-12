@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  describeIssuePath,
   duplicateLabels,
   payloadFileName,
   questionnairePayloadSchema,
@@ -310,6 +311,69 @@ describe('duplicateLabels', () => {
 
   it('比较前先 trim', () => {
     expect(duplicateLabels(['甲', ' 甲 '])).toEqual(['甲']);
+  });
+});
+
+/**
+ * 报错要说人话（R96）。
+ *
+ * 这一层守的是「用户看到的那句话」：长度超限要中文且**带上限数字**，
+ * 路径要能对上是哪道题、哪个选项 —— 之前是 `questions.0.options.1：Too big: …`，
+ * 用户既看不懂英文，也不知道 `options.1` 是哪一个。
+ */
+describe('报错文案', () => {
+  const ask = (question: unknown) =>
+    questionnairePayloadSchema.safeParse({
+      formatVersion: 1,
+      title: '文案检查',
+      questions: [question],
+    });
+
+  it('选项过长给的是中文，并写明上限', () => {
+    const result = ask({ type: 'SINGLE', title: '满意吗？', options: ['满'.repeat(101)] });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe('选项不超过 100 个字');
+    }
+  });
+
+  it('题目过长同样给中文（不是 zod 的 Too big）', () => {
+    const result = ask({ type: 'SHORT_TEXT', title: '题'.repeat(201) });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('题目不超过 200 个字');
+    }
+  });
+
+  it('问卷标题过长也给中文', () => {
+    const result = questionnairePayloadSchema.safeParse({
+      formatVersion: 1,
+      title: '标'.repeat(81),
+      questions: [],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe('问卷标题不超过 80 个字');
+    }
+  });
+
+  it('describeIssuePath：路径翻成「第 N 题的…」，引擎的话不入文案', () => {
+    expect(describeIssuePath([])).toBe('问卷结构');
+    expect(describeIssuePath(['title'])).toBe('问卷标题');
+    expect(describeIssuePath(['intro'])).toBe('卷首语');
+    expect(describeIssuePath(['questions', 0])).toBe('第 1 题');
+    expect(describeIssuePath(['questions', 2, 'title'])).toBe('第 3 题的题目');
+    expect(describeIssuePath(['questions', 1, 'options', 0])).toBe('第 2 题的第 1 个选项');
+    expect(describeIssuePath(['questions', 1, 'config', 'columns'])).toBe('第 2 题的列');
+    expect(describeIssuePath(['questions', 1, 'config', 'showIf'])).toBe('第 2 题的显示条件');
+  });
+
+  it('describeIssuePath：认不出来的路径原样回落到点号连接（不吞信息）', () => {
+    expect(describeIssuePath(['questions', 0, 'somethingNew', 3])).toBe('第 1 题的somethingNew');
+    expect(describeIssuePath(['unknown'])).toBe('unknown');
   });
 });
 

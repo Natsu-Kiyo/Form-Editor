@@ -23,6 +23,8 @@ import {
   ratingBounds,
   type QuestionType,
 } from '@/config/constants';
+import { CharCount } from '@/components/ui/char-count';
+import { PAYLOAD_LIMITS } from '@/config/constants';
 import { duplicateLabels, hasOptionList } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
@@ -341,9 +343,17 @@ function QuestionTitleField({
       <Textarea
         rows={2}
         value={question.title}
+        // 上限与 schema 同一份常量（R96）：敲不出存不下的东西
+        maxLength={PAYLOAD_LIMITS.QUESTION_TITLE}
         onChange={(event) => updateQuestion(question.key, { title: event.target.value })}
         readOnly={readOnly}
         aria-label="题目"
+      />
+      {/* 快满 / 到顶时的计数器（R97）：截停不能是静默的 */}
+      <CharCount
+        value={question.title}
+        max={PAYLOAD_LIMITS.QUESTION_TITLE}
+        className="mt-1.5 block text-right"
       />
     </div>
   );

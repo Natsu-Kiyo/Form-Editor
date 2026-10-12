@@ -5,6 +5,8 @@ import { useState } from 'react';
 
 import { AlertCircleIcon, CheckIcon } from '@/components/icons/ui-icons';
 import { QuestionnaireTopbar } from '@/components/layout/questionnaire-topbar';
+import { CharCount } from '@/components/ui/char-count';
+import { PAYLOAD_LIMITS } from '@/config/constants';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 
 import type { VersionRow } from '../api/versions';
@@ -51,13 +53,19 @@ export function EditorChrome({
   return (
     <QuestionnaireTopbar
       titleSlot={
-        <input
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          readOnly={readOnly}
-          aria-label="问卷标题"
-          className="text-ink-900 hover:border-ink-200 focus:border-brand-500 w-64 min-w-0 border-b border-transparent bg-transparent text-[15px] font-semibold transition-colors duration-150 outline-none read-only:cursor-default"
-        />
+        <>
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            // 上限与 schema 同一份常量：敲不出存不下的东西（R96）
+            maxLength={PAYLOAD_LIMITS.QUESTIONNAIRE_TITLE}
+            readOnly={readOnly}
+            aria-label="问卷标题"
+            className="text-ink-900 hover:border-ink-200 focus:border-brand-500 w-64 min-w-0 border-b border-transparent bg-transparent text-[15px] font-semibold transition-colors duration-150 outline-none read-only:cursor-default"
+          />
+          {/* 快满 / 到顶时的计数器（R97）：截停不能是静默的 */}
+          <CharCount value={title} max={PAYLOAD_LIMITS.QUESTIONNAIRE_TITLE} className="shrink-0" />
+        </>
       }
     >
       {!readOnly ? (

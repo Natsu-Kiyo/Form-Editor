@@ -8,7 +8,7 @@ import { OPERATION_TYPE } from '@/config/constants';
 import { replaceQuestionnaireStructure } from '../api/questionnaires';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { writeOperationLog } from '@/lib/operation-log';
-import { questionnairePayloadSchema } from '@/lib/questionnaire-structure';
+import { describeIssuePath, questionnairePayloadSchema } from '@/lib/questionnaire-structure';
 
 /** 上传文件的体积上限。结构 JSON 几十 KB 足够，超过这个数多半是传错了文件 */
 const MAX_FILE_BYTES = 512 * 1024;
@@ -51,9 +51,9 @@ export async function importQuestionnaireJsonAction(
 
   const parsed = questionnairePayloadSchema.safeParse(raw);
   if (!parsed.success) {
+    // 与编辑器保存用同一套路径翻译（R96）：两处对同一个问题的说法必须一致
     const first = parsed.error.issues[0];
-    const path = first.path.join('.') || '根节点';
-    return { message: `文件结构与预期不符（${path}：${first.message}）` };
+    return { message: `文件结构与预期不符（${describeIssuePath(first.path)}：${first.message}）` };
   }
 
   await replaceQuestionnaireStructure({

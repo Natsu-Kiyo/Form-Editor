@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { requireDraftQuestionnaire } from '@/lib/auth/questionnaire-access';
-import { questionnairePayloadSchema } from '@/lib/questionnaire-structure';
+import { describeIssuePath, questionnairePayloadSchema } from '@/lib/questionnaire-structure';
 import { writeQuestionnaireVersion } from '@/lib/questionnaire-version';
 
 import { replaceStructure } from '../api/structure';
@@ -31,9 +31,13 @@ export async function saveEditorDraftAction(
 
   const parsed = questionnairePayloadSchema.safeParse(draft);
   if (!parsed.success) {
+    /*
+     * 报错要说人话（R96）：「第 2 题的第 3 个选项：选项不超过 100 个字」——
+     * 之前是「结构不合法（questions.1.options.2：Too big…）」，
+     * 而这句多半只会以悬停提示的形式出现在顶栏一粒药丸上，用户根本对不上自己刚改了什么。
+     */
     const first = parsed.error.issues[0];
-    const where = first.path.join('.') || '根节点';
-    return { ok: false, message: `结构不合法（${where}：${first.message}）` };
+    return { ok: false, message: `${describeIssuePath(first.path)}：${first.message}` };
   }
 
   const payload = parsed.data;

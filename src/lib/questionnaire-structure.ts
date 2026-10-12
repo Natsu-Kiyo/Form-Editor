@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   MATRIX_LIMITS,
+  PAYLOAD_LIMITS,
   SHOW_IF_SOURCE_TYPES,
   showIfFrom,
   type QuestionType,
@@ -61,15 +62,38 @@ export const payloadQuestionSchema = z
       .string()
       .trim()
       .min(1, { error: '题目不能为空' })
-      .max(200, { error: '题目不超过 200 个字' }),
-    description: z.string().max(500).nullish(),
+      .max(PAYLOAD_LIMITS.QUESTION_TITLE, {
+        error: `题目不超过 ${PAYLOAD_LIMITS.QUESTION_TITLE} 个字`,
+      }),
+    description: z
+      .string()
+      .max(PAYLOAD_LIMITS.QUESTION_DESCRIPTION, {
+        error: `题目说明不超过 ${PAYLOAD_LIMITS.QUESTION_DESCRIPTION} 个字`,
+      })
+      .nullish(),
     required: z.boolean().default(false),
     shuffleOptions: z.boolean().default(false),
     pageIndex: z.number().int().min(0).default(0),
     /** 题型差异项：评分范围、文本长度上限、矩阵的列等 */
     config: z.record(z.string(), z.unknown()).nullish(),
-    /** 选择类题型的选项文案；**矩阵题的「行」也在这一份**（两者结构完全同构，见 §R62） */
-    options: z.array(z.string().trim().min(1).max(100)).default([]),
+    /**
+     * 选择类题型的选项文案；**矩阵题的「行」也在这一份**（两者结构完全同构，见 §R62）
+     *
+     * 两条限制都**必须带中文原文**（R96）：这是用户最容易撞上的一处 ——
+     * 选项写长了、或者按住回车敲出个空选项 —— 而 zod 默认文案是
+     * `Too big: expected string to have <=100 characters`，落在界面上等于没说。
+     */
+    options: z
+      .array(
+        z
+          .string()
+          .trim()
+          .min(1, { error: '选项文案不能为空' })
+          .max(PAYLOAD_LIMITS.OPTION_LABEL, {
+            error: `选项不超过 ${PAYLOAD_LIMITS.OPTION_LABEL} 个字`,
+          }),
+      )
+      .default([]),
   })
   /**
    * 矩阵题的额外要求（R62）：行 2–10（在 `options` 里）、列 2–5（在 `config.columns` 里），
@@ -158,8 +182,18 @@ export const questionnairePayloadSchema = z
   .object({
     /** 结构版本号。将来结构变了，靠它决定要不要迁移旧文件 */
     formatVersion: z.literal(1),
-    title: z.string().trim().min(1).max(80).default('未命名问卷'),
-    intro: z.string().max(500).nullish(),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(PAYLOAD_LIMITS.QUESTIONNAIRE_TITLE, {
+        error: `问卷标题不超过 ${PAYLOAD_LIMITS.QUESTIONNAIRE_TITLE} 个字`,
+      })
+      .default('未命名问卷'),
+    intro: z
+      .string()
+      .max(PAYLOAD_LIMITS.INTRO, { error: `卷首语不超过 ${PAYLOAD_LIMITS.INTRO} 个字` })
+      .nullish(),
     questions: z
       .array(payloadQuestionSchema)
       .max(200, { error: '一份问卷最多 200 道题' })
@@ -230,6 +264,50 @@ export const questionnairePayloadSchema = z
 
 export type PayloadQuestion = z.infer<typeof payloadQuestionSchema>;
 export type QuestionnairePayload = z.infer<typeof questionnairePayloadSchema>;
+
+/**
+ * 把 zod 的 issue path 翻成人话（R96）。
+ *
+ * 结构校验的报错会带一串机器路径（`questions.2.options.1`），直接甩给用户等于没解释 ——
+ * 他既不知道 `questions.2` 是第几题，也不会把 `options.1` 读成「第二个选项」。
+ * 编辑器与「导入 JSON」共用它，两处说法才不会各是一套。
+ *
+ * 只翻结构里真实存在的几层，认不出来的**原样回落到点号连接**：
+ * 宁可显示得粗糙，也不要吞掉信息（这条路径会出现在用户的报错里，藏一半比说全更难查）。
+ */
+export function describeIssuePath(path: readonly PropertyKey[]): string {
+  if (path.length === 0) return '问卷结构';
+
+  const [head, ...rest] = path;
+
+  if (head === 'title') return '问卷标题';
+  if (head === 'intro') return '卷首语';
+  if (head !== 'questions') return path.map(String).join('.');
+
+  const index = Number(rest[0]);
+  if (!Number.isInteger(index)) return '题目';
+
+  const where = `第 ${index + 1} 题`;
+  const [field, ...deeper] = rest.slice(1);
+
+  if (field === undefined) return where;
+  if (field === 'title') return `${where}的题目`;
+  if (field === 'description') return `${where}的说明`;
+  if (field === 'type') return `${where}的题型`;
+  if (field === 'options') {
+    return typeof deeper[0] === 'number'
+      ? `${where}的第 ${deeper[0] + 1} 个选项`
+      : `${where}的选项`;
+  }
+  if (field === 'config') {
+    const leaf = deeper.at(-1);
+    if (leaf === 'columns') return `${where}的列`;
+    if (leaf === 'showIf') return `${where}的显示条件`;
+    return `${where}的设置`;
+  }
+
+  return `${where}的${String(field)}`;
+}
 
 /** 只有选择题带「选项」 */
 function isChoiceQuestion(type: QuestionType) {

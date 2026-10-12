@@ -192,6 +192,21 @@ export const MATRIX_LIMITS = {
 export const MATRIX_DEFAULT_COLUMNS = ['满意', '一般', '不满意'] as const;
 
 /**
+ * 结构快照里几个「用户敲得出来」的长度上限（R96）。
+ *
+ * **只定义一处**：schema（写入闸门）与输入框的 `maxLength`（即时拦截）都读它。
+ * 两边各写一遍的后果是实打实的：能敲进去、却存不上，而报错落在保存那一步 ——
+ * 用户根本猜不到「是我刚才写长了」（这正是 R96 修的那个迷惑）。
+ */
+export const PAYLOAD_LIMITS = {
+  QUESTIONNAIRE_TITLE: 80,
+  INTRO: 500,
+  QUESTION_TITLE: 200,
+  QUESTION_DESCRIPTION: 500,
+  OPTION_LABEL: 100,
+} as const;
+
+/**
  * 从 config 读矩阵的列，**已按上限收敛**（与 `ratingBounds` 同一条思路：
  * 库里可能残留过大的历史值，展示层任何时候都是对的）。
  * 「行」不在这里 —— 它走题目的 `options`。

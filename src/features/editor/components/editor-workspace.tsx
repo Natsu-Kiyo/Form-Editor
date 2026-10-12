@@ -18,10 +18,12 @@ import {
 } from '@dnd-kit/sortable';
 import { useState } from 'react';
 
-import { FileTextIcon, PlusIcon } from '@/components/icons/ui-icons';
+import { AlertCircleIcon, FileTextIcon, PlusIcon } from '@/components/icons/ui-icons';
 import { EmptyState } from '@/components/ui/empty-state';
+import { CharCount } from '@/components/ui/char-count';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
+import { PAYLOAD_LIMITS } from '@/config/constants';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 import { cn } from '@/utils/cn';
 
@@ -40,7 +42,8 @@ import { QuestionCard } from './question-card';
  * 而放进 URL 会让每次点选都产生一条历史记录、把后退键毁掉。
  */
 export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
-  const { questions, addQuestion, reorderQuestions, intro, setIntro } = useEditorDraft();
+  const { questions, addQuestion, reorderQuestions, intro, setIntro, state, errorMessage, save } =
+    useEditorDraft();
   const [selectedKey, setSelectedKey] = useState<string | null>(questions[0]?.key ?? null);
   /**
    * 窄屏的两个弹层（P08-b / P08-c）。断点显式写 1024：与 Tailwind 的 `lg` 对齐，
@@ -105,6 +108,33 @@ export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
 
       <div className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-7">
         <div className="mx-auto max-w-[620px] space-y-3">
+          {/*
+            保存失败的原因（R96）。顶栏那粒药丸只说「保存失败」，原因原先塞在 `title` 里 ——
+            等于没说。这里给一句完整的、能对着内容看的解释，并且 `sticky` 钉在画布顶部：
+            用户往往正在改第 8 题，而报错说的是第 2 题（滚动一下它就看不见了）。
+            改动之后它会自己消失（见 editor-draft 的 clearSaveError）——「上一次尝试失败」
+            不是你手上这份的现状。
+          */}
+          {state === 'error' && errorMessage ? (
+            <div
+              role="alert"
+              className="sticky top-0 z-10 flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[12.5px] leading-5 text-rose-700"
+            >
+              <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <span className="font-medium">保存失败：</span>
+                {errorMessage}
+              </div>
+              <button
+                type="button"
+                onClick={save}
+                className="shrink-0 font-medium underline underline-offset-2 transition-opacity duration-150 hover:opacity-70"
+              >
+                重新保存
+              </button>
+            </div>
+          ) : null}
+
           {/*
             卷首卡（R95）：中栏顶部、Q1 之上。卷首语是整份问卷的内容，
             而这是唯一「作答者会先看到它」的位置 —— 放右栏既挤又不对（那是某道题的属性）。
@@ -260,14 +290,18 @@ export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
                 <Textarea
                   rows={5}
                   value={intro}
-                  maxLength={500}
+                  maxLength={PAYLOAD_LIMITS.INTRO}
                   aria-label="卷首语"
                   placeholder="写一句说明：这份问卷用来做什么、大概要几分钟（可留空）"
                   onChange={(event) => setIntro(event.target.value)}
                 />
-                <p className="text-caption text-ink-400 mt-1.5">
-                  最多 500 字；留空则作答页只显示标题
-                </p>
+                <div className="mt-1.5 flex items-center justify-between gap-2">
+                  <p className="text-caption text-ink-400">
+                    最多 {PAYLOAD_LIMITS.INTRO} 字；留空则作答页只显示标题
+                  </p>
+                  {/* 快满 / 到顶时的计数器（R97）：截停不能是静默的 */}
+                  <CharCount value={intro} max={PAYLOAD_LIMITS.INTRO} className="shrink-0" />
+                </div>
               </div>
             </SheetContent>
           </Sheet>

@@ -3,7 +3,13 @@
 import { useSortable } from '@dnd-kit/sortable';
 
 import { GripIcon } from '@/components/icons/ui-icons';
-import { QUESTION_TYPE_LABEL, RATING_SCALE, ratingBounds } from '@/config/constants';
+import { CharCount } from '@/components/ui/char-count';
+import {
+  PAYLOAD_LIMITS,
+  QUESTION_TYPE_LABEL,
+  RATING_SCALE,
+  ratingBounds,
+} from '@/config/constants';
 import { duplicateLabels, hasOptionList } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
@@ -171,13 +177,25 @@ export function QuestionCard({
                 窄屏与只读态仍然是纯文本：前者点一下就该开属性弹层，后者本来就不给改。
               */}
               {titleEditable ? (
-                <input
-                  value={question.title}
-                  onChange={(event) => updateQuestion(question.key, { title: event.target.value })}
-                  placeholder="未命名题目"
-                  aria-label={`第 ${index + 1} 题标题`}
-                  className="text-ink-900 hover:border-ink-200 focus:border-brand-500 mb-1 w-full min-w-0 border-b border-transparent bg-transparent text-[14.5px] font-medium transition-colors duration-150 outline-none"
-                />
+                <div className="mb-1 flex items-center gap-2">
+                  <input
+                    value={question.title}
+                    onChange={(event) =>
+                      updateQuestion(question.key, { title: event.target.value })
+                    }
+                    // 上限与 schema 同一份常量（R96）：敲不出存不下的东西
+                    maxLength={PAYLOAD_LIMITS.QUESTION_TITLE}
+                    placeholder="未命名题目"
+                    aria-label={`第 ${index + 1} 题标题`}
+                    className="text-ink-900 hover:border-ink-200 focus:border-brand-500 min-w-0 flex-1 border-b border-transparent bg-transparent text-[14.5px] font-medium transition-colors duration-150 outline-none"
+                  />
+                  {/* 快满 / 到顶时的计数器（R97）：截停不能是静默的 */}
+                  <CharCount
+                    value={question.title}
+                    max={PAYLOAD_LIMITS.QUESTION_TITLE}
+                    className="shrink-0"
+                  />
+                </div>
               ) : (
                 <div className="text-ink-900 mb-1 text-[14.5px] font-medium">
                   {question.title.trim() || '未命名题目'}

@@ -21,7 +21,8 @@ import {
 import { useState } from 'react';
 
 import { GripIcon, PlusIcon, TrashIcon } from '@/components/icons/ui-icons';
-import { MATRIX_LIMITS } from '@/config/constants';
+import { CharCount } from '@/components/ui/char-count';
+import { MATRIX_LIMITS, PAYLOAD_LIMITS } from '@/config/constants';
 import { duplicateLabels } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
@@ -276,6 +277,8 @@ function OptionRow({
       <input
         value={label}
         autoFocus={autoFocus}
+        // 上限与 schema 同一份常量（R96）：选项写长了存不上，是最容易撞的一处
+        maxLength={PAYLOAD_LIMITS.OPTION_LABEL}
         /*
          * 占位提示：空着的那一格就这么离开时，会变成这个名字（失焦补位 / 保存兜底）。
          * 没有它，「新增后是空框」与「空框会自己变成『选项 3』」都无从预期。
@@ -307,6 +310,9 @@ function OptionRow({
         aria-label={inputName}
         className="text-ink-700 min-w-0 flex-1 bg-transparent text-[13px] outline-none"
       />
+
+      {/* 快满 / 到顶时的计数器（R97）：截停不能是静默的 —— 用户会以为自己写全了 */}
+      <CharCount value={label} max={PAYLOAD_LIMITS.OPTION_LABEL} className="shrink-0" />
 
       {!readOnly ? (
         <button

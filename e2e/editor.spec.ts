@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { DEMO_ACCOUNTS } from '@/config/constants';
+import { DEMO_ACCOUNTS, PAYLOAD_LIMITS } from '@/config/constants';
 
 /**
  * M3-a 验收：编辑器骨架与画布（W03）。
@@ -111,6 +111,16 @@ test.describe('编辑器', () => {
     await expect(page.getByRole('group', { name: '第 1 题：你最喜欢的季节是？' })).toBeVisible();
 
     // ---- 画布上直接改题目名（R93）：与右栏那个字段写的是同一份草稿 ----
+    // 上限取自 schema 那份常量（R96）：输入侧就拦住，不会拖到保存才失败
+    await expect(page.getByLabel('第 1 题标题')).toHaveAttribute(
+      'maxlength',
+      String(PAYLOAD_LIMITS.QUESTION_TITLE),
+    );
+    await expect(page.getByLabel('题目', { exact: true })).toHaveAttribute(
+      'maxlength',
+      String(PAYLOAD_LIMITS.QUESTION_TITLE),
+    );
+
     await page.getByLabel('第 1 题标题').fill('你最喜欢哪个季节？');
     await expect(page.getByRole('group', { name: '第 1 题：你最喜欢哪个季节？' })).toBeVisible();
     // 右栏跟着变 —— 两个入口、一份状态
@@ -156,17 +166,24 @@ test.describe('编辑器', () => {
     // 两处同时提示：画布上的选项列表 + 右栏的「选项」字段（同一判据、同一句话，R93 起右栏也有）
     await expect(page.getByText('有选项重名')).toHaveCount(2);
 
-    // ---- 保存被拦下：报错来自 schema 那道闸门，与界面标红同源 ----
-    // 文案只在 title 里（顶栏位置有限，界面上只说「保存失败」，细节挂在悬停提示上）
+    /*
+     * ---- 保存被拦下：界面**直接说出原因**（R96）----
+     * 原先原因只挂在顶栏那粒药丸的 `title` 上（悬停才看得到），用户看到的就是干巴巴一句
+     * 「保存失败」。现在画布顶部有一条常驻的说明，说清是哪道题、哪个选项、错在哪。
+     */
     await page.getByRole('button', { name: '保存' }).click();
-    const failed = banner(page).getByText('保存失败');
-    await expect(failed).toBeVisible();
-    await expect(failed).toHaveAttribute('title', /选项不能重名/);
+    await expect(banner(page).getByText('保存失败')).toBeVisible();
+
+    const reason = page.getByRole('alert').filter({ hasText: '保存失败' });
+    await expect(reason).toContainText('第 1 题');
+    await expect(reason).toContainText('选项不能重名');
 
     // ---- 改回不重名：两处提示一起消失，保存通过 ----
     await options.nth(1).fill('不满意');
     await options.nth(1).blur();
     await expect(page.getByText('有选项重名')).toHaveCount(0);
+    // 一改动，那条「上一次尝试失败」的说明就该收掉（否则用户以为现在这份也存不上）
+    await expect(page.getByRole('alert').filter({ hasText: '保存失败' })).toHaveCount(0);
 
     await page.getByRole('button', { name: '保存' }).click();
     await expect(banner(page).getByText('已保存')).toBeVisible();
@@ -194,6 +211,8 @@ test.describe('编辑器', () => {
     const added = options.nth(2);
     await expect(added).toBeFocused();
     await expect(added).toHaveValue('');
+    // 选项的上限也来自 schema 那份常量（R96）——「写长了存不上」是最容易撞的一处
+    await expect(added).toHaveAttribute('maxlength', String(PAYLOAD_LIMITS.OPTION_LABEL));
 
     // 直接写就是它的内容
     await added.fill('第三个');
@@ -217,6 +236,28 @@ test.describe('编辑器', () => {
     await page.reload();
     await expect(page.getByLabel('选项文案').nth(3)).toHaveValue('选项 4');
 
+    /*
+     * ---- 截停不能是静默的（R97）----
+     * `maxLength` 让「写长了存不上」不再发生，但静默截停同样是骗人：
+     * 用户会以为自己写全了。所以快到上限时出现计数器、到顶时明说，并且**再敲也进不去**。
+     * 放在用例末尾：它会改掉选项文案，而上面那几步按标签序列断言（第三个选项叫什么会影响
+     * 「空着的那格补成哪个名字」）。
+     */
+    const longOption = page.getByLabel('选项文案').nth(2);
+    await expect(page.getByText(`/${PAYLOAD_LIMITS.OPTION_LABEL}`)).toHaveCount(0);
+
+    await longOption.fill('长'.repeat(PAYLOAD_LIMITS.OPTION_LABEL));
+    const atCap = page.getByText(
+      `${PAYLOAD_LIMITS.OPTION_LABEL}/${PAYLOAD_LIMITS.OPTION_LABEL} 已达上限`,
+    );
+    // 画布与右栏各一处：同一个值、同一份判据（与重名提示同一条口径）
+    await expect(atCap).toHaveCount(2);
+
+    // 到顶之后再敲一个字：值不变（浏览器截停），而计数器还在明说「已达上限」
+    await longOption.pressSequentially('多');
+    await expect(longOption).toHaveValue('长'.repeat(PAYLOAD_LIMITS.OPTION_LABEL));
+    await expect(atCap).toHaveCount(2);
+
     // ---- 收尾 ----
     await page.goto('/app');
     await clearLeftovers(page, ADD_OPTION_TITLE);
@@ -231,6 +272,15 @@ test.describe('编辑器', () => {
     await page.getByRole('button', { name: '创建', exact: true }).click();
     await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
     await page.getByLabel('问卷标题').fill(INTRO_TITLE);
+
+    // ---- 顶栏标题也带计数器（R97）：写满时明说，改短了就收掉 ----
+    const titleCounter = page.getByText(
+      `${PAYLOAD_LIMITS.QUESTIONNAIRE_TITLE}/${PAYLOAD_LIMITS.QUESTIONNAIRE_TITLE} 已达上限`,
+    );
+    await page.getByLabel('问卷标题').fill('标'.repeat(PAYLOAD_LIMITS.QUESTIONNAIRE_TITLE));
+    await expect(titleCounter).toBeVisible();
+    await page.getByLabel('问卷标题').fill(INTRO_TITLE);
+    await expect(titleCounter).toHaveCount(0);
 
     // ---- 卡在 Q1 之上，且**空问卷也显示**（它就是这份问卷的内容，不依赖有没有题）----
     const introBox = page.getByLabel('卷首语');
