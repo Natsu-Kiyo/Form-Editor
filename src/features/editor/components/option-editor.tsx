@@ -26,8 +26,10 @@ import { MATRIX_LIMITS, PAYLOAD_LIMITS } from '@/config/constants';
 import { duplicateLabels } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
+import { nextFreeOptionLabel, optionUnit } from '../lib/draft-options';
+
 import type { DraftQuestion } from './editor-draft';
-import { nextFreeOptionLabel, optionUnit, useEditorDraft } from './editor-draft';
+import { useEditorDraft } from './editor-draft';
 
 /**
  * 选项列表编辑器：选择题的「选项」与矩阵题的「行」（两者结构同构，共用一套编辑）。
@@ -180,6 +182,26 @@ export function DuplicateOptionsNotice({
 }
 
 /**
+ * 这一格「空着离开」时会变成什么（只给占位提示用）。
+ *
+ * 逐格往后排：**上面**那些同样空着的格子会先被补上，于是这一格显示的是**下一个**编号 ——
+ * 否则两格同时空着会都显示「选项 3」，看着像要撞名（真到补位时是逐格重算的，不会撞）。
+ * 纯观感：真值由 `nextFreeOptionLabel` 在失焦那一刻算（R9-4）。
+ */
+function placeholderFor(question: DraftQuestion, index: number) {
+  const unit = optionUnit(question.type);
+  const taken = question.options.map((option) => option.label);
+
+  // 把这一格之前的空格按顺序补上，轮到自己时编号才是对的
+  for (let position = 0; position < index; position += 1) {
+    if (taken[position]!.trim()) continue;
+    taken[position] = nextFreeOptionLabel(unit, taken);
+  }
+
+  return nextFreeOptionLabel(unit, taken);
+}
+
+/**
  * 一行选项（矩阵题则是「一行」）。
  *
  * **无障碍名称按入口区分**：桌面上画布与右栏会同时出现这两份列表，
@@ -214,9 +236,15 @@ function OptionRow({
   const isPanel = variant === 'panel';
   const unit = optionUnit(question.type);
 
+  /*
+   * 读屏名里引用文案时，**空文案回落到序号**（R9-3）：新增的那一格还没输，
+   * `拖动选项「」` / `删除选项「」` 念出来等于没说。
+   */
+  const spoken = label.trim() || `${unit} ${index + 1}`;
+
   const inputName = isPanel ? `${unit} ${index + 1}` : `${unit}文案`;
-  const dragName = isPanel ? `拖动第 ${index + 1} 个${unit}` : `拖动${unit}「${label}」`;
-  const deleteName = isPanel ? `删除第 ${index + 1} 个${unit}` : `删除${unit}「${label}」`;
+  const dragName = isPanel ? `拖动第 ${index + 1} 个${unit}` : `拖动${unit}「${spoken}」`;
+  const deleteName = isPanel ? `删除第 ${index + 1} 个${unit}` : `删除${unit}「${spoken}」`;
 
   const {
     attributes,
@@ -283,10 +311,7 @@ function OptionRow({
          * 占位提示：空着的那一格就这么离开时，会变成这个名字（失焦补位 / 保存兜底）。
          * 没有它，「新增后是空框」与「空框会自己变成『选项 3』」都无从预期。
          */
-        placeholder={nextFreeOptionLabel(
-          unit,
-          question.options.map((option) => option.label),
-        )}
+        placeholder={placeholderFor(question, index)}
         onChange={(event) => updateOption(question.key, optionKey, event.target.value)}
         onBlur={() => {
           // 失焦时把空白项补回一个占位文案：空着等于这道题有个坏选项（矩阵则是坏行）。

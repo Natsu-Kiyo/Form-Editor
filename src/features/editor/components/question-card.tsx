@@ -13,8 +13,10 @@ import {
 import { duplicateLabels, hasOptionList } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
+import { draftMatrixColumns, optionUnit } from '../lib/draft-options';
+
 import type { DraftQuestion } from './editor-draft';
-import { draftMatrixColumns, optionUnit, useEditorDraft } from './editor-draft';
+import { useEditorDraft } from './editor-draft';
 import { DuplicateOptionsNotice, OptionEditor } from './option-editor';
 
 function isChoiceType(type: DraftQuestion['type']) {

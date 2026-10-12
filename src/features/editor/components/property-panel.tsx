@@ -28,13 +28,10 @@ import { PAYLOAD_LIMITS } from '@/config/constants';
 import { duplicateLabels, hasOptionList } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
+import { draftMatrixColumns, nextFreeOptionLabel, optionUnit } from '../lib/draft-options';
+
 import type { DraftQuestion, EditableQuestionType } from './editor-draft';
-import {
-  draftMatrixColumns,
-  nextFreeOptionLabel,
-  optionUnit,
-  useEditorDraft,
-} from './editor-draft';
+import { useEditorDraft } from './editor-draft';
 import { OptionEditor } from './option-editor';
 
 /** 题目类型下拉的全部选项。R62 起 8 个题型全开放（顺序 = 常量里的定义顺序） */
