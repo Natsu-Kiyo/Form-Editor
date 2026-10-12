@@ -53,6 +53,7 @@ export default async function EditQuestionnairePage({
     <EditorDraftProvider
       questionnaireId={editor.id}
       initialTitle={editor.title}
+      initialIntro={editor.intro}
       initialQuestions={editor.questions}
       readOnly={readOnlyReason !== null}
     >

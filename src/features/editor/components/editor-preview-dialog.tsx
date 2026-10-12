@@ -22,22 +22,33 @@ export function EditorPreviewDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { title, questions } = useEditorDraft();
+  const { title, intro, questions } = useEditorDraft();
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent title="预览" width="lg">
-        {questions.length === 0 ? (
-          <p className="text-ink-400 py-8 text-center text-[12.5px]">
-            还没有题目。先从题型面板加一道，再回来看它长什么样。
-          </p>
-        ) : (
-          <div className="space-y-5">
-            <div className="border-ink-100 border-b pb-4">
-              <div className="text-ink-900 text-[15px] font-semibold">{title || '未命名问卷'}</div>
-              <p className="text-ink-400 mt-2 text-[11.5px]">{questions.length} 题</p>
-            </div>
+        <div className="space-y-5">
+          {/*
+            抬头恒显，**不跟着题数走**：标题与卷首语是问卷级内容，
+            一道题都还没有的时候它们照样是作答者会先看到的东西
+            （之前「没有题目」会把整块抬头一起吞掉，「我改的看起来对不对」就答不了）。
+          */}
+          <div className="border-ink-100 border-b pb-4">
+            <div className="text-ink-900 text-[15px] font-semibold">{title || '未命名问卷'}</div>
+            {/* 卷首语（R95）：作答页就是标题下面这一段，预览得对得上 */}
+            {intro.trim() ? (
+              <p className="text-ink-500 mt-1.5 text-[12.5px] leading-5 whitespace-pre-wrap">
+                {intro}
+              </p>
+            ) : null}
+            <p className="text-ink-400 mt-2 text-[11.5px]">{questions.length} 题</p>
+          </div>
 
+          {questions.length === 0 ? (
+            <p className="text-ink-400 py-4 text-center text-[12.5px]">
+              还没有题目。先从题型面板加一道，再回来看它长什么样。
+            </p>
+          ) : (
             <QuestionPreviewList
               questions={questions.map((question) => ({
                 type: question.type,
@@ -48,8 +59,8 @@ export function EditorPreviewDialog({
                 options: question.options.map((option) => option.label),
               }))}
             />
-          </div>
-        )}
+          )}
+        </div>
       </ModalContent>
     </Modal>
   );

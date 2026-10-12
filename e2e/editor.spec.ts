@@ -16,6 +16,8 @@ const THROWAWAY_TITLE = 'E2E 编辑器用例';
 const M3B_TITLE = 'E2E M3b 用例';
 const DUPLICATE_TITLE = 'E2E 重名选项用例';
 const ADD_OPTION_TITLE = 'E2E 新增选项用例';
+const INTRO_TITLE = 'E2E 卷首语用例';
+const INTRO_TEXT = '统计团建的可用时间，大约 2 分钟。';
 
 /**
  * 清掉指定标题的**全部**残留卡片。
@@ -218,6 +220,46 @@ test.describe('编辑器', () => {
     // ---- 收尾 ----
     await page.goto('/app');
     await clearLeftovers(page, ADD_OPTION_TITLE);
+  });
+
+  test('卷首语：中栏顶部能写，保存后不会丢（R95）', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '编辑器只在桌面端有入口');
+    await signIn(page);
+    await clearLeftovers(page, INTRO_TITLE);
+
+    await page.getByRole('button', { name: '新建问卷' }).first().click();
+    await page.getByRole('button', { name: '创建', exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
+    await page.getByLabel('问卷标题').fill(INTRO_TITLE);
+
+    // ---- 卡在 Q1 之上，且**空问卷也显示**（它就是这份问卷的内容，不依赖有没有题）----
+    const introBox = page.getByLabel('卷首语');
+    await expect(introBox).toBeVisible();
+    await introBox.fill(INTRO_TEXT);
+
+    // ---- 预览里能看到它：预览的是当前草稿，与作答页抬头对齐 ----
+    await page.getByRole('button', { name: '预览' }).click();
+    await expect(page.getByRole('dialog').getByText(INTRO_TEXT)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    /*
+     * ---- 保存 + 刷新：内容还在 ----
+     * 这一条钉的正是那个 bug：`save()` 里曾经硬编码 `intro: null`，
+     * 于是「从模板 / 导入 JSON 带进来的卷首语」会在按一次保存后被静默清空。
+     */
+    await page.getByRole('button', { name: '保存' }).click();
+    await expect(banner(page).getByText('已保存')).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel('卷首语')).toHaveValue(INTRO_TEXT);
+
+    // ---- 清空再保存：落库成 null（列表卡片回落到「共 N 道题」）----
+    await page.getByLabel('卷首语').fill('');
+    await page.getByRole('button', { name: '保存' }).click();
+    await expect(banner(page).getByText('已保存')).toBeVisible();
+
+    // ---- 收尾 ----
+    await page.goto('/app');
+    await clearLeftovers(page, INTRO_TITLE);
   });
 
   test('手动保存：改动先落草稿，按保存才写库', async ({ page }, testInfo) => {

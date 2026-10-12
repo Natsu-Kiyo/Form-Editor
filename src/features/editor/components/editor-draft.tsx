@@ -218,11 +218,19 @@ type EditorDraftValue = {
   /** 顶栏要用它拼「发布设置」的链接；页面内各组件不该自己从 URL 里抠 */
   questionnaireId: string;
   title: string;
+  /**
+   * 卷首语（R95）：作答者在标题下方看到的那段话。
+   *
+   * 草稿里用**空串**表示「没写」—— 与 `null` 的区别只存在于落库那一步
+   * （`save()` 里 `trim() || null`），界面上不必到处判 `null`。
+   */
+  intro: string;
   questions: DraftQuestion[];
   dirty: boolean;
   state: SaveState;
   errorMessage: string | null;
   setTitle: (title: string) => void;
+  setIntro: (intro: string) => void;
   /** 添加题目。给了 `afterKey` 就插在那道题之后，否则追加到末尾（并返回新题的 key） */
   addQuestion: (type: EditableQuestionType, afterKey?: string | null) => string;
   updateQuestion: (key: string, patch: Partial<Omit<DraftQuestion, 'key' | 'options'>>) => void;
@@ -254,17 +262,21 @@ export function useEditorDraft() {
 export function EditorDraftProvider({
   questionnaireId,
   initialTitle,
+  initialIntro,
   initialQuestions,
   readOnly,
   children,
 }: {
   questionnaireId: string;
   initialTitle: string;
+  /** 库里的卷首语（`null` = 没写过）；草稿里统一按空串处理 */
+  initialIntro: string | null;
   initialQuestions: EditorQuestion[];
   readOnly: boolean;
   children: React.ReactNode;
 }) {
   const [title, setTitleState] = useState(initialTitle);
+  const [intro, setIntroState] = useState(initialIntro ?? '');
   const [questions, setQuestions] = useState(() => toDraftQuestions(initialQuestions));
   const [dirty, setDirty] = useState(false);
   const [state, setState] = useState<SaveState>(readOnly ? 'blocked' : 'idle');
@@ -275,10 +287,12 @@ export function EditorDraftProvider({
   // 同步放在 effect 里：渲染期写 ref 会触发「Cannot access refs during render」，
   // 而保存是用户交互触发的，effect 早就跑完了。
   const titleRef = useRef(title);
+  const introRef = useRef(intro);
   const questionsRef = useRef(questions);
 
   useEffect(() => {
     titleRef.current = title;
+    introRef.current = intro;
     questionsRef.current = questions;
   });
 
@@ -300,7 +314,12 @@ export function EditorDraftProvider({
       formatVersion: 1 as const,
       // 空标题/空题目会被 payload 校验拦下，这里给一个兜底文案而不是让用户对着报错猜
       title: titleRef.current.trim() || '未命名问卷',
-      intro: null,
+      /*
+       * 卷首语照草稿原样带走（R95）。这里曾经硬编码 `null` ——
+       * 于是「从模板创建 / 导入 JSON 带进来的卷首语」会在编辑器里按一次保存就被**静默清空**，
+       * 列表卡片上那段说明跟着变回「共 N 道题」。空串落成 `null`：库里两种「没写」没有区别。
+       */
+      intro: introRef.current.trim() || null,
       // `map` 的第二个参数就是序号：显示条件的「依赖 key → 序号」映射沿着它做
       questions: list.map((question, index) => {
         const showIf = resolveShowIf(question, list, index);
@@ -362,11 +381,12 @@ export function EditorDraftProvider({
   /** 放弃本次修改，回到服务端那一份 */
   const discard = useCallback(() => {
     setTitleState(initialTitle);
+    setIntroState(initialIntro ?? '');
     setQuestions(toDraftQuestions(initialQuestions));
     setDirty(false);
     setErrorMessage(null);
     setState(readOnly ? 'blocked' : 'idle');
-  }, [initialTitle, initialQuestions, readOnly]);
+  }, [initialTitle, initialIntro, initialQuestions, readOnly]);
 
   // Ctrl / Cmd + S 保存：编辑器里最顺手的一个快捷键，成本极低
   useEffect(() => {
@@ -387,12 +407,17 @@ export function EditorDraftProvider({
     () => ({
       questionnaireId,
       title,
+      intro,
       questions,
       dirty,
       state,
       errorMessage,
       setTitle: (next) => {
         setTitleState(next);
+        setDirty(true);
+      },
+      setIntro: (next) => {
+        setIntroState(next);
         setDirty(true);
       },
       addQuestion: (type, afterKey) => {
@@ -540,7 +565,7 @@ export function EditorDraftProvider({
       save,
       discard,
     }),
-    [questionnaireId, title, questions, dirty, state, errorMessage, mutate, save, discard],
+    [questionnaireId, title, intro, questions, dirty, state, errorMessage, mutate, save, discard],
   );
 
   return <EditorDraftContext.Provider value={value}>{children}</EditorDraftContext.Provider>;

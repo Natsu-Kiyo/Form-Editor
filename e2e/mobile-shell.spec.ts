@@ -201,6 +201,38 @@ test.describe('移动外壳', () => {
     await expect(page.getByRole('button', { name: '添加题目' })).toBeVisible();
   });
 
+  test('R95 卷首语：窄屏卡片是预览，点开弹层能改', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', '这是 375px 的形态');
+
+    await signIn(page);
+
+    // seed 那份草稿自带一段卷首语（就是「有内容但看不见也改不了」的那个情形）
+    const stats = page.getByRole('link', { name: /^数据「用户访谈招募/ }).first();
+    const statsHref = await stats.getAttribute('href');
+    await page.goto(statsHref!.replace(/\/stats$/, '/edit'));
+
+    // 卡上是库里那段话，但**不是输入框**（窄屏一律「看着是内容、点开才编辑」）。
+    // 用 exact：卡本身是个名为「编辑卷首语」的按钮，子串匹配会把它也算成「卷首语」
+    await expect(page.getByText('招募 8 位深度用户做 30 分钟访谈')).toBeVisible();
+    await expect(page.getByLabel('卷首语', { exact: true })).toHaveCount(0);
+
+    // ---- 点卡片 → 卷首语弹层，里面带出原值 ----
+    await page.getByRole('button', { name: '编辑卷首语' }).click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByRole('heading', { name: '卷首语' })).toBeVisible();
+
+    const area = sheet.getByLabel('卷首语');
+    await expect(area).toHaveValue(/招募 8 位深度用户/);
+    await area.fill('想约你聊 30 分钟，聊聊新版的信息架构。');
+    await area.blur();
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    // ---- 关掉弹层后，画布上的预览已经是新文案（仍是草稿，未保存）----
+    await expect(page.getByText('想约你聊 30 分钟')).toBeVisible();
+  });
+
   test('P08-c 属性弹层里能改选项（R93：窄屏原来改不了）', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', '这是 375px 的形态');
 
