@@ -10,11 +10,12 @@ import {
   useState,
 } from 'react';
 
-import { MATRIX_DEFAULT_COLUMNS, MATRIX_LIMITS, SHOW_IF_SOURCE_TYPES } from '@/config/constants';
+import { MATRIX_DEFAULT_COLUMNS, MATRIX_LIMITS } from '@/config/constants';
 import { hasOptionList } from '@/lib/questionnaire-structure';
 
 import { saveEditorDraftAction } from '../actions/save-draft';
 import type { EditorQuestion, EditableQuestionType, QuestionConfig } from '../api/questionnaires';
+import { renameShowIfReferences, resolveShowIf, settleShowIf } from '../lib/draft-show-if';
 
 /**
  * 编辑器草稿。
@@ -98,36 +99,8 @@ function toDraftShowIf(showIf: QuestionConfig['showIf'], keyByIndex: string[]): 
   return dependsOnKey ? { dependsOnKey, options: showIf.options } : null;
 }
 
-/**
- * 草稿 → payload 的显示条件：依赖 key 换回序号，并把几种「结构已经被改坏」的情况
- * **在保存前自愈掉**（都在编辑器里发生，用户看得见改的结果）：
- *
- * - 依赖题被删 / 被拖到本题**后面**了 → 条件只允许指向前面的题，丢掉；
- * - 依赖题不再是选择类（题型被改过）→ 丢掉；
- * - 引用的选项改过名 / 被删（一个都不剩）→ 丢掉，还剩一部分就只留有效的。
- *
- * 外部来源（JSON 导入、历史模板 payload）不经过这里，由 payload schema 的跨题校验拦。
- */
-function resolveShowIf(question: DraftQuestion, list: DraftQuestion[], index: number) {
-  const showIf = question.showIf;
-  if (!showIf) return undefined;
-
-  const dependsOnIndex = list.findIndex((item) => item.key === showIf.dependsOnKey);
-  if (dependsOnIndex < 0 || dependsOnIndex >= index) return undefined;
-
-  const dependsOn = list[dependsOnIndex]!;
-  if (!SHOW_IF_SOURCE_TYPES.includes(dependsOn.type)) return undefined;
-
-  const available = new Set(dependsOn.options.map((option) => option.label));
-  const options = showIf.options.filter((option) => available.has(option));
-
-  // 原本就是空（用户勾到 0 个）：原样带出去，让 payload schema 给出明确报错 ——
-  // 那是「还没配完」，不该被静默丢掉
-  if (showIf.options.length === 0) return { questionIndex: dependsOnIndex, options: [] };
-
-  // 过滤之后才变空（选项被删 / 改名）：那次改名就是「不要这个条件了」的操作，丢弃
-  return options.length > 0 ? { questionIndex: dependsOnIndex, options } : undefined;
-}
+/* 显示条件的规则在 `lib/draft-show-if.ts`：草稿侧（settleShowIf）与保存侧（resolveShowIf）
+   必须同源，两者各写一套就会出现「画布显示着、保存后却没了」 */
 
 let tempCounter = 0;
 
@@ -309,7 +282,13 @@ export function EditorDraftProvider({
 
   const mutate = useCallback(
     (updater: (list: DraftQuestion[]) => DraftQuestion[]) => {
-      setQuestions((list) => updater(list));
+      /*
+       * 每次结构改动都过一遍 `settleShowIf`（R98）：条件是跨题引用，
+       * 删题 / 删选项 / 拖动 / 改题型都可能让它失效 —— 逐个改动点去补必然漏。
+       * 在这里统一收口，画布上看到的就是**保存下去的那份**（不再出现
+       * 「界面写着有条件的，存下去是无条件」）。
+       */
+      setQuestions((list) => settleShowIf(updater(list)));
       setDirty(true);
       clearSaveError();
     },
@@ -484,16 +463,9 @@ export function EditorDraftProvider({
         mutate((list) =>
           list.map((question) => (question.key === key ? { ...question, ...patch } : question)),
         ),
-      // 删题时把「依赖它」的条件一并清掉：留一个指向空气的条件，界面上就是一句
-      // 「当（已删除）选了…时显示」，比没有条件更难懂
-      removeQuestion: (key) =>
-        mutate((list) =>
-          list
-            .filter((question) => question.key !== key)
-            .map((question) =>
-              question.showIf?.dependsOnKey === key ? { ...question, showIf: null } : question,
-            ),
-        ),
+      // 删题时「依赖它」的条件由 mutate 里的 settleShowIf 一并收掉（依赖题找不到 → 条件作废），
+      // 这里只负责把题删掉 —— 规则只写一处，才不会出现「删题清掉了、拖走却留着」
+      removeQuestion: (key) => mutate((list) => list.filter((question) => question.key !== key)),
       reorderQuestions: (keys) =>
         mutate((list) => {
           const byKey = new Map(list.map((question) => [question.key, question]));
@@ -522,8 +494,20 @@ export function EditorDraftProvider({
         return optionKey;
       },
       updateOption: (questionKey, optionKey, label) =>
-        mutate((list) =>
-          list.map((question) =>
+        mutate((list) => {
+          const owner = list.find((question) => question.key === questionKey);
+          const oldLabel = owner?.options.find((option) => option.key === optionKey)?.label;
+
+          /*
+           * 改名要**先**把引用改指到新名字（R98）：否则接下来那句 `settleShowIf`
+           * 会把它当成「引用的选项没了」直接收掉 —— 而用户只是改了个错别字。
+           */
+          const renamed =
+            oldLabel !== undefined && oldLabel !== label
+              ? renameShowIfReferences(list, questionKey, oldLabel, label)
+              : list;
+
+          return renamed.map((question) =>
             question.key === questionKey
               ? {
                   ...question,
@@ -532,8 +516,8 @@ export function EditorDraftProvider({
                   ),
                 }
               : question,
-          ),
-        ),
+          );
+        }),
       removeOption: (questionKey, optionKey) =>
         mutate((list) =>
           list.map((question) =>

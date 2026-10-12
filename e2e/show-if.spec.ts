@@ -12,6 +12,7 @@ import { DEMO_ACCOUNTS } from '@/config/constants';
  * 最后确认改回不命中又消失（级联与「草稿保留、提交剔除」的口径都在这条链路上）。
  */
 const TITLE = 'E2E 条件显示用例';
+const REFERENCE_TITLE = 'E2E 条件引用用例';
 
 async function signIn(page: Page) {
   await page.goto('/login');
@@ -116,5 +117,61 @@ test.describe('条件显示', () => {
     await page.goto(`/app/q/${questionnaireId}/stats`);
     await expect(page.getByText('有效作答 1 人').first()).toBeVisible();
     await expect(page.getByText('等得太久了')).toBeVisible();
+  });
+
+  test('条件引用的选项：改名跟着改、删除跟着删（R98）', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '写操作只在桌面端跑');
+
+    await signIn(page);
+    await clearLeftovers(page, REFERENCE_TITLE);
+
+    // ---- 造一份「满意吗？→（不满意才问）哪里不满意？」----
+    await page.getByRole('button', { name: '新建问卷' }).first().click();
+    await page.getByRole('button', { name: '创建', exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
+    await page.getByLabel('问卷标题').fill(REFERENCE_TITLE);
+
+    await page.getByRole('button', { name: '单选', exact: true }).click();
+    await page.getByLabel('题目', { exact: true }).fill('你对本次服务满意吗？');
+    await page.getByLabel('选项文案').nth(0).fill('满意');
+    await page.getByLabel('选项文案').nth(1).fill('不满意');
+
+    await page.getByRole('button', { name: '单行填空', exact: true }).click();
+    await page.getByLabel('题目', { exact: true }).fill('哪里不满意？');
+
+    // 条件：当 Q1 选了「不满意」时显示
+    await page.getByRole('button', { name: '逻辑', exact: true }).click();
+    await page.getByRole('switch', { name: '仅满足条件时显示' }).click();
+    await page.getByRole('checkbox', { name: '满意', exact: true }).uncheck();
+    await page.getByRole('checkbox', { name: '不满意', exact: true }).check();
+    await expect(page.getByText(/选了「不满意」时显示/)).toBeVisible();
+
+    // ---- 改名：条件里的引用跟着改（不是「引用没了、条件丢掉」）----
+    await page.getByLabel('选项文案').nth(1).fill('很不满意');
+    await page.getByLabel('选项文案').nth(1).blur();
+    await expect(page.getByText(/选了「很不满意」时显示/)).toBeVisible();
+
+    // 保存 + 刷新：条件**还在**（这一条钉的就是「改名不该把条件丢掉」）
+    await page.getByRole('button', { name: '保存' }).click();
+    await expect(page.getByRole('banner').getByText('已保存')).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(/选了「很不满意」时显示/)).toBeVisible();
+
+    // ---- 删掉被引用的选项：条件跟着消失，而且是**保存前就消失** ----
+    await page.getByRole('button', { name: '删除选项「很不满意」' }).click();
+    await expect(page.getByLabel('选项文案')).toHaveCount(1);
+    // 画布不再显示那条条件（此前它会一直挂着，直到刷新才消失）
+    await expect(page.getByText(/选了「很不满意」时显示/)).toHaveCount(0);
+
+    // 保存 + 刷新：库里也真的没有条件了（Q2 变成一直显示）
+    await page.getByRole('button', { name: '保存' }).click();
+    await expect(page.getByRole('banner').getByText('已保存')).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(/选了「很不满意」时显示/)).toHaveCount(0);
+    await expect(page.getByText('条件显示')).toHaveCount(0);
+
+    // ---- 收尾 ----
+    await page.goto('/app');
+    await clearLeftovers(page, REFERENCE_TITLE);
   });
 });
