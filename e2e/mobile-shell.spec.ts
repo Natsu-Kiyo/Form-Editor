@@ -201,6 +201,45 @@ test.describe('移动外壳', () => {
     await expect(page.getByRole('button', { name: '添加题目' })).toBeVisible();
   });
 
+  test('P08-c 属性弹层里能改选项（R93：窄屏原来改不了）', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', '这是 375px 的形态');
+
+    await signIn(page);
+
+    const stats = page.getByRole('link', { name: /^数据「用户访谈招募/ }).first();
+    const statsHref = await stats.getAttribute('href');
+    await page.goto(statsHref!.replace(/\/stats$/, '/edit'));
+
+    // ---- 加一道单选题（默认两个选项）----
+    await page.getByRole('button', { name: '添加题目' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: '单选', exact: true }).click();
+
+    /*
+     * 窄屏的画布是**预览**：选项行不再是输入框（点上去只会开属性弹层，那正是本次要修的坑）。
+     * 这一条断言同时守着「不画假入口」：看着像输入框、点下去弹出别的东西，比没有更糟。
+     */
+    await expect(page.getByLabel('选项文案')).toHaveCount(0);
+
+    // ---- 点题卡 → 属性弹层：选项也在里面（与桌面右栏同一块面板）----
+    await page.getByRole('group', { name: /新题目/ }).click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByRole('heading', { name: /题属性/ })).toBeVisible();
+
+    // 改文案
+    await sheet.getByRole('textbox', { name: '选项 1' }).fill('线下');
+    await sheet.getByRole('textbox', { name: '选项 2' }).fill('线上');
+    // 再加一个 —— 增与改都在弹层里完成
+    await sheet.getByRole('button', { name: '新增选项' }).click();
+    await expect(sheet.getByRole('textbox', { name: '选项 3' })).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    // ---- 关掉弹层后，画布上的预览已经跟着变了 ----
+    await expect(page.getByText('线下')).toBeVisible();
+    await expect(page.getByText('线上')).toBeVisible();
+  });
+
   test('P08 移动编辑器：题型与属性是弹层，且就是桌面那两块面板', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', '这是 375px 的形态');
 

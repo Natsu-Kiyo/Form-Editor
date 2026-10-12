@@ -107,6 +107,12 @@ test.describe('编辑器', () => {
 
     await expect(page.getByRole('group', { name: '第 1 题：你最喜欢的季节是？' })).toBeVisible();
 
+    // ---- 画布上直接改题目名（R93）：与右栏那个字段写的是同一份草稿 ----
+    await page.getByLabel('第 1 题标题').fill('你最喜欢哪个季节？');
+    await expect(page.getByRole('group', { name: '第 1 题：你最喜欢哪个季节？' })).toBeVisible();
+    // 右栏跟着变 —— 两个入口、一份状态
+    await expect(page.getByLabel('题目', { exact: true })).toHaveValue('你最喜欢哪个季节？');
+
     // ---- 默认两个选项，加一个变三个 ----
     await expect(page.getByLabel('选项文案')).toHaveCount(2);
     await page.getByRole('button', { name: '添加选项' }).click();
@@ -144,7 +150,8 @@ test.describe('编辑器', () => {
     const options = page.getByLabel('选项文案');
     await options.nth(0).fill('满意');
     await options.nth(1).fill('满意');
-    await expect(page.getByText('有选项重名')).toBeVisible();
+    // 两处同时提示：画布上的选项列表 + 右栏的「选项」字段（同一判据、同一句话，R93 起右栏也有）
+    await expect(page.getByText('有选项重名')).toHaveCount(2);
 
     // ---- 保存被拦下：报错来自 schema 那道闸门，与界面标红同源 ----
     // 文案只在 title 里（顶栏位置有限，界面上只说「保存失败」，细节挂在悬停提示上）
@@ -153,7 +160,7 @@ test.describe('编辑器', () => {
     await expect(failed).toBeVisible();
     await expect(failed).toHaveAttribute('title', /选项不能重名/);
 
-    // ---- 改回不重名：提示消失，保存通过 ----
+    // ---- 改回不重名：两处提示一起消失，保存通过 ----
     await options.nth(1).fill('不满意');
     await options.nth(1).blur();
     await expect(page.getByText('有选项重名')).toHaveCount(0);

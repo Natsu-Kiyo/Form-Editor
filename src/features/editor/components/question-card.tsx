@@ -1,36 +1,15 @@
 'use client';
 
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
-  closestCorners,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { useRef, useState } from 'react';
+import { useSortable } from '@dnd-kit/sortable';
 
-import { GripIcon, TrashIcon } from '@/components/icons/ui-icons';
-import { MATRIX_LIMITS, QUESTION_TYPE_LABEL, RATING_SCALE, ratingBounds } from '@/config/constants';
+import { GripIcon } from '@/components/icons/ui-icons';
+import { QUESTION_TYPE_LABEL, RATING_SCALE, ratingBounds } from '@/config/constants';
 import { duplicateLabels, hasOptionList } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
 import type { DraftQuestion } from './editor-draft';
-import {
-  draftMatrixColumns,
-  nextFreeOptionLabel,
-  optionUnit,
-  useEditorDraft,
-} from './editor-draft';
+import { draftMatrixColumns, optionUnit, useEditorDraft } from './editor-draft';
+import { DuplicateOptionsNotice, OptionEditor } from './option-editor';
 
 function isChoiceType(type: DraftQuestion['type']) {
   return type === 'SINGLE' || type === 'MULTI' || type === 'DROPDOWN';
@@ -74,18 +53,26 @@ function sameShowIf(a: DraftQuestion['showIf'], b: DraftQuestion['showIf']) {
  *
  * 卡上的文案输入**直接写本地草稿**（受控输入），不发请求 —— 保存由顶栏那一个按钮统一做。
  * 拖拽手柄窄屏同样可用（dnd-kit 的指针传感器长按即拖），两端共用这一份手柄。
+ *
+ * **桌面内联可编辑、窄屏是预览**（R93）：窄屏点一下卡片就会盖上一层属性弹层
+ * （`selectQuestion`），任何内联输入框都拿不到焦点 —— 与其留一排「看着能编辑、
+ * 点下去弹出别的东西」的假入口，不如真不渲染（`inlineEditable`），
+ * 让窄屏老老实实走「画布看、弹层改」这条形态。两端可改的字段集合仍然完全一致。
  */
 export function QuestionCard({
   question,
   index,
   selected,
   readOnly,
+  inlineEditable,
   onSelect,
 }: {
   question: DraftQuestion;
   index: number;
   selected: boolean;
   readOnly: boolean;
+  /** 桌面为 true：题目名与选项直接在画布上改；窄屏为 false（走属性弹层） */
+  inlineEditable: boolean;
   onSelect: () => void;
 }) {
   const {
@@ -98,10 +85,12 @@ export function QuestionCard({
     isDragging,
   } = useSortable({ id: question.key, disabled: readOnly });
 
-  const { questions } = useEditorDraft();
+  const { questions, updateQuestion } = useEditorDraft();
 
   const summary = buildSummary(question);
   const isChoice = isChoiceType(question.type);
+  // 只读（已发布 / 无权限）与窄屏都退成纯文本：一个改不动，一个走属性弹层
+  const titleEditable = inlineEditable && !readOnly;
 
   /*
    * 条件块（R65）：块 = 连续的、条件相同的题。
@@ -176,9 +165,24 @@ export function QuestionCard({
             </span>
 
             <div className="min-w-0 flex-1">
-              <div className="text-ink-900 mb-1 text-[14.5px] font-medium">
-                {question.title.trim() || '未命名题目'}
-              </div>
+              {/*
+                题目名（R93）：桌面直接是一个下划线输入框 —— 与顶栏「问卷标题」同一个样式，
+                于是「在中间改完整道题」成立（标题 + 选项都在画布上）。
+                窄屏与只读态仍然是纯文本：前者点一下就该开属性弹层，后者本来就不给改。
+              */}
+              {titleEditable ? (
+                <input
+                  value={question.title}
+                  onChange={(event) => updateQuestion(question.key, { title: event.target.value })}
+                  placeholder="未命名题目"
+                  aria-label={`第 ${index + 1} 题标题`}
+                  className="text-ink-900 hover:border-ink-200 focus:border-brand-500 mb-1 w-full min-w-0 border-b border-transparent bg-transparent text-[14.5px] font-medium transition-colors duration-150 outline-none"
+                />
+              ) : (
+                <div className="text-ink-900 mb-1 text-[14.5px] font-medium">
+                  {question.title.trim() || '未命名题目'}
+                </div>
+              )}
               <div className="text-ink-400 text-[12px]">
                 {summary.map((part, partIndex) => (
                   <span key={part}>
@@ -205,7 +209,15 @@ export function QuestionCard({
             <>
               {/* 矩阵的列在右栏改（行在下面直接改，与选项一致），但它长什么样得在画布上看得见 */}
               {question.type === 'MATRIX' ? <MatrixColumnPreview question={question} /> : null}
-              <OptionList question={question} readOnly={readOnly} />
+              {/*
+                桌面：可编辑的选项列表；窄屏：**只读预览**（同一个组件的 `preview` 形态）。
+                窄屏若照旧渲染输入框，用户点上去会先被属性弹层盖住 —— 那是个假入口。
+              */}
+              {inlineEditable ? (
+                <OptionEditor question={question} readOnly={readOnly} variant="canvas" />
+              ) : (
+                <OptionPreview question={question} readOnly={readOnly} />
+              )}
             </>
           ) : question.type === 'RATING' ? (
             // 网格而不是 flex 行：flex 会把放不下的方块**压窄**（固定宽高也扛不住 shrink），
@@ -273,224 +285,44 @@ function previewText(question: DraftQuestion) {
   return maxLength ? `${base} · 最多 ${maxLength} 字` : base;
 }
 
-/** 选项列表。内层再开一个 DndContext：手柄在哪个 context 里，拖动就归谁处理 */
-function OptionList({ question, readOnly }: { question: DraftQuestion; readOnly: boolean }) {
-  const { addOption, reorderOptions } = useEditorDraft();
-  // 矩阵题的这份列表是「行」：下限 2（一格不叫矩阵）、上限 10
-  const isMatrix = question.type === 'MATRIX';
+/**
+ * 选项列表的**只读预览**（窄屏画布）。
+ *
+ * 与可编辑那份（`option-editor.tsx` 的 `OptionEditor`）外观一致：圆点 / 方框 + 文案。
+ * 区别是不渲染输入框、拖拽手柄、删除与「添加」—— 窄屏点卡片会盖上一层属性弹层，
+ * 这一层只负责「看得见」，改在弹层里改（那里有同一个编辑器的 `panel` 形态）。
+ *
+ * 重名照样标出来（描红 + 一句说明）：草稿是从别处带来的旧问题时，
+ * 手机上也得知道「这道题存不下去」，而不是等到点保存才发现。
+ */
+function OptionPreview({ question, readOnly }: { question: DraftQuestion; readOnly: boolean }) {
   const unit = optionUnit(question.type);
-  /*
-   * 重名提示。判据直接从 `@/lib/questionnaire-structure` 取 —— 与保存时那道闸门
-   * 用同一个函数，界面上标红的东西一定就是保存会被拦下的东西（R92 · N7）。
-   */
   const duplicated = duplicateLabels(question.options.map((option) => option.label));
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-    /*
-     * 触摸端**长按才拖**，与题目卡那一层同一条规矩（设计稿 P08-a：「长按拖拽排序」）。
-     * 只有指针传感器时，手机上这次手势会被浏览器当成滚动吃掉 —— 表现就是「拖不动」。
-     * 手柄上还配了 `touch-none`，两者缺一不可。
-     */
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
-  );
-
-  const onDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const order = question.options.map((option) => option.key);
-    const from = order.indexOf(String(active.id));
-    const to = order.indexOf(String(over.id));
-    if (from === -1 || to === -1) return;
-
-    const next = [...order];
-    next.splice(to, 0, ...next.splice(from, 1));
-    reorderOptions(question.key, next);
-  };
-
   return (
-    <DndContext
-      id={`options-${question.key}`}
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      modifiers={[restrictToVerticalAxis]}
-      onDragEnd={onDragEnd}
-    >
-      <SortableContext
-        items={question.options.map((option) => option.key)}
-        strategy={verticalListSortingStrategy}
-      >
-        <div className="space-y-2 pl-8">
-          {question.options.map((option) => (
-            <OptionRow
-              key={option.key}
-              question={question}
-              optionKey={option.key}
-              label={option.label}
-              readOnly={readOnly}
-              canDelete={question.options.length > (isMatrix ? MATRIX_LIMITS.MIN_ROWS : 1)}
-            />
-          ))}
-
-          {/* 到上限就不给加了 —— 与「删到下限不给删」同一条规矩，比加了再被 schema 拒好 */}
-          {!readOnly && (!isMatrix || question.options.length < MATRIX_LIMITS.MAX_ROWS) ? (
-            <button
-              type="button"
-              onClick={() => addOption(question.key)}
-              className="border-ink-300 hover:border-brand-400 flex h-9 w-full items-center gap-2.5 rounded-lg border border-dashed px-3 transition-colors duration-150"
-            >
-              <span className="size-4 shrink-0" aria-hidden="true" />
-              <span className="text-ink-400 text-[13px]">{`添加${unit}`}</span>
-            </button>
-          ) : null}
-
-          {/*
-            重名提示（R92 · N7）。**说清后果**而不只是「不能重名」：
-            作答结果里存的就是选项文案，两个同名项在统计里分不开。
-            只在可编辑时提示 —— 已发布/只读的问卷改不了，说了也没用。
-          */}
-          {!readOnly && duplicated.length > 0 ? (
-            <p role="alert" className="text-caption text-rose-600">
-              有{unit}重名（{duplicated.map((label) => `「${label}」`).join('、')}
-              ）：作答结果按文案记录，同名会让两份答案混在一起，保存也会被拦下
-            </p>
-          ) : null}
+    <div className="space-y-2 pl-8">
+      {question.options.map((option) => (
+        <div
+          key={option.key}
+          className={cn(
+            'border-ink-200 text-ink-700 flex h-9 items-center gap-2.5 rounded-lg border px-3 text-[13px]',
+            duplicated.includes(option.label.trim()) && 'border-rose-400',
+          )}
+        >
+          <span
+            className={cn(
+              'border-ink-300 size-4 shrink-0 border-[1.5px]',
+              question.type === 'SINGLE' || question.type === 'MATRIX'
+                ? 'rounded-full'
+                : 'rounded-[5px]',
+            )}
+            aria-hidden="true"
+          />
+          <span className="min-w-0 flex-1 truncate">{option.label}</span>
         </div>
-      </SortableContext>
-    </DndContext>
-  );
-}
+      ))}
 
-/**
- * 一行选项。
- *
- * 输入框是**受控**的（值来自草稿）：改了只动本地状态，不发请求，
- * 所以不需要防抖那一套 —— 网络往返没了，慢的根源也就没了。
- */
-function OptionRow({
-  question,
-  optionKey,
-  label,
-  readOnly,
-  canDelete,
-}: {
-  question: DraftQuestion;
-  optionKey: string;
-  label: string;
-  readOnly: boolean;
-  canDelete: boolean;
-}) {
-  const { updateOption, removeOption } = useEditorDraft();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [focused, setFocused] = useState(false);
-  // 矩阵题这一行是「行」，其余题型是「选项」—— 文案跟着走，无障碍名称才不会说错
-  const unit = optionUnit(question.type);
-  /*
-   * 自己这一格是不是重名之一。判据与保存时那道闸门同源（`duplicateLabels`）；
-   * 空文案不会被判重名 —— 清空重输是中间态，那半秒里不该标红。
-   */
-  const duplicated = duplicateLabels(question.options.map((option) => option.label)).includes(
-    label.trim(),
-  );
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: optionKey, disabled: readOnly });
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: transform ? `translate3d(0, ${Math.round(transform.y)}px, 0)` : undefined,
-        transition,
-      }}
-      className={cn(
-        'group border-ink-200 hover:border-brand-300 hover:bg-brand-50/40 flex h-9 items-center gap-2.5 rounded-lg border px-3 transition-colors duration-150',
-        // 重名：整行描红（与列表下方那句提示同一件事的两个层次：哪一行 / 为什么）
-        duplicated && 'border-rose-400 hover:border-rose-400',
-        isDragging && 'shadow-pop z-10 opacity-70',
-      )}
-    >
-      {!readOnly ? (
-        <button
-          ref={setActivatorNodeRef}
-          type="button"
-          {...attributes}
-          {...listeners}
-          aria-label={`拖动${unit}「${label}」`}
-          // 手柄在桌面是悬浮才显形（不干扰阅读），但 375px 没有 hover 可言 —— 常显，
-          // 否则手机上根本看不到这里能拖。`touch-none` 是触摸端拖得动的前提
-          className="text-ink-300 hover:text-ink-500 -mr-1 shrink-0 cursor-grab touch-none transition-opacity duration-150 active:cursor-grabbing lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100"
-        >
-          <GripIcon className="size-3.5" />
-        </button>
-      ) : null}
-
-      <span
-        className={cn(
-          'border-ink-300 size-4 shrink-0 border-[1.5px]',
-          // 圆点 = 单选语义（SINGLE 与矩阵的每一行都是「选一个」）
-          question.type === 'SINGLE' || question.type === 'MATRIX'
-            ? 'rounded-full'
-            : 'rounded-[5px]',
-        )}
-        aria-hidden="true"
-      />
-
-      <input
-        ref={inputRef}
-        value={label}
-        onChange={(event) => updateOption(question.key, optionKey, event.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => {
-          setFocused(false);
-          // 失焦时把空白项补回一个占位文案：空着等于这道题有个坏选项（矩阵则是坏行）。
-          // 占位文案要避开已有的名字 —— 把两格都清空再依次失焦，就是一次真实的撞名
-          if (!label.trim()) {
-            updateOption(
-              question.key,
-              optionKey,
-              nextFreeOptionLabel(
-                unit,
-                question.options.map((option) => option.label),
-              ),
-            );
-          }
-        }}
-        readOnly={readOnly}
-        aria-invalid={duplicated || undefined}
-        title={duplicated ? `有另一个${unit}也叫「${label.trim()}」` : undefined}
-        aria-label={`${unit}文案`}
-        className={cn('text-ink-700 min-w-0 flex-1 bg-transparent text-[13px] outline-none')}
-        data-focused={focused || undefined}
-      />
-
-      {!readOnly ? (
-        <button
-          type="button"
-          disabled={!canDelete}
-          title={
-            canDelete
-              ? `删除这个${unit}`
-              : question.type === 'MATRIX'
-                ? `至少要保留 ${MATRIX_LIMITS.MIN_ROWS} 行`
-                : '至少要保留一个选项'
-          }
-          aria-label={`删除${unit}「${label}」`}
-          onClick={() => removeOption(question.key, optionKey)}
-          className="text-ink-300 shrink-0 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-rose-500 focus-visible:text-rose-500 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-0"
-        >
-          <TrashIcon className="size-3.5" />
-        </button>
-      ) : null}
+      {readOnly ? null : <DuplicateOptionsNotice unit={unit} duplicated={duplicated} />}
     </div>
   );
 }

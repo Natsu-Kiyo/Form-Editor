@@ -132,6 +132,8 @@ export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
                         index={index}
                         selected={question.key === selectedKey}
                         readOnly={readOnly}
+                        // 窄屏的画布是预览：点一下开属性弹层，内联输入框在那里根本拿不到焦点
+                        inlineEditable={isDesktop}
                         onSelect={() => selectQuestion(question.key)}
                       />
 

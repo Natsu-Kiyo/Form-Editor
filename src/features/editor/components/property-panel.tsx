@@ -23,11 +23,17 @@ import {
   ratingBounds,
   type QuestionType,
 } from '@/config/constants';
-import { duplicateLabels } from '@/lib/questionnaire-structure';
+import { duplicateLabels, hasOptionList } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
 import type { DraftQuestion, EditableQuestionType } from './editor-draft';
-import { draftMatrixColumns, nextFreeOptionLabel, useEditorDraft } from './editor-draft';
+import {
+  draftMatrixColumns,
+  nextFreeOptionLabel,
+  optionUnit,
+  useEditorDraft,
+} from './editor-draft';
+import { OptionEditor } from './option-editor';
 
 /** 题目类型下拉的全部选项。R62 起 8 个题型全开放（顺序 = 常量里的定义顺序） */
 const EDITABLE_TYPES = Object.keys(QUESTION_TYPE_LABEL) as QuestionType[];
@@ -84,6 +90,15 @@ export function PropertyPanel({
         <div className="space-y-5 p-4">
           <QuestionTypeField question={question} readOnly={readOnly} />
           <QuestionTitleField question={question} readOnly={readOnly} />
+
+          {/*
+            选项（矩阵题是「行」）。**这块面板窄屏也在用**（P08-c 的属性弹层与桌面右栏
+            是同一个组件），所以字段加在这里 = 窄屏第一次有了改选项的地方（R93）。
+            窄屏的编辑器前面没有别的入口：画布点一下就盖上这层弹层，内联输入框拿不到焦点。
+          */}
+          {hasOptionList(question.type) ? (
+            <OptionsField question={question} readOnly={readOnly} />
+          ) : null}
 
           {question.type === 'RATING' ? (
             <ScoreRangeField question={question} readOnly={readOnly} />
@@ -330,6 +345,22 @@ function QuestionTitleField({
         readOnly={readOnly}
         aria-label="题目"
       />
+    </div>
+  );
+}
+
+/**
+ * 选项 / 行。
+ *
+ * 内容与画布上那份是**同一个组件**（`OptionEditor` 的 `panel` 形态）：
+ * 增删改、拖拽排序、空文案失焦补位、重名标红，两端一模一样 ——
+ * 唯一变的是排版密度与无障碍名称（两处同时出现在桌面上，名字必须能区分）。
+ */
+function OptionsField({ question, readOnly }: { question: DraftQuestion; readOnly: boolean }) {
+  return (
+    <div>
+      <Label>{optionUnit(question.type)}</Label>
+      <OptionEditor question={question} readOnly={readOnly} variant="panel" />
     </div>
   );
 }
