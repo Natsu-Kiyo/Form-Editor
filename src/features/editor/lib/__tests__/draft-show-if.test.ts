@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { DraftQuestion } from '../../components/editor-draft';
-import { renameShowIfReferences, resolveShowIf, settleShowIf } from '../draft-show-if';
+import {
+  renameShowIfReferences,
+  resolveShowIf,
+  settleShowIf,
+  withFilledLabels,
+} from '../draft-show-if';
 
 /**
  * 显示条件的跨题规则（R98）。
@@ -154,6 +159,79 @@ describe('renameShowIfReferences（改名跟着改）', () => {
     const next = renameShowIfReferences(list, 'q1', '满意', '很满意');
 
     expect(next[0]).toBe(list[0]);
+  });
+});
+
+/**
+ * 交给 payload 的**唯一视图**（R9-1 的正面）。
+ *
+ * 场景全是「光标没离开输入框就按了 Ctrl+S」：那时选项还空着，而它可能正被条件引用。
+ */
+describe('withFilledLabels（保存时的唯一视图）', () => {
+  /** R9-1：把被条件引用的选项**清空**（还没失焦） */
+  function cleared() {
+    const list = fixture();
+    list[0]!.options = [
+      { key: 'o1', label: '' },
+      { key: 'o2', label: '不满意' },
+    ];
+    list[1]!.showIf = { dependsOnKey: 'q1', options: [''] };
+
+    return list;
+  }
+
+  it('空文案补成占位，条件里的空引用跟着改指过去 —— 两个消费者因此读同一份', () => {
+    const filled = withFilledLabels(cleared());
+
+    expect(filled[0]!.options.map((option) => option.label)).toEqual(['选项 1', '不满意']);
+    expect(filled[1]!.showIf).toEqual({ dependsOnKey: 'q1', options: ['选项 1'] });
+    // 关键：保存侧不再报「显示条件引用了已不存在的选项」（那个选项明明还在，只是空的）
+    expect(resolveShowIf(filled[1]!, filled, 1)).toEqual({
+      questionIndex: 0,
+      options: ['选项 1'],
+    });
+  });
+
+  it('两个以上选项同时空着 → 空引用无从断定指的是谁，按失效处理（不猜）', () => {
+    const list = cleared();
+    list[0]!.options = [
+      { key: 'o1', label: '' },
+      { key: 'o2', label: '' },
+    ];
+
+    const filled = withFilledLabels(list);
+
+    expect(filled[1]!.showIf!.options).toEqual(['']);
+    expect(resolveShowIf(filled[1]!, filled, 1)).toBeUndefined();
+  });
+
+  it('矩阵的列也在这一份里补齐', () => {
+    const list = [
+      question({
+        key: 'q1',
+        type: 'MATRIX',
+        options: [
+          { key: 'o1', label: '满意' },
+          { key: 'o2', label: '' },
+        ],
+        config: { columns: ['满意', ''] },
+      }),
+    ];
+
+    expect(withFilledLabels(list)[0]!.config.columns).toEqual(['满意', '列 1']);
+  });
+
+  it('没有空文案时只做 trim（不改引用）', () => {
+    const list = fixture();
+    list[0]!.options = [
+      { key: 'o1', label: ' 满意 ' },
+      { key: 'o2', label: '不满意' },
+    ];
+
+    const filled = withFilledLabels(list);
+
+    expect(filled[0]!.options.map((option) => option.label)).toEqual(['满意', '不满意']);
+    expect(filled[1]!.showIf).toEqual({ dependsOnKey: 'q1', options: ['不满意'] });
   });
 });
 

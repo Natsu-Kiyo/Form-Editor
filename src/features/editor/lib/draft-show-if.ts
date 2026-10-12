@@ -1,5 +1,7 @@
 import { SHOW_IF_SOURCE_TYPES } from '@/config/constants';
 
+import { draftMatrixColumns, fillEmptyLabels, optionUnit } from './draft-options';
+
 /*
  * 类型是**只读引用**（`import type`，编译后整行消失）：这个模块要能被单测直接导入，
  * 而 `../components/editor-draft` 会牵进 React 与 server action —— 运行时导入它跑不起来。
@@ -52,6 +54,66 @@ function inspect(question: DraftQuestion, index: number, list: DraftQuestion[]):
 /** 引用的选项里，还剩哪些（保持草稿里的勾选顺序） */
 function surviving(showIf: DraftShowIf, available: Set<string>): string[] {
   return showIf.options.filter((option) => available.has(option));
+}
+
+/**
+ * 交给 payload 的**唯一视图**（R99）：空文案补成占位，条件里那条空引用跟着改指过去。
+ *
+ * 为什么必须只有一份：保存时有两个消费者 —— 「选项字段」与「显示条件」。各读各的就会
+ * 撞出 R9-1 那个场景：把被条件引用的选项**清空**（光标还在框里）直接按 Ctrl+S ——
+ * 选项字段读到的是补好的「选项 1」，条件里那条引用读到的还是空串，于是 schema 报
+ * 「显示条件引用了已不存在的选项」，而那个选项**明明就在那儿**（只是空的）。
+ *
+ * 空引用（`''`）指的是「那个还空着、马上会被补成占位的选项」：
+ * - 只有一个空选项时没有歧义 → 改成它补好后的名字（与「失焦补位」得到同一个结果）；
+ * - 两个以上同时空着 → 无法断定引用的是哪一个，**保持空串**，让 `resolveShowIf`
+ *   按失效处理（宁可丢条件，也不猜）。
+ *
+ * 列也在这一份里补齐（矩阵的列同样是「空着就保存」的情形）。
+ */
+export function withFilledLabels(list: DraftQuestion[]): DraftQuestion[] {
+  const prepared = list.map((question) => {
+    const rawLabels = question.options.map((option) => option.label);
+    const labels = fillEmptyLabels(optionUnit(question.type), rawLabels);
+
+    return {
+      filled: {
+        ...question,
+        options: question.options.map((option, index) => ({ ...option, label: labels[index]! })),
+        config:
+          question.type === 'MATRIX'
+            ? {
+                ...question.config,
+                columns: fillEmptyLabels('列', draftMatrixColumns(question.config)),
+              }
+            : question.config,
+      },
+      /** 原本空着的那几格补成了什么（用来把空引用改指过去） */
+      filledFromEmpty: labels.filter((_, index) => !rawLabels[index]!.trim()),
+    };
+  });
+
+  const byKey = new Map(prepared.map((item) => [item.filled.key, item]));
+
+  return prepared.map(({ filled }) => {
+    const showIf = filled.showIf;
+    if (!showIf) return filled;
+    if (!showIf.options.some((option) => !option.trim())) return filled;
+
+    const source = byKey.get(showIf.dependsOnKey);
+    // 依赖题不存在、或有多个空选项（无法断定指谁）→ 原样交给 resolveShowIf 判失效
+    if (!source || source.filledFromEmpty.length !== 1) return filled;
+
+    return {
+      ...filled,
+      showIf: {
+        ...showIf,
+        options: showIf.options.map((option) =>
+          option.trim() ? option : source.filledFromEmpty[0]!,
+        ),
+      },
+    };
+  });
 }
 
 /**

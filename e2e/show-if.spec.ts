@@ -157,17 +157,33 @@ test.describe('条件显示', () => {
     await page.reload();
     await expect(page.getByText(/选了「很不满意」时显示/)).toBeVisible();
 
+    /*
+     * ---- R9-1：光标还留在**被条件引用的那个空选项**里，直接按 Ctrl+S ----
+     * 这一格是空的、又正被 Q2 的条件引用。「选项字段」与「显示条件」必须读**同一份**
+     * 兜底后的文案，否则保存会报「显示条件引用了已不存在的选项」——
+     * 而那个选项明明就在那儿（只是还没输）。
+     */
+    await page.getByLabel('选项文案').nth(1).fill('');
+    await page.keyboard.press('Control+s');
+    await expect(page.getByRole('banner').getByText('已保存')).toBeVisible();
+    await expect(page.getByRole('banner').getByText('保存失败')).toHaveCount(0);
+
+    // 刷新看落库的结果：空格子补成了「选项 1」，条件也指到了它（而不是指向空串）
+    await page.reload();
+    await expect(page.getByLabel('选项文案').nth(1)).toHaveValue('选项 1');
+    await expect(page.getByText(/选了「选项 1」时显示/)).toBeVisible();
+
     // ---- 删掉被引用的选项：条件跟着消失，而且是**保存前就消失** ----
-    await page.getByRole('button', { name: '删除选项「很不满意」' }).click();
+    await page.getByRole('button', { name: '删除选项「选项 1」' }).click();
     await expect(page.getByLabel('选项文案')).toHaveCount(1);
     // 画布不再显示那条条件（此前它会一直挂着，直到刷新才消失）
-    await expect(page.getByText(/选了「很不满意」时显示/)).toHaveCount(0);
+    await expect(page.getByText(/选了「选项 1」时显示/)).toHaveCount(0);
 
     // 保存 + 刷新：库里也真的没有条件了（Q2 变成一直显示）
     await page.getByRole('button', { name: '保存' }).click();
     await expect(page.getByRole('banner').getByText('已保存')).toBeVisible();
     await page.reload();
-    await expect(page.getByText(/选了「很不满意」时显示/)).toHaveCount(0);
+    await expect(page.getByText(/选了「选项 1」时显示/)).toHaveCount(0);
     await expect(page.getByText('条件显示')).toHaveCount(0);
 
     // ---- 收尾 ----
