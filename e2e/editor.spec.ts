@@ -15,6 +15,7 @@ import { DEMO_ACCOUNTS } from '@/config/constants';
 const THROWAWAY_TITLE = 'E2E 编辑器用例';
 const M3B_TITLE = 'E2E M3b 用例';
 const DUPLICATE_TITLE = 'E2E 重名选项用例';
+const ADD_OPTION_TITLE = 'E2E 新增选项用例';
 
 /**
  * 清掉指定标题的**全部**残留卡片。
@@ -171,6 +172,52 @@ test.describe('编辑器', () => {
     // ---- 收尾 ----
     await page.goto('/app');
     await clearLeftovers(page, DUPLICATE_TITLE);
+  });
+
+  test('新增选项：直接聚焦、初始为空，空着离开才补占位（R94）', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '编辑器只在桌面端有入口');
+    await signIn(page);
+    await clearLeftovers(page, ADD_OPTION_TITLE);
+
+    await page.getByRole('button', { name: '新建问卷' }).first().click();
+    await page.getByRole('button', { name: '创建', exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/);
+    await page.getByLabel('问卷标题').fill(ADD_OPTION_TITLE);
+    await page.getByRole('button', { name: '单选', exact: true }).click();
+
+    // ---- 画布上新增：新那一格**直接聚焦**、**初始为空**（不必先删掉「选项 3」）----
+    await page.getByRole('button', { name: '添加选项' }).click();
+    const options = page.getByLabel('选项文案');
+    await expect(options).toHaveCount(3);
+    const added = options.nth(2);
+    await expect(added).toBeFocused();
+    await expect(added).toHaveValue('');
+
+    // 直接写就是它的内容
+    await added.fill('第三个');
+    await expect(added).toHaveValue('第三个');
+
+    // ---- 只有**空着且手动失焦**才补占位（与改动前一致）----
+    await added.fill('');
+    await added.blur();
+    await expect(added).toHaveValue('选项 3');
+
+    /*
+     * ---- 光标还留在空框里就直接保存 ----
+     * 这条走的是「不会失焦」的路径：腾出来的空文案由保存侧兜底（`fillOptionLabels`），
+     * 否则会因为选项 `min(1)` 被 schema 拒，报出来的还是 zod 的英文原话。
+     */
+    await page.getByRole('button', { name: '添加选项' }).click();
+    await page.keyboard.press('Control+s');
+    await expect(banner(page).getByText('已保存')).toBeVisible();
+
+    // 落库的那一份里，空着的那格已经补成占位（刷新后仍在 —— 证明存的就是它）
+    await page.reload();
+    await expect(page.getByLabel('选项文案').nth(3)).toHaveValue('选项 4');
+
+    // ---- 收尾 ----
+    await page.goto('/app');
+    await clearLeftovers(page, ADD_OPTION_TITLE);
   });
 
   test('手动保存：改动先落草稿，按保存才写库', async ({ page }, testInfo) => {

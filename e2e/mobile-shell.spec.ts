@@ -228,9 +228,18 @@ test.describe('移动外壳', () => {
     // 改文案
     await sheet.getByRole('textbox', { name: '选项 1' }).fill('线下');
     await sheet.getByRole('textbox', { name: '选项 2' }).fill('线上');
-    // 再加一个 —— 增与改都在弹层里完成
+
+    /*
+     * 再加一个 —— 增与改都在弹层里完成。
+     * 新那一格**直接聚焦、初始为空**（R94）：在哪儿点的新增，焦点就落在哪儿，
+     * 不用先删掉「选项 3」再输入。
+     */
     await sheet.getByRole('button', { name: '新增选项' }).click();
-    await expect(sheet.getByRole('textbox', { name: '选项 3' })).toBeVisible();
+    const addedOption = sheet.getByRole('textbox', { name: '选项 3' });
+    await expect(addedOption).toBeFocused();
+    await expect(addedOption).toHaveValue('');
+    await addedOption.fill('都可以');
+    await expect(addedOption).toHaveValue('都可以');
 
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);

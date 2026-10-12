@@ -428,8 +428,8 @@ function MaxLengthField({ question, readOnly }: { question: DraftQuestion; readO
 /**
  * 矩阵的列（R62）。
  *
- * **行不在这里** —— 它在画布的题卡上直接改（与选项同一处、同一套列表交互），
- * 这里只管列。列不做拖拽排序：只有 2–5 个、调整顺序的频率远低于选项，
+ * 行有它自己的字段（上面那个 `OptionsField`，R93 起桌面与窄屏都能改）；这里只管列。
+ * 列不做拖拽排序：只有 2–5 个、调整顺序的频率远低于选项，
  * 为它引入一套「纯文本数组的稳定拖拽 id」不划算 —— 删了重加就是现成的手段。
  */
 function MatrixColumnsField({
@@ -446,6 +446,8 @@ function MatrixColumnsField({
   const canAdd = columns.length < MATRIX_LIMITS.MAX_COLUMNS;
   // 重名判据与保存时那道闸门同源（见 lib/questionnaire-structure 的 duplicateLabels）
   const duplicated = duplicateLabels(columns);
+  /** 刚添加的那一列：挂载即聚焦（与选项的「新增」同一条规矩，R94） */
+  const [focusIndex, setFocusIndex] = useState<number | null>(null);
 
   const commit = (next: string[]) =>
     updateQuestion(question.key, { config: { ...question.config, columns: next } });
@@ -466,6 +468,9 @@ function MatrixColumnsField({
           >
             <input
               value={label}
+              autoFocus={index === focusIndex}
+              // 空着就离开会变成这个名字（失焦补位），与选项那一格同一条提示逻辑
+              placeholder={nextFreeOptionLabel('列', columns)}
               maxLength={MATRIX_LIMITS.MAX_COLUMN_LENGTH}
               disabled={readOnly}
               aria-label={`第 ${index + 1} 列`}
@@ -510,7 +515,11 @@ function MatrixColumnsField({
           <button
             type="button"
             disabled={!canAdd}
-            onClick={() => commit([...columns, nextFreeOptionLabel('列', columns)])}
+            onClick={() => {
+              // 空文案 + 聚焦：与「新增选项」同一条规矩，别让人先删掉「列 4」才能输入
+              setFocusIndex(columns.length);
+              commit([...columns, '']);
+            }}
             className="border-ink-300 hover:border-brand-400 flex h-9 w-full items-center gap-2.5 rounded-lg border border-dashed px-3 transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <PlusIcon className="text-ink-400 size-3.5" />

@@ -18,6 +18,8 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 
+import { useState } from 'react';
+
 import { GripIcon, PlusIcon, TrashIcon } from '@/components/icons/ui-icons';
 import { MATRIX_LIMITS } from '@/config/constants';
 import { duplicateLabels } from '@/lib/questionnaire-structure';
@@ -55,6 +57,16 @@ export function OptionEditor({
   const isMatrix = question.type === 'MATRIX';
   const unit = optionUnit(question.type);
   const isPanel = variant === 'panel';
+
+  /*
+   * 刚添加的那一项 —— 空文案的新选项出现后**焦点要直接落上去**（R94）：
+   * 用户点「新增选项」的意图就是「敲字」，不该先删一遍占位文案。
+   *
+   * 状态放在**每个入口自己身上**（画布与面板各有一份 `OptionEditor`），
+   * 于是「在哪儿点的新增，焦点就落在哪儿」是天然的 —— 不需要知道另一个入口在哪。
+   * 用 `autoFocus` 而不是 effect + ref：它只在挂载那一刻生效，正好是「这一格刚出现」。
+   */
+  const [focusKey, setFocusKey] = useState<string | null>(null);
 
   /*
    * 重名提示。判据直接从 `@/lib/questionnaire-structure` 取 —— 与保存时那道闸门
@@ -111,6 +123,7 @@ export function OptionEditor({
               readOnly={readOnly}
               canDelete={canDelete}
               duplicated={duplicated.includes(option.label.trim())}
+              autoFocus={option.key === focusKey}
               variant={variant}
             />
           ))}
@@ -118,7 +131,7 @@ export function OptionEditor({
           {!readOnly && canAdd ? (
             <button
               type="button"
-              onClick={() => addOption(question.key)}
+              onClick={() => setFocusKey(addOption(question.key))}
               className={cn(
                 'border-ink-300 hover:border-brand-400 flex h-9 w-full items-center gap-2.5 rounded-lg border border-dashed px-3 transition-colors duration-150',
                 isPanel && 'text-ink-400 justify-center gap-1.5',
@@ -182,6 +195,7 @@ function OptionRow({
   readOnly,
   canDelete,
   duplicated,
+  autoFocus,
   variant,
 }: {
   question: DraftQuestion;
@@ -191,6 +205,8 @@ function OptionRow({
   readOnly: boolean;
   canDelete: boolean;
   duplicated: boolean;
+  /** 刚被添加的那一格：挂载即聚焦（见 OptionEditor 的 focusKey） */
+  autoFocus: boolean;
   variant: 'canvas' | 'panel';
 }) {
   const { updateOption, removeOption } = useEditorDraft();
@@ -259,10 +275,21 @@ function OptionRow({
 
       <input
         value={label}
+        autoFocus={autoFocus}
+        /*
+         * 占位提示：空着的那一格就这么离开时，会变成这个名字（失焦补位 / 保存兜底）。
+         * 没有它，「新增后是空框」与「空框会自己变成『选项 3』」都无从预期。
+         */
+        placeholder={nextFreeOptionLabel(
+          unit,
+          question.options.map((option) => option.label),
+        )}
         onChange={(event) => updateOption(question.key, optionKey, event.target.value)}
         onBlur={() => {
           // 失焦时把空白项补回一个占位文案：空着等于这道题有个坏选项（矩阵则是坏行）。
-          // 占位文案要避开已有的名字 —— 把两格都清空再依次失焦，就是一次真实的撞名
+          // 占位文案要避开已有的名字 —— 把两格都清空再依次失焦，就是一次真实的撞名。
+          // （保存那一侧另有一道兜底：光标没离开输入框就按 Ctrl+S 时不会失焦，
+          //   见 editor-draft 的 fillOptionLabels）
           if (!label.trim()) {
             updateOption(
               question.key,

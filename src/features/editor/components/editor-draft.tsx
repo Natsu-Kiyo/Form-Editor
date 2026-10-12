@@ -167,6 +167,32 @@ export function nextFreeOptionLabel(unit: string, labels: readonly string[]) {
 }
 
 /**
+ * 一串文案（选项 / 行 / 列）的**保存兜底**：空着的那几格补成占位（`选项 3` / `列 2`）。
+ *
+ * 为什么需要它：新增的选项与列初始是空的，补位发生在**失焦**时；而「光标还在空输入框里
+ * 直接按 Ctrl+S」不会失焦 —— 那份草稿会因为 `min(1)` 被 schema 拒掉，
+ * 选项那边报出来的还是 zod 的英文原话。
+ *
+ * 放在这里（而不是界面上强行填）与上面那句 `title.trim() || '未命名题目'` 是同一条规矩：
+ * **空着的字段由保存兜底，界面不替用户改内容**。
+ * 逐格补而不是一次算完：两格同时空着时要拿到两个**不同**的占位（文案不允许重名，R92 · N7）。
+ */
+function fillEmptyLabels(unit: string, labels: readonly string[]) {
+  const taken = [...labels];
+
+  return labels.map((label) => {
+    const value = label.trim();
+    if (value) return value;
+
+    const filled = nextFreeOptionLabel(unit, taken);
+    // 记进 taken：下一格空着的才拿不到同一个占位
+    taken.push(filled);
+
+    return filled;
+  });
+}
+
+/**
  * 草稿里的矩阵列，**原样返回、不过滤空串**。
  *
  * 与 `constants.matrixColumns()`（读取侧：收敛上限 + 丢掉空值）**刻意分开**：
@@ -202,7 +228,8 @@ type EditorDraftValue = {
   updateQuestion: (key: string, patch: Partial<Omit<DraftQuestion, 'key' | 'options'>>) => void;
   removeQuestion: (key: string) => void;
   reorderQuestions: (keys: string[]) => void;
-  addOption: (questionKey: string) => void;
+  /** 添加一个选项 / 行。返回新项的 key —— 调用方拿它把焦点落到刚出现的那一格（R94） */
+  addOption: (questionKey: string) => string;
   updateOption: (questionKey: string, optionKey: string, label: string) => void;
   removeOption: (questionKey: string, optionKey: string) => void;
   reorderOptions: (questionKey: string, keys: string[]) => void;
@@ -277,6 +304,7 @@ export function EditorDraftProvider({
       // `map` 的第二个参数就是序号：显示条件的「依赖 key → 序号」映射沿着它做
       questions: list.map((question, index) => {
         const showIf = resolveShowIf(question, list, index);
+        const config = showIf ? { ...question.config, showIf } : question.config;
 
         return {
           type: question.type,
@@ -285,10 +313,18 @@ export function EditorDraftProvider({
           required: question.required,
           shuffleOptions: question.shuffleOptions,
           pageIndex: question.pageIndex,
-          config: showIf ? { ...question.config, showIf } : question.config,
-          // 矩阵的「行」存在 options 里，不能像文本题那样丢掉（见 lib/questionnaire-structure 的 hasOptionList）
+          // 矩阵的列同样可能空着就保存（与选项同一情形）：补占位后再交给 schema
+          config:
+            question.type === 'MATRIX'
+              ? { ...config, columns: fillEmptyLabels('列', draftMatrixColumns(config)) }
+              : config,
+          // 矩阵的「行」存在 options 里，不能像文本题那样丢掉（见 lib/questionnaire-structure 的 hasOptionList）。
+          // 空文案在这里兜底（与 title 同理）：新增的选项可能还空着、没来得及失焦
           options: hasOptionList(question.type)
-            ? question.options.map((option) => option.label)
+            ? fillEmptyLabels(
+                optionUnit(question.type),
+                question.options.map((option) => option.label),
+              )
             : [],
         };
       }),
@@ -425,27 +461,25 @@ export function EditorDraftProvider({
             return question ? [question] : [];
           });
         }),
-      addOption: (questionKey) =>
+      addOption: (questionKey) => {
+        const optionKey = tempKey('o');
+
         mutate((list) =>
           list.map((question) =>
             question.key === questionKey
               ? {
                   ...question,
-                  options: [
-                    ...question.options,
-                    {
-                      key: tempKey('o'),
-                      // 占位文案要避开已有的名字：撞名当场就是一个保存不了的草稿
-                      label: nextFreeOptionLabel(
-                        optionUnit(question.type),
-                        question.options.map((option) => option.label),
-                      ),
-                    },
-                  ],
+                  // 初始文案**留空**（R94）：新增后焦点直接落在这一格，用户要的是「敲字」，
+                  // 而不是「先把『选项 3』删掉」。空着的这格由失焦补位（见 option-editor 的 onBlur），
+                  // 整份草稿在保存时还有一道兜底（见本文件 save() 里的 fillOptionLabels）
+                  options: [...question.options, { key: optionKey, label: '' }],
                 }
               : question,
           ),
-        ),
+        );
+
+        return optionKey;
+      },
       updateOption: (questionKey, optionKey, label) =>
         mutate((list) =>
           list.map((question) =>

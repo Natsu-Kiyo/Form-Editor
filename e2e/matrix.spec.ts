@@ -61,6 +61,9 @@ test.describe('矩阵题', () => {
 
     // 列在右栏编辑：加一列，摘要跟着变
     await page.getByRole('button', { name: '添加列' }).click();
+    // 新列同样是「初始为空 + 直接聚焦」（R94，与选项那一格同一条规矩）
+    await expect(page.getByRole('textbox', { name: '第 4 列' })).toBeFocused();
+    await expect(page.getByRole('textbox', { name: '第 4 列' })).toHaveValue('');
     // 用 role 定位：`getByLabel('第 4 列')` 会同时命中「删除第 4 列」那颗按钮（子串匹配）
     await page.getByRole('textbox', { name: '第 4 列' }).fill('很不满意');
     await expect(page.getByText('矩阵 2 行 × 4 列')).toBeVisible();
