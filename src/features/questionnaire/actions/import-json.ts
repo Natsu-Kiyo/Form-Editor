@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import type { FormState } from '@/types/form-state';
 
-import { OPERATION_TYPE } from '@/config/constants';
+import { OPERATION_TYPE, PAYLOAD_LIMITS } from '@/config/constants';
 import { replaceQuestionnaireStructure } from '../api/questionnaires';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { writeOperationLog } from '@/lib/operation-log';
@@ -59,7 +59,7 @@ export async function importQuestionnaireJsonAction(
   await replaceQuestionnaireStructure({
     questionnaireId,
     payload: parsed.data,
-    title: parsed.data.title.slice(0, 80),
+    title: parsed.data.title.slice(0, PAYLOAD_LIMITS.QUESTIONNAIRE_TITLE),
     intro: parsed.data.intro ?? null,
   });
 

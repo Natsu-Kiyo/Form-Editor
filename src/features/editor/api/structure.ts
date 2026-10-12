@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { PAYLOAD_LIMITS } from '@/config/constants';
 import { prisma } from '@/lib/db';
 import { toJsonColumn } from '@/lib/json';
 import type { QuestionnairePayload } from '@/lib/questionnaire-structure';
@@ -21,7 +22,11 @@ export async function replaceStructure(questionnaireId: string, payload: Questio
   await prisma.$transaction(async (tx) => {
     await tx.questionnaire.update({
       where: { id: questionnaireId },
-      data: { title: payload.title.slice(0, 80), intro: payload.intro ?? null },
+      // 上限与 schema 同一份常量（R9-5）：这里只是防御性收敛，正常永远不会触发
+      data: {
+        title: payload.title.slice(0, PAYLOAD_LIMITS.QUESTIONNAIRE_TITLE),
+        intro: payload.intro ?? null,
+      },
     });
 
     await tx.question.deleteMany({ where: { questionnaireId } });

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { OPERATION_TYPE } from '@/config/constants';
+import { OPERATION_TYPE, PAYLOAD_LIMITS } from '@/config/constants';
 import { requireMembership } from '@/lib/auth/permissions';
 import { prisma } from '@/lib/db';
 import { writeOperationLog } from '@/lib/operation-log';
@@ -40,7 +40,8 @@ export async function copyQuestionnaireAction(
 
   const payload: QuestionnairePayload = {
     ...data.payload,
-    title: `${source.title}${COPY_SUFFIX}`.slice(0, 80),
+    // 「（副本）」可能把标题顶过上限：与 schema 同一份常量收敛（R9-5）
+    title: `${source.title}${COPY_SUFFIX}`.slice(0, PAYLOAD_LIMITS.QUESTIONNAIRE_TITLE),
   };
 
   const copy = await createQuestionnaireWithPayload({
