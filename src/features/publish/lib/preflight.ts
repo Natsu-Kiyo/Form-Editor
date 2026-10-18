@@ -1,4 +1,8 @@
-import type { IdentityMode } from '@/config/constants';
+import type { IdentityMode, QuestionType } from '@/config/constants';
+
+/** 选择题：没有选项就没人能填 */
+const CHOICE_TYPES: readonly QuestionType[] = ['SINGLE', 'MULTI', 'DROPDOWN'];
+const TEXT_TYPES: readonly QuestionType[] = ['SHORT_TEXT', 'LONG_TEXT'];
 
 /**
  * 发布前检查。
@@ -19,8 +23,34 @@ export type PreflightCheck = {
   text: string;
 };
 
+/**
+ * 发布前检查看到的一道题（**结构字段是必须的**）。
+ *
+ * 以前这里只收 `title` / `required`，于是「选择题零选项」「文本框长度上限为 0」
+ * 这类**发布出去就没人能填**的结构问题根本不在检查范围内（审查 #4）。
+ * 字段刻意必填：少传一个就会被类型检查拦下，而不是静默跳过一条检查。
+ */
+export type PreflightQuestion = {
+  title: string;
+  required: boolean;
+  type: QuestionType;
+  /** 选项数；矩阵题是行数，其余题型为 0 */
+  optionCount: number;
+  /** 文本题的 `config.maxLength`；没写过为 null */
+  maxLength: number | null;
+};
+
+/** 从数据库的 Json 列里读长度上限（形状不对就当没写，与读取侧同一条容错口径） */
+export function readMaxLength(config: unknown): number | null {
+  if (typeof config !== 'object' || config === null) return null;
+
+  const value = (config as Record<string, unknown>).maxLength;
+
+  return typeof value === 'number' ? value : null;
+}
+
 export type PreflightInput = {
-  questions: { title: string; required: boolean }[];
+  questions: PreflightQuestion[];
   startsAt: Date | null;
   endsAt: Date | null;
   responseLimit: number | null;
@@ -63,6 +93,37 @@ export function runPreflight(input: PreflightInput): PreflightResult {
         text: `共 ${questions.length} 道题目，标题均已填写`,
       });
     }
+  }
+
+  /*
+   * ---- 结构上「没人能填」（审查 #4）----
+   * 与「标题空着」同属发布前的硬拦：这类问卷发出去，作答者打开就是死路。
+   * 写入侧（`payloadQuestionSchema`）已经拦住了新保存，这里兜的是**改动之前就在库里**的草稿，
+   * 否则「发布前检查说没问题」会是一句空话。
+   */
+  const emptyChoice = questions.filter(
+    (question) => CHOICE_TYPES.includes(question.type) && question.optionCount === 0,
+  ).length;
+
+  if (emptyChoice > 0) {
+    checks.push({
+      id: 'empty-options',
+      tone: 'error',
+      text: `有 ${emptyChoice} 道选择题没有选项，作答者无法填写`,
+    });
+  }
+
+  const zeroLength = questions.filter(
+    (question) =>
+      TEXT_TYPES.includes(question.type) && question.maxLength !== null && question.maxLength < 1,
+  ).length;
+
+  if (zeroLength > 0) {
+    checks.push({
+      id: 'zero-max-length',
+      tone: 'error',
+      text: `有 ${zeroLength} 道填空题的长度上限小于 1，作答内容会被截成空`,
+    });
   }
 
   // ---- 回收时间 ----

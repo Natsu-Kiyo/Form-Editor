@@ -124,6 +124,33 @@ export const payloadQuestionSchema = z
       });
     }
 
+    /*
+     * 「没人能填」的结构在这里挡住（审查 #4）。发布前检查也会再拦一次 ——
+     * 但那是界面层的提示，而这条是三条写入通路（编辑器 / 模板 / 导入 JSON）的闸门：
+     * - 选择题一个选项都没有：作答者只能看到一个空列表；
+     * - 文本题的长度上限被写成 0：任何输入都会被截成空串，必填题永远交不上
+     *   （编辑器里「清空字数再失焦」确实会写出 0，见 `MaxLengthField`）。
+     */
+    if (isChoiceQuestion(question.type) && question.options.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['options'],
+        message: '选择题至少要有 1 个选项',
+      });
+    }
+
+    if (question.type === 'SHORT_TEXT' || question.type === 'LONG_TEXT') {
+      const maxLength = question.config?.maxLength;
+
+      if (typeof maxLength === 'number' && (!Number.isInteger(maxLength) || maxLength < 1)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['config', 'maxLength'],
+          message: '文本长度上限至少为 1 个字',
+        });
+      }
+    }
+
     if (question.type !== 'MATRIX') return;
 
     if (
@@ -134,6 +161,15 @@ export const payloadQuestionSchema = z
         code: 'custom',
         path: ['options'],
         message: `矩阵题要有 ${MATRIX_LIMITS.MIN_ROWS}–${MATRIX_LIMITS.MAX_ROWS} 行`,
+      });
+    }
+
+    // 矩阵的行文案要让「行标签 + 列刻度」放得下一行；超过这个长度会把整张表挤变形
+    if (question.options.some((label) => label.length > MATRIX_LIMITS.MAX_ROW_LENGTH)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['options'],
+        message: `矩阵的行不超过 ${MATRIX_LIMITS.MAX_ROW_LENGTH} 个字`,
       });
     }
 

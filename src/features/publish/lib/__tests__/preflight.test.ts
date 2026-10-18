@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { runPreflight, type PreflightInput } from '../preflight';
+import { runPreflight, type PreflightInput, type PreflightQuestion } from '../preflight';
 
 /**
  * 发布是不可逆操作（发布即冻结结构），所以这些规则要靠单测穷举，而不是点着验。
@@ -8,9 +8,21 @@ import { runPreflight, type PreflightInput } from '../preflight';
  */
 const NOW = new Date('2026-10-05T10:00:00Z');
 
+/** 一道「结构上没问题」的题；要验结构问题时覆写 `type` / `optionCount` / `maxLength` */
+function question(overrides: Partial<PreflightQuestion> = {}): PreflightQuestion {
+  return {
+    title: '你叫什么',
+    required: true,
+    type: 'SHORT_TEXT',
+    optionCount: 0,
+    maxLength: null,
+    ...overrides,
+  };
+}
+
 function build(overrides: Partial<PreflightInput> = {}): PreflightInput {
   return {
-    questions: [{ title: '你叫什么', required: true }],
+    questions: [question()],
     startsAt: null,
     endsAt: new Date('2026-10-20T15:59:00Z'),
     responseLimit: null,
@@ -41,9 +53,7 @@ describe('runPreflight', () => {
   });
 
   it('有题目没写标题时拦住', () => {
-    expect(errorIds(build({ questions: [{ title: '   ', required: true }] }))).toContain(
-      'untitled',
-    );
+    expect(errorIds(build({ questions: [question({ title: '   ' })] }))).toContain('untitled');
   });
 
   it('结束时间早于开始时间时拦住', () => {
@@ -89,8 +99,8 @@ describe('runPreflight', () => {
     const result = runPreflight(
       build({
         questions: [
-          { title: '必答', required: true },
-          { title: '选答', required: false },
+          question({ title: '必答', required: true }),
+          question({ title: '选答', required: false }),
         ],
       }),
     );
@@ -106,5 +116,34 @@ describe('runPreflight', () => {
 
     expect(result.canPublish).toBe(true);
     expect(result.checks.some((check) => check.id === 'open-ended')).toBe(true);
+  });
+
+  /*
+   * 下面两条对着审查 #4 的两种「发出去没人能填」（老草稿里真实存在，
+   * 写入侧的闸门管不到它们，只能由发布这一道兜住）。
+   */
+  it('选择题没有选项时拦住 —— 作答者打开只看到空列表', () => {
+    expect(
+      errorIds(build({ questions: [question({ type: 'SINGLE', optionCount: 0 })] })),
+    ).toContain('empty-options');
+  });
+
+  it('填空题长度上限为 0 时拦住 —— 任何输入都会被截成空', () => {
+    expect(
+      errorIds(build({ questions: [question({ type: 'LONG_TEXT', maxLength: 0 })] })),
+    ).toContain('zero-max-length');
+  });
+
+  it('不误伤：有选项的选择题、上限为正的填空题照常放行', () => {
+    const result = runPreflight(
+      build({
+        questions: [
+          question({ title: '单选', type: 'SINGLE', optionCount: 3 }),
+          question({ title: '填空', type: 'LONG_TEXT', maxLength: 1 }),
+        ],
+      }),
+    );
+
+    expect(result.canPublish).toBe(true);
   });
 });

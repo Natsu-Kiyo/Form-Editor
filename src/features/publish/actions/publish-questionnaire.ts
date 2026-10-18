@@ -2,7 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { OPERATION_TYPE, formatVersion, type IdentityMode } from '@/config/constants';
+import {
+  OPERATION_TYPE,
+  formatVersion,
+  type IdentityMode,
+  type QuestionType,
+} from '@/config/constants';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
 import { writeOperationLog } from '@/lib/operation-log';
@@ -10,7 +15,7 @@ import { writeQuestionnaireVersion } from '@/lib/questionnaire-version';
 import { parseDateTimeLocal } from '@/utils/format';
 import { toFieldErrors } from '@/utils/zod-errors';
 
-import { runPreflight } from '../lib/preflight';
+import { readMaxLength, runPreflight } from '../lib/preflight';
 import { publishSettingsSchema } from '../schemas';
 
 export type PublishActionResult =
@@ -73,7 +78,16 @@ async function getPublishContext(questionnaireId: string) {
       title: true,
       status: true,
       accessPassword: true,
-      questions: { orderBy: { order: 'asc' }, select: { title: true, required: true } },
+      questions: {
+        orderBy: { order: 'asc' },
+        select: {
+          title: true,
+          required: true,
+          type: true,
+          config: true,
+          _count: { select: { options: true } },
+        },
+      },
       _count: { select: { responses: { where: { status: 'VALID' } } } },
     },
   });
@@ -166,7 +180,14 @@ export async function publishQuestionnaireAction(
   const now = new Date();
 
   const preflight = runPreflight({
-    questions: context.questions,
+    // 与服务端那套结构闸门同源：老草稿里「零选项 / 长度上限 0」也要在这里被拦下（审查 #4）
+    questions: context.questions.map((question) => ({
+      title: question.title,
+      required: question.required,
+      type: question.type as QuestionType,
+      optionCount: question._count.options,
+      maxLength: readMaxLength(question.config),
+    })),
     startsAt: settings.startsAt,
     endsAt: settings.endsAt,
     responseLimit: settings.responseLimit,

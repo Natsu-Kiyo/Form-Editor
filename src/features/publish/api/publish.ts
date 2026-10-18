@@ -1,12 +1,29 @@
 import 'server-only';
 
-import type { CloseReason, IdentityMode, QuestionnaireStatus } from '@/config/constants';
+import type {
+  CloseReason,
+  IdentityMode,
+  QuestionnaireStatus,
+  QuestionType,
+} from '@/config/constants';
 import { prisma } from '@/lib/db';
 import { formatDateTimeLocal } from '@/utils/format';
 
+import { readMaxLength } from '../lib/preflight';
+
+/**
+ * 发布前检查需要的题目字段（审查 #4）。
+ *
+ * 刻意包含 `type` / `optionCount` / `maxLength`：检查要能看出「这道选择题没有选项」
+ * 「这道填空题的长度上限是 0」——那正是「发布出去没人能填」的两种形状。
+ */
 export type PublishQuestionRow = {
   title: string;
   required: boolean;
+  type: QuestionType;
+  /** 选项数；矩阵题是行数 */
+  optionCount: number;
+  maxLength: number | null;
 };
 
 export type PublishPageData = {
@@ -55,7 +72,17 @@ export async function getPublishPageData(questionnaireId: string): Promise<Publi
       publishedAt: true,
       closedAt: true,
       closeReason: true,
-      questions: { orderBy: { order: 'asc' }, select: { title: true, required: true } },
+      questions: {
+        orderBy: { order: 'asc' },
+        select: {
+          title: true,
+          required: true,
+          type: true,
+          config: true,
+          // 只数个数：选项文案本身进不了发布页，没必要把整张表搬出来
+          _count: { select: { options: true } },
+        },
+      },
       // 一次查询就拿到「已回收份数」：设计稿要让上限与已回收量并排显示，
       // 而「上限小于已回收量」正是发布前检查里要拦的一种情况
       _count: { select: { responses: { where: { status: 'VALID' } } } },
@@ -78,6 +105,12 @@ export async function getPublishPageData(questionnaireId: string): Promise<Publi
     closedAtLabel: stamp(row.closedAt),
     closeReason: row.closeReason as CloseReason | null,
     responseCount: row._count.responses,
-    questions: row.questions,
+    questions: row.questions.map((question) => ({
+      title: question.title,
+      required: question.required,
+      type: question.type as QuestionType,
+      optionCount: question._count.options,
+      maxLength: readMaxLength(question.config),
+    })),
   };
 }

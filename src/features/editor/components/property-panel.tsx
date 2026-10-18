@@ -424,6 +424,13 @@ function MaxLengthField({ question, readOnly }: { question: DraftQuestion; readO
         value={question.config.maxLength ?? (question.type === 'SHORT_TEXT' ? 100 : 500)}
         disabled={readOnly}
         onCommit={(next) => {
+          /*
+           * 清空输入框时 `Number('')` 是 0 —— 以前会原样写进草稿，
+           * 而 `maxLength = 0` 会把任何文本截成空串：必填填空题从此永远交不上（审查 #4）。
+           * 回到原值（`NumberBox` 收到 false 时会复原），并让用户知道边界在哪。
+           */
+          if (!Number.isInteger(next) || next < 1) return false;
+
           updateQuestion(question.key, { config: { ...question.config, maxLength: next } });
           return true;
         }}

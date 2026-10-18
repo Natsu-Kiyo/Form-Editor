@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { MATRIX_LIMITS } from '@/config/constants';
 import {
   describeIssuePath,
   duplicateLabels,
@@ -374,6 +375,61 @@ describe('报错文案', () => {
   it('describeIssuePath：认不出来的路径原样回落到点号连接（不吞信息）', () => {
     expect(describeIssuePath(['questions', 0, 'somethingNew', 3])).toBe('第 1 题的somethingNew');
     expect(describeIssuePath(['unknown'])).toBe('unknown');
+  });
+});
+
+/**
+ * 「结构上就没人能填」的题目不许落库（审查 #4）。
+ *
+ * 这三种形状都能把一份问卷变成死路：作答者打开后没有可选项 / 填什么都被截成空。
+ * 它们以前能从导入 JSON 或伪造的 action 进来，发布前检查也看不见。
+ */
+describe('结构可填性（审查 #4）', () => {
+  const ask = (question: unknown) =>
+    questionnairePayloadSchema.safeParse({
+      formatVersion: 1,
+      title: '可填性检查',
+      questions: [question],
+    });
+
+  it('选择题一个选项都没有时拒绝', () => {
+    const result = ask({ type: 'SINGLE', title: '选一个', options: [] });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('至少要有 1 个选项');
+    }
+  });
+
+  it('文本题的长度上限不能是 0（否则任何输入都会被截成空）', () => {
+    const result = ask({ type: 'LONG_TEXT', title: '说说看', config: { maxLength: 0 } });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain('至少为 1 个字');
+    }
+  });
+
+  it('矩阵的行文案不能超过 40 字（会把整张表挤变形）', () => {
+    const result = ask({
+      type: 'MATRIX',
+      title: '请为各个环节打分',
+      options: ['正常行', '行'.repeat(MATRIX_LIMITS.MAX_ROW_LENGTH + 1)],
+      config: { columns: ['满意', '不满意'] },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message);
+      expect(messages.some((message) => message.includes('矩阵的行不超过'))).toBe(true);
+    }
+  });
+
+  it('不误伤：有选项的选择题、上限为正的文本题照常通过', () => {
+    expect(ask({ type: 'SINGLE', title: '选一个', options: ['甲'] }).success).toBe(true);
+    expect(ask({ type: 'SHORT_TEXT', title: '写一句', config: { maxLength: 1 } }).success).toBe(
+      true,
+    );
   });
 });
 
