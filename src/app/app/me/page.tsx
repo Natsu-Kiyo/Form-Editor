@@ -40,7 +40,8 @@ export default async function MePage() {
       getUnreadNotificationCount(user.id),
       active ? countWorkspaceQuestionnaires(active.id) : Promise.resolve(0),
       // 「成员与角色权限」的只读版（P09）：手机上只看不改，邀请与改角色留在桌面端
-      active ? getMembersPageData(active.id) : Promise.resolve(null),
+      // 角色交给数据层（审查 #1）：这一页只用到成员列表，邀请里的凭据仍不该下发
+      active ? getMembersPageData(active.id, active.role) : Promise.resolve(null),
     ]);
 
   const current = workspaces.find((workspace) => workspace.id === active?.id) ?? null;

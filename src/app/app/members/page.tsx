@@ -19,7 +19,11 @@ export default async function MembersPage() {
   // 查看者也要能看成员与权限说明（否则「为什么我没这个按钮」无处可查）
   const { user, workspace } = await requireActiveWorkspace('VIEWER');
 
-  const data = await getMembersPageData(workspace.id);
+  /*
+   * 角色要传进数据层（审查 #1）：待接受邀请里的 token 是凭据，
+   * 不能「查出来再在界面上藏起来」—— 查看者的 RSC payload 里就不该有它。
+   */
+  const data = await getMembersPageData(workspace.id, workspace.role);
   if (!data) notFound();
 
   return (

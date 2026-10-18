@@ -200,6 +200,8 @@ test.describe('成员与权限', () => {
     ).toBeVisible();
     // 卡片标题也按角色换：查看者没有「可编辑问卷」这回事
     await expect(page.getByText('可查看问卷')).toBeVisible();
+    // 待接受邀请整块（受邀邮箱 + 链接凭据）不下发给查看者（审查 #1）
+    await expect(page.getByRole('heading', { name: '待接受的邀请' })).toHaveCount(0);
   });
 
   test('复制链接：复制到剪贴板的就是那条邀请的链接', async ({ page, context }, testInfo) => {

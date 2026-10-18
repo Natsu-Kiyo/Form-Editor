@@ -18,7 +18,7 @@ import {
 import { cn } from '@/utils/cn';
 
 import { changeMemberRoleAction, removeMemberAction } from '../actions/manage-member';
-import { revokeInvitationAction } from '../actions/invite-member';
+import { getInvitationTokenAction, revokeInvitationAction } from '../actions/invite-member';
 import type { MembersPageData } from '../api/members';
 import { DissolveWorkspaceDialog } from './dissolve-workspace-dialog';
 import { InviteMemberDialog } from './invite-dialog';
@@ -63,6 +63,8 @@ export function MembersPanel({
   /** 转让所有权：值 = 自己降级成哪一档（就是角色下拉里选的那个值）；null = 弹窗关着 */
   const [transferring, setTransferring] = useState<Role | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  /** 正在向服务端要链接的那一条（token 不在页面数据里，见审查 #1） */
+  const [copyingId, setCopyingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const { toast } = useToast();
 
@@ -85,15 +87,24 @@ export function MembersPanel({
   /**
    * 复制某条邀请的链接。
    *
-   * 用 `window.location.origin` 而不是 `NEXT_PUBLIC_APP_URL`：后者只在服务端可读
-   * （见 AGENTS.md），而管理员此刻就在这个站点上 —— 他复制的理应是他正打开的这个地址。
-   * token 本来就在页面数据里（`InvitationRow.token`），所以这一步不必再问一次服务端。
+   * 两件事都刻意如此（审查 #1）：
+   * - **token 不再随页面下发**，这里向服务端单独要一次（`getInvitationTokenAction` 自己断言 ADMIN）；
+   * - 站点前缀用 `window.location.origin` 而不是 `NEXT_PUBLIC_APP_URL`：后者只在服务端可读，
+   *   而管理员此刻就在这个站点上 —— 他复制的理应是他正打开的这个地址（预览部署也成立）。
    */
-  const copyInviteLink = async (invitation: { token: string; email: string }) => {
-    const link = `${window.location.origin}/invite/${invitation.token}`;
+  const copyInviteLink = async (invitation: { id: string; email: string }) => {
+    setCopyingId(invitation.id);
 
     try {
-      await navigator.clipboard.writeText(link);
+      const result = await getInvitationTokenAction(invitation.id);
+
+      if (!result.ok) {
+        toast({ title: '没能取到邀请链接', description: result.message, variant: 'error' });
+        return;
+      }
+
+      // 拿到 token 之后的失败只可能是剪贴板（安全上下文）—— 与下面的 catch 同一句说明
+      await navigator.clipboard.writeText(`${window.location.origin}/invite/${result.token}`);
       toast({ title: '邀请链接已复制', description: invitation.email, variant: 'success' });
     } catch {
       /*
@@ -105,6 +116,8 @@ export function MembersPanel({
         description: '浏览器拒绝了剪贴板访问，请手动选中复制',
         variant: 'error',
       });
+    } finally {
+      setCopyingId(null);
     }
   };
 
@@ -269,78 +282,86 @@ export function MembersPanel({
             </table>
           </div>
 
-          {/* ---- 待接受的邀请 ---- */}
-          <div className="border-ink-200 overflow-hidden rounded-xl border bg-white">
-            <div className="border-ink-100 flex items-center justify-between border-b px-6 py-4">
-              <h2 className="text-ink-900 text-[14.5px] font-semibold">待接受的邀请</h2>
-              <span className="text-ink-400 text-[12px]">
-                邀请链接 {INVITATION_EXPIRES_DAYS} 天后失效
-              </span>
-            </div>
+          {/*
+            ---- 待接受的邀请（仅管理员）----
+            查看者不渲染整块（审查 #1）：列表里是受邀邮箱、角色与邀请链接，
+            这些只该给能管理邀请的人看。数据层其实已经不查了 —— 这里只是
+            别让一份空列表看起来像「真的没有待接受邀请」。
+          */}
+          {canManage ? (
+            <div className="border-ink-200 overflow-hidden rounded-xl border bg-white">
+              <div className="border-ink-100 flex items-center justify-between border-b px-6 py-4">
+                <h2 className="text-ink-900 text-[14.5px] font-semibold">待接受的邀请</h2>
+                <span className="text-ink-400 text-[12px]">
+                  邀请链接 {INVITATION_EXPIRES_DAYS} 天后失效
+                </span>
+              </div>
 
-            {data.invitations.length === 0 ? (
-              <p className="text-ink-400 px-6 py-6 text-[12.5px]">没有等待接受的邀请。</p>
-            ) : (
-              <ul role="list" className="divide-ink-100 divide-y">
-                {/*
+              {data.invitations.length === 0 ? (
+                <p className="text-ink-400 px-6 py-6 text-[12.5px]">没有等待接受的邀请。</p>
+              ) : (
+                <ul role="list" className="divide-ink-100 divide-y">
+                  {/*
                   用 `<ul>` / `<li>`：邀请本来就是一份列表，也让「一条邀请」可按角色定位。
                   `role="list"` 不能省：Tailwind 的 preflight 把 `ul` 的 list-style 去掉了，
                   而 Chrome / Safari 遇到 `list-style: none` 会**连列表语义一起丢掉**
                   （读屏与 `getByRole('listitem')` 都会看不到它）。
                 */}
-                {data.invitations.map((invitation) => (
-                  <li
-                    key={invitation.id}
-                    className="flex flex-wrap items-center justify-between gap-3 px-6 py-4"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="bg-ink-100 text-ink-400 flex size-8 shrink-0 items-center justify-center rounded-full">
-                        <MailIcon className="size-4" />
-                      </span>
-                      <div>
-                        <div className="text-ink-800 text-[13px]">{invitation.email}</div>
-                        <div className="text-ink-400 text-[11.5px]">
-                          {invitation.summary} · {invitation.expiresAtLabel} 失效
+                  {data.invitations.map((invitation) => (
+                    <li
+                      key={invitation.id}
+                      className="flex flex-wrap items-center justify-between gap-3 px-6 py-4"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="bg-ink-100 text-ink-400 flex size-8 shrink-0 items-center justify-center rounded-full">
+                          <MailIcon className="size-4" />
+                        </span>
+                        <div>
+                          <div className="text-ink-800 text-[13px]">{invitation.email}</div>
+                          <div className="text-ink-400 text-[11.5px]">
+                            {invitation.summary} · {invitation.expiresAtLabel} 失效
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex h-6 items-center rounded-full bg-amber-50 px-2 text-[11px] font-medium text-amber-700">
-                        {INVITATION_STATUS_LABEL.PENDING}
-                      </span>
-                      {canManage ? (
-                        <>
-                          {/*
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex h-6 items-center rounded-full bg-amber-50 px-2 text-[11px] font-medium text-amber-700">
+                          {INVITATION_STATUS_LABEL.PENDING}
+                        </span>
+                        {canManage ? (
+                          <>
+                            {/*
                             复制链接：与「撤回」同级、同字号，用品牌色把它标成可点的动作。
                             链接要能随时再拿一次 —— 邀请发出去之后对方很可能找不到消息了。
                           */}
-                          <button
-                            type="button"
-                            onClick={() => void copyInviteLink(invitation)}
-                            className="text-brand-500 hover:text-brand-600 text-[12.5px] transition-colors duration-150"
-                          >
-                            复制链接
-                          </button>
-                          <button
-                            type="button"
-                            disabled={pendingId === invitation.id}
-                            // 撤回也不再有直接动作：先记下目标，弹层确认后才真的撤回
-                            onClick={() =>
-                              setRevoking({ id: invitation.id, email: invitation.email })
-                            }
-                            className="text-ink-500 text-[12.5px] transition-colors duration-150 hover:text-rose-600 disabled:opacity-45"
-                          >
-                            {pendingId === invitation.id ? '撤回中…' : '撤回'}
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                            <button
+                              type="button"
+                              disabled={copyingId === invitation.id}
+                              onClick={() => void copyInviteLink(invitation)}
+                              className="text-brand-500 hover:text-brand-600 text-[12.5px] transition-colors duration-150 disabled:opacity-45"
+                            >
+                              {copyingId === invitation.id ? '取链接…' : '复制链接'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={pendingId === invitation.id}
+                              // 撤回也不再有直接动作：先记下目标，弹层确认后才真的撤回
+                              onClick={() =>
+                                setRevoking({ id: invitation.id, email: invitation.email })
+                              }
+                              className="text-ink-500 text-[12.5px] transition-colors duration-150 hover:text-rose-600 disabled:opacity-45"
+                            >
+                              {pendingId === invitation.id ? '撤回中…' : '撤回'}
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
 
           {/* ---- 权限说明 ---- */}
           <PermissionMatrix />
