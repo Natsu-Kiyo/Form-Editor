@@ -18,7 +18,7 @@ import {
   type UnavailableKind,
 } from '../api/public-questionnaire';
 import { parseAnswers } from '../lib/answers';
-import { buildFingerprint } from '../lib/fingerprint';
+import { resolveRespondent } from '../lib/respondent';
 import { isUnlocked } from '../lib/unlock';
 
 export type SubmitResponseResult =
@@ -122,16 +122,23 @@ export async function submitResponseAction(input: {
   }
 
   // ---- 重复闸门 ----
-  // 登录作答按账号判就不必再记指纹：同一账号在两个浏览器也该只能填一次，
-  // 而记上指纹反而会让他在第二台设备上被指纹挡住（误判成两个人）
   const cookieStore = await cookies();
   const clientId = cookieStore.get(CLIENT_ID_COOKIE)?.value ?? null;
-  const fingerprint = user ? null : buildFingerprint(clientId, userAgent);
 
-  const existing = await countExistingResponse(context.id, {
-    respondentId: user?.id ?? null,
-    fingerprint,
+  /*
+   * 身份只在这一处判定（审查 #2）。匿名问卷**不记账号**：
+   * 公开页与结果页都写着「不会记录你的身份信息」，记了却不说比不记更糟；
+   * 而且「有账号就按账号查、否则按指纹查」会让同一个人先匿名、再登录交两份。
+   * 具体规则与理由见 `lib/respondent.ts`（纯函数，有单测）。
+   */
+  const { respondentId, fingerprint } = resolveRespondent({
+    identityMode: context.identityMode,
+    userId: user?.id ?? null,
+    clientId,
+    userAgent,
   });
+
+  const existing = await countExistingResponse(context.id, { respondentId, fingerprint });
   if (existing) return { ok: false, kind: 'UNAVAILABLE', state: 'ALREADY_SUBMITTED' };
 
   // ---- 答案校验 ----
@@ -169,7 +176,7 @@ export async function submitResponseAction(input: {
         data: {
           questionnaireId: context.id,
           channelId,
-          respondentId: user?.id ?? null,
+          respondentId,
           fingerprint,
           submittedAt: now,
           userAgent,
