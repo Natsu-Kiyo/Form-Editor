@@ -33,6 +33,44 @@ export function randomWorkspaceSlug() {
  *    而是这个产品里「没有工作区」是一个到不了的状态：问卷、成员、日志全挂在
  *    工作区下，没有它连侧栏都渲染不出来。
  */
+/**
+ * 保证某个人**至少有一个工作区**（审查 #9）。
+ *
+ * 与 `landAfterWorkspaceGone` 的分工：那个是「自己离开」，能顺手改自己的会话 Cookie；
+ * 这里是「被别人移除」—— 别人的会话我们碰不到，改不了他的 activeWorkspace Cookie。
+ * 但「没有工作区」在这个产品里是到不了的状态（`requireActiveWorkspace` 会直接抛
+ * `NO_WORKSPACE`，而全站没有 error.tsx 兜它），所以只要保证他名下还有一个，
+ * `requireActiveWorkspace` 的回落逻辑就会把他安顿好。
+ *
+ * 已经有工作区时**什么都不做**：移除一个人不该顺带给他新建东西。
+ */
+export async function ensureUserHasWorkspace(user: { id: string; name: string }) {
+  const existing = await prisma.membership.findFirst({
+    where: { userId: user.id },
+    select: { id: true },
+  });
+
+  if (existing) return { created: false as const };
+
+  const workspace = await prisma.$transaction(async (tx) => {
+    const created = await tx.workspace.create({
+      data: {
+        name: `${user.name} 的工作区`,
+        slug: randomWorkspaceSlug(),
+        ownerId: user.id,
+      },
+    });
+
+    await tx.membership.create({
+      data: { workspaceId: created.id, userId: user.id, role: 'OWNER' },
+    });
+
+    return created;
+  });
+
+  return { created: true as const, workspaceId: workspace.id };
+}
+
 export async function landAfterWorkspaceGone(actor: { id: string; name: string }) {
   const next = await prisma.membership.findFirst({
     where: { userId: actor.id },

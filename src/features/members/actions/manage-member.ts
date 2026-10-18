@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { OPERATION_TYPE, ROLE_LABEL, type Role } from '@/config/constants';
 import { requireActiveWorkspace } from '@/lib/auth/active-workspace';
+import { ensureUserHasWorkspace } from '@/lib/auth/workspace-lifecycle';
 import { prisma } from '@/lib/db';
 import { writeOperationLog } from '@/lib/operation-log';
 
@@ -85,6 +86,17 @@ export async function removeMemberAction(membershipId: string): Promise<MemberAc
   if (membership.role === 'OWNER') return { ok: false, message: OWNER_LOCKED };
 
   await prisma.membership.delete({ where: { id: membership.id } });
+
+  /*
+   * 被移除的人如果只剩这一个工作区，他下次打开 `/app` 会撞上 `NO_WORKSPACE`
+   * 的异常页，而那一页没有「新建工作区」的出口（审查 #9）。
+   * 我们改不了他的会话 Cookie，只能替他保证「名下还有工作区」——
+   * 与自助退出的落地逻辑同一条理由，见 `ensureUserHasWorkspace`。
+   */
+  await ensureUserHasWorkspace({
+    id: membership.user.id,
+    name: membership.user.name,
+  });
 
   await writeOperationLog({
     workspaceId: workspace.id,
