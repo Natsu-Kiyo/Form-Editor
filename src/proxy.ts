@@ -7,6 +7,16 @@ import { NextResponse, type NextRequest } from 'next/server';
  */
 const SESSION_COOKIE = 'qw_session';
 
+/**
+ * 匿名作答的浏览器标识（审查 #10）。
+ *
+ * 由 proxy **在服务端**下发：以前只有作答页的客户端 JS 会种它，
+ * 拿不到时指纹退化成 UA 哈希 —— 同一浏览器类型的所有人共用一个指纹，
+ * 第一个人交完，同 UA 的其他人全被当成「已提交过」。
+ */
+const CLIENT_ID_COOKIE = 'qw_client_id';
+const CLIENT_ID_MAX_AGE = 365 * 24 * 60 * 60;
+
 // `/app/me` 由 `/app` 这个前缀覆盖，**不要再单独列**（列了也没有对应路由，只会误导读的人）
 //
 // `/invite` 也在这里（审查 #8）：邀请链接是最需要「登录后回到原处」的一条 ——
@@ -62,9 +72,47 @@ export function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', pathWithSearch);
 
-  return NextResponse.next({ request: { headers: requestHeaders } });
+  /*
+   * 公开作答页：没有 `qw_client_id` 就现发一个（审查 #10）。
+   *
+   * 两件事都要做：
+   * - 把值并进**本次请求**的 cookie 头 —— 页面在同一个请求里就能读到，
+   *   于是「你已提交过」的首次渲染不依赖 JS；
+   * - 在响应上 Set-Cookie —— 之后的提交（Server Action 是另一次请求）才带得上。
+   */
+  const existingClientId = request.cookies.get(CLIENT_ID_COOKIE)?.value;
+  const issuedClientId =
+    pathname.startsWith('/s/') && !existingClientId ? crypto.randomUUID() : null;
+
+  if (issuedClientId) {
+    const incoming = request.headers.get('cookie');
+    requestHeaders.set(
+      'cookie',
+      incoming
+        ? `${incoming}; ${CLIENT_ID_COOKIE}=${issuedClientId}`
+        : `${CLIENT_ID_COOKIE}=${issuedClientId}`,
+    );
+  }
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+
+  if (issuedClientId) {
+    response.cookies.set(CLIENT_ID_COOKIE, issuedClientId, {
+      /*
+       * **刻意不加 httpOnly**：它只是一个随机标识，不是凭据；而作答页的 JS 要能读到它
+       * 并沿用同一个值。加了 httpOnly 会让客户端读不到、再生成一个，两边打架。
+       */
+      sameSite: 'lax',
+      path: '/',
+      maxAge: CLIENT_ID_MAX_AGE,
+      secure: process.env.NODE_ENV === 'production',
+    });
+  }
+
+  return response;
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/invite/:path*'],
+  // `/s/*` 也在这里：不是为了鉴权，而是要在服务端为匿名访客下发 `qw_client_id`（审查 #10）
+  matcher: ['/app/:path*', '/invite/:path*', '/s/:path*'],
 };

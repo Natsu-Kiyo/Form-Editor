@@ -28,13 +28,13 @@ export function resolveRespondent(input: {
   identityMode: IdentityMode;
   userId: string | null;
   clientId: string | null;
-  userAgent: string | null;
 }): Respondent {
   const anonymous = input.identityMode === 'ANONYMOUS';
   const respondentId = anonymous ? null : input.userId;
 
   return {
     respondentId,
-    fingerprint: respondentId ? null : buildFingerprint(input.clientId, input.userAgent),
+    // 拿不到客户端 id 时返回 null（不去重），**不再拿 UA 顶替**（审查 #10）
+    fingerprint: respondentId ? null : buildFingerprint(input.clientId),
   };
 }

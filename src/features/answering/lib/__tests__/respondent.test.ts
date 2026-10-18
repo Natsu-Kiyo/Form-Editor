@@ -5,7 +5,7 @@ import { resolveRespondent } from '../respondent';
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 
 /**
- * 匿名承诺与「每人一次」都挂在这一个判断上（审查 #2）：
+ * 匿名承诺与「每人一次」都挂在这一个判断上（审查 #2、#10）：
  * 一旦匿名问卷记了账号，两条都会同时失效 —— 而界面上的文案还在说「不记录身份」。
  */
 describe('resolveRespondent', () => {
@@ -14,7 +14,6 @@ describe('resolveRespondent', () => {
       identityMode: 'ANONYMOUS',
       userId: 'user-1',
       clientId: 'client-1',
-      userAgent: 'UA',
     });
 
     expect(result.respondentId).toBeNull();
@@ -26,13 +25,11 @@ describe('resolveRespondent', () => {
       identityMode: 'ANONYMOUS',
       userId: null,
       clientId: 'client-1',
-      userAgent: 'UA',
     });
     const loggedIn = resolveRespondent({
       identityMode: 'ANONYMOUS',
       userId: 'user-1',
       clientId: 'client-1',
-      userAgent: 'UA',
     });
 
     expect(loggedIn.fingerprint).toBe(anonymous.fingerprint);
@@ -44,7 +41,6 @@ describe('resolveRespondent', () => {
       identityMode: 'LOGIN_REQUIRED',
       userId: 'user-1',
       clientId: 'client-1',
-      userAgent: 'UA',
     });
 
     expect(result).toEqual({ respondentId: 'user-1', fingerprint: null });
@@ -56,7 +52,6 @@ describe('resolveRespondent', () => {
         identityMode: 'PASSWORD',
         userId: 'user-1',
         clientId: null,
-        userAgent: null,
       }),
     ).toEqual({ respondentId: 'user-1', fingerprint: null });
 
@@ -65,26 +60,22 @@ describe('resolveRespondent', () => {
         identityMode: 'PASSWORD',
         userId: null,
         clientId: null,
-        userAgent: 'UA',
       }).respondentId,
     ).toBeNull();
   });
 
-  it('没有客户端 id 时按 UA 兜底（同 UA 同一份，风险已知，见审查 #10）', () => {
-    const first = resolveRespondent({
-      identityMode: 'ANONYMOUS',
-      userId: null,
-      clientId: null,
-      userAgent: 'Mozilla/5.0',
-    });
-    const second = resolveRespondent({
-      identityMode: 'ANONYMOUS',
-      userId: null,
-      clientId: '  ',
-      userAgent: 'Mozilla/5.0',
-    });
+  /*
+   * 这条是审查 #10 的正面回归：没有客户端 id 时**不生成指纹**，
+   * 于是这一份走不进「同一个人」的唯一索引 —— 宁可漏一次去重，也不误伤同 UA 的所有人。
+   */
+  it('没有客户端 id 时不生成指纹（不再拿 UA 顶替）', () => {
+    expect(
+      resolveRespondent({ identityMode: 'ANONYMOUS', userId: null, clientId: null }).fingerprint,
+    ).toBeNull();
 
-    expect(first.fingerprint).toBe(second.fingerprint);
+    expect(
+      resolveRespondent({ identityMode: 'ANONYMOUS', userId: null, clientId: '  ' }).fingerprint,
+    ).toBeNull();
   });
 
   it('不同的客户端 id 得到不同指纹', () => {
@@ -92,13 +83,11 @@ describe('resolveRespondent', () => {
       identityMode: 'ANONYMOUS',
       userId: null,
       clientId: 'client-1',
-      userAgent: 'UA',
     });
     const second = resolveRespondent({
       identityMode: 'ANONYMOUS',
       userId: null,
       clientId: 'client-2',
-      userAgent: 'UA',
     });
 
     expect(first.fingerprint).not.toBe(second.fingerprint);

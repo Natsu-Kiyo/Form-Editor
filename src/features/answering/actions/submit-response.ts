@@ -135,7 +135,6 @@ export async function submitResponseAction(input: {
     identityMode: context.identityMode,
     userId: user?.id ?? null,
     clientId,
-    userAgent,
   });
 
   const existing = await countExistingResponse(context.id, { respondentId, fingerprint });
