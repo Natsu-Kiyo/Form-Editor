@@ -21,10 +21,9 @@ export default async function PublishQuestionnairePage({
 }) {
   const { id } = await params;
 
-  const [{ role }, data] = await Promise.all([
-    requireQuestionnaireAccess(id, 'VIEWER'),
-    getPublishPageData(id),
-  ]);
+  // 先取角色再取数据：口令原文只下发给管理员（审查 #11），查询需要知道看的人是谁
+  const { role } = await requireQuestionnaireAccess(id, 'VIEWER');
+  const data = await getPublishPageData(id, role);
 
   if (!data) notFound();
 

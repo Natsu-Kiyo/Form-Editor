@@ -1,10 +1,12 @@
 import 'server-only';
 
-import type {
-  CloseReason,
-  IdentityMode,
-  QuestionnaireStatus,
-  QuestionType,
+import {
+  hasAtLeastRole,
+  type CloseReason,
+  type IdentityMode,
+  type QuestionnaireStatus,
+  type QuestionType,
+  type Role,
 } from '@/config/constants';
 import { prisma } from '@/lib/db';
 import { formatDateTimeLocal } from '@/utils/format';
@@ -38,12 +40,18 @@ export type PublishPageData = {
   responseLimit: string;
   identityMode: IdentityMode;
   /**
-   * 口令**原文**（没有口令时为 null）。
+   * 口令**原文**（没有口令、或查看者无权查看时为 null）。
    *
    * 给原始值而不是 `hasPassword: boolean`：发起人要能把口令念给同事、贴进群里，
    * 所以设置页必须看得见它（取舍写在 `schema.prisma` 那一列上）。
+   *
+   * **只有 ADMIN 拿得到**（审查 #11）：这串口令是外部作答者的唯一门槛，
+   * 而发布页与编辑器页只要 VIEWER 就能打开 —— 以前它跟着 RSC payload 一起
+   * 发给了每一个能打开页面的人。查看者只需要知道「有没有设口令」。
    */
   accessPassword: string | null;
+  /** 是否设了口令 —— 查看者据此看到「已设置」而不是一个空输入框（审查 #11） */
+  hasPassword: boolean;
   publishedAtLabel: string | null;
   closedAtLabel: string | null;
   closeReason: CloseReason | null;
@@ -56,7 +64,10 @@ function stamp(date: Date | null) {
   return date ? formatDateTimeLocal(date).replace('T', ' ') : null;
 }
 
-export async function getPublishPageData(questionnaireId: string): Promise<PublishPageData | null> {
+export async function getPublishPageData(
+  questionnaireId: string,
+  viewerRole: Role,
+): Promise<PublishPageData | null> {
   const row = await prisma.questionnaire.findUnique({
     where: { id: questionnaireId },
     select: {
@@ -100,7 +111,9 @@ export async function getPublishPageData(questionnaireId: string): Promise<Publi
     endsAt: row.endsAt ? formatDateTimeLocal(row.endsAt) : '',
     responseLimit: row.responseLimit === null ? '' : String(row.responseLimit),
     identityMode: row.identityMode as IdentityMode,
-    accessPassword: row.accessPassword,
+    // 口令原文只给管理员（审查 #11）；查看者拿到的是「有没有设」这个事实
+    accessPassword: hasAtLeastRole(viewerRole, 'ADMIN') ? row.accessPassword : null,
+    hasPassword: row.accessPassword !== null,
     publishedAtLabel: stamp(row.publishedAt),
     closedAtLabel: stamp(row.closedAt),
     closeReason: row.closeReason as CloseReason | null,

@@ -67,12 +67,21 @@ export function PublishSettings({
   const [pending, startTransition] = useTransition();
 
   /**
+   * 输入框有没有被改过（审查 #11）。
+   *
+   * 查看者拿不到口令原文（`data.accessPassword` 为 null），但**「有没有设口令」仍然要知道** ——
+   * 否则检查清单会对一份口令问卷报「口令访问需要设置一个口令」。
+   * 管理员把输入框删空时则以输入框为准（他想清掉口令），所以要先判断「改没改过」。
+   */
+  const passwordTouched = password !== (data.accessPassword ?? '');
+
+  /**
    * 保存之后这份问卷**是否会有口令**。
    *
    * 与 schema（`publishSettingsSchema`）用的是**同一个判据**：字段里有没有内容。
    * 三处只要有一处另发明判断，用户就会看到「检查说没问题、点下去却说不行」。
    */
-  const passwordWillExist = password.trim().length > 0;
+  const passwordWillExist = passwordTouched ? password.trim().length > 0 : data.hasPassword;
 
   const isDraft = data.status === 'DRAFT';
 
@@ -229,15 +238,28 @@ export function PublishSettings({
                 id="access-password"
                 type="text"
                 autoComplete="off"
-                placeholder="至少 4 位"
+                // 查看者拿不到原文（审查 #11）：说清「已设置」而不是留一个看着像没设的空框
+                placeholder={
+                  data.hasPassword && !data.accessPassword
+                    ? '已设置（原文仅管理员可见）'
+                    : '至少 4 位'
+                }
                 value={password}
                 disabled={!canEdit}
                 onChange={(event) => setPassword(event.target.value)}
               />
               <p className="text-ink-400 mt-1.5 text-[11.5px] leading-4">
-                作答者需要输入这个口令才能进入 —— 请把它发给要填的人。
-                <br />
-                换成「匿名作答 / 需登录作答」保存后，口令会被清掉。
+                {canEdit ? (
+                  <>
+                    作答者需要输入这个口令才能进入 —— 请把它发给要填的人。
+                    <br />
+                    换成「匿名作答 / 需登录作答」保存后，口令会被清掉。
+                  </>
+                ) : data.hasPassword ? (
+                  '这份问卷已设置访问口令；原文只有管理员能看到。'
+                ) : (
+                  '这份问卷还没有设置访问口令。'
+                )}
               </p>
             </div>
           ) : null}

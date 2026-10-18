@@ -47,5 +47,11 @@ export async function markUnlocked(questionnaireId: string, accessPassword: stri
     sameSite: 'lax',
     path: '/',
     maxAge: UNLOCK_MAX_AGE_SECONDS,
+    /*
+     * 生产环境只走 HTTPS（审查 #11）。少了这一条，一次 http:// 的降级请求
+     * 就会把这个「已解锁」标记带出去 —— 它等价于口令本身。
+     * 本地 dev 是 http，所以按环境开关而不是写死 true。
+     */
+    secure: process.env.NODE_ENV === 'production',
   });
 }
