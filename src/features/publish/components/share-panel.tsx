@@ -25,7 +25,17 @@ import { CopyButton } from './copy-button';
  * 移动端按 P06 把二维码放到最大（线下扫码成功率比页面美观重要），
  * 底部「渠道链接」是**入口而不是内容**（渠道会随用户新建而增长）。
  */
-export function SharePanel({ data, canEdit }: { data: SharePageData; canEdit: boolean }) {
+export function SharePanel({
+  data,
+  canEdit,
+  canCreateChannel,
+}: {
+  data: SharePageData;
+  /** 状态变更（暂停 / 恢复 / 截止）：ADMIN 且未归档 */
+  canEdit: boolean;
+  /** 新建渠道：EDITOR 且未归档（与状态变更不是同一档，审查 #7） */
+  canCreateChannel: boolean;
+}) {
   const isDesktop = useIsDesktop();
 
   const qr = (
@@ -65,6 +75,7 @@ export function SharePanel({ data, canEdit }: { data: SharePageData; canEdit: bo
               channels={data.channels}
               untaggedCount={data.untaggedCount}
               responseCount={data.responseCount}
+              canCreate={canCreateChannel}
             />
           </div>
         ) : (
@@ -111,6 +122,7 @@ export function SharePanel({ data, canEdit }: { data: SharePageData; canEdit: bo
                 channels={data.channels}
                 untaggedCount={data.untaggedCount}
                 responseCount={data.responseCount}
+                canCreate={canCreateChannel}
               />
             </div>
 

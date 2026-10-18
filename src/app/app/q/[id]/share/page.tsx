@@ -32,5 +32,12 @@ export default async function ShareQuestionnairePage({
   // 发布 / 暂停 / 截止 / 回收开关都属权限矩阵里的「状态变更」= 管理员
   const canEdit = hasAtLeastRole(role, 'ADMIN') && data.status !== 'ARCHIVED';
 
-  return <SharePanel data={data} canEdit={canEdit} />;
+  /*
+   * 新建渠道是**编辑者**的能力（`create-channel.ts` 断的就是 EDITOR），
+   * 与「状态变更」（ADMIN）不是同一档 —— 以前渠道卡谁都能看到「新建渠道」，
+   * 查看者点了才被服务端拒（审查 #7）。两档权限分别传，不合并成一个布尔。
+   */
+  const canCreateChannel = hasAtLeastRole(role, 'EDITOR') && data.status !== 'ARCHIVED';
+
+  return <SharePanel data={data} canEdit={canEdit} canCreateChannel={canCreateChannel} />;
 }

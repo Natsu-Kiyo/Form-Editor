@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { OPERATION_TYPE } from '@/config/constants';
+import { OPERATION_TYPE, hasAtLeastRole } from '@/config/constants';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
 import { writeOperationLog } from '@/lib/operation-log';
@@ -36,7 +36,18 @@ export async function createChannelAction(
   questionnaireId: string,
   input: unknown,
 ): Promise<CreateChannelResult> {
-  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'EDITOR');
+  // 用 VIEWER 取数据、再自己判 EDITOR：角色不够时**返回一句话**而不是抛异常（审查 #7）
+  const access = await requireQuestionnaireAccess(questionnaireId, 'VIEWER');
+  if (!hasAtLeastRole(access.role, 'EDITOR')) {
+    return { ok: false, message: '你没有新建渠道的权限' };
+  }
+
+  const { user, questionnaire } = access;
+
+  // 归档是终点：数据只读保留，不能再长出新的分发渠道（审查 #12）
+  if (questionnaire.status === 'ARCHIVED') {
+    return { ok: false, message: '已归档的问卷不能新建渠道，请先恢复它' };
+  }
 
   const parsed = createChannelSchema.safeParse(input);
   if (!parsed.success) {

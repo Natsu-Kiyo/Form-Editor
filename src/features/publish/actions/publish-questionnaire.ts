@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import {
   OPERATION_TYPE,
   formatVersion,
+  hasAtLeastRole,
   type IdentityMode,
   type QuestionType,
 } from '@/config/constants';
@@ -94,6 +95,21 @@ async function getPublishContext(questionnaireId: string) {
 }
 
 /**
+ * 「发布相关动作」的权限闸门：用 VIEWER 取到数据，再自己判 ADMIN。
+ *
+ * 为什么不直接 `requireQuestionnaireAccess(id, 'ADMIN')`：那只会在角色不够时**抛异常**，
+ * 客户端拿到的是通用错误页 —— 而这条 action 是界面可达的（编辑者也能打开发布弹层），
+ * 应该回一句人能读懂的话（审查 #7：界面与服务端权限不一致产生的「点了才报错」）。
+ */
+async function requirePublishAdmin(questionnaireId: string) {
+  const access = await requireQuestionnaireAccess(questionnaireId, 'VIEWER');
+
+  return hasAtLeastRole(access.role, 'ADMIN')
+    ? ({ ok: true, access } as const)
+    : ({ ok: false, message: '只有管理员可以发布或修改发布设置' } as const);
+}
+
+/**
  * 只保存发布设置，不改状态。
  *
  * 已发布的问卷要靠它改结束时间之类的设置；已归档的不能改（归档是终点，要改先恢复）。
@@ -102,7 +118,10 @@ export async function savePublishSettingsAction(
   questionnaireId: string,
   input: unknown,
 ): Promise<PublishActionResult> {
-  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'ADMIN');
+  const admin = await requirePublishAdmin(questionnaireId);
+  if (!admin.ok) return { ok: false, message: admin.message };
+
+  const { user, questionnaire } = admin.access;
 
   if (questionnaire.status === 'ARCHIVED') {
     return { ok: false, message: '已归档的问卷不能改发布设置，请先恢复它' };
@@ -161,7 +180,10 @@ export async function publishQuestionnaireAction(
   questionnaireId: string,
   input: unknown,
 ): Promise<PublishActionResult> {
-  const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'ADMIN');
+  const admin = await requirePublishAdmin(questionnaireId);
+  if (!admin.ok) return { ok: false, message: admin.message };
+
+  const { user, questionnaire } = admin.access;
 
   if (questionnaire.status !== 'DRAFT') {
     return {

@@ -25,12 +25,14 @@ export default async function EditQuestionnairePage({
 }) {
   const { id } = await params;
 
-  const [{ role }, editor, versions, publishData] = await Promise.all([
-    requireQuestionnaireAccess(id, 'VIEWER'),
+  // 先取角色：发布数据里的口令原文只下发给管理员（审查 #11）
+  const { role } = await requireQuestionnaireAccess(id, 'VIEWER');
+
+  const [editor, versions, publishData] = await Promise.all([
     getEditorQuestionnaire(id),
     listVersions(id),
-    // 窄屏的「发布」要开 P08-d 弹层，所以这份数据在这一页就取好（与其它三项并行，不额外加一次往返）
-    getPublishPageData(id),
+    // 窄屏的「发布」要开 P08-d 弹层，所以这份数据在这一页就取好
+    getPublishPageData(id, role),
   ]);
 
   if (!editor) {
@@ -47,7 +49,12 @@ export default async function EditQuestionnairePage({
       ? ('FROZEN' as const)
       : null;
 
-  const canPublish = hasAtLeastRole(role, 'EDITOR');
+  /*
+   * 发布是**状态变更**，权限矩阵里是 ADMIN（审查 #7）。
+   * 这里以前写的是 EDITOR：编辑者能在窄屏「发布」弹层里填完整张表，
+   * 点提交才被服务端拒 —— 一个标准的假入口。
+   */
+  const canPublish = hasAtLeastRole(role, 'ADMIN');
 
   return (
     <EditorDraftProvider

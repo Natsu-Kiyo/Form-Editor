@@ -21,16 +21,24 @@ export function ChannelsCard({
   channels,
   untaggedCount,
   responseCount,
+  canCreate,
 }: {
   questionnaireId: string;
   channels: ShareChannel[];
   untaggedCount: number;
   responseCount: number;
+  /*
+   * 新建渠道的权限（EDITOR 且未归档，审查 #7）。
+   *
+   * 以前这里无条件渲染：查看者看得到「新建渠道」，点下去服务端一句 FORBIDDEN ——
+   * 正是本项目「无假入口」红线要挡的那种按钮。
+   */
+  canCreate: boolean;
 }) {
   const isDesktop = useIsDesktop();
   const [open, setOpen] = useState(false);
 
-  const createButton = <NewChannelForm questionnaireId={questionnaireId} />;
+  const createButton = canCreate ? <NewChannelForm questionnaireId={questionnaireId} /> : null;
 
   if (!isDesktop) {
     return (
@@ -60,9 +68,13 @@ export function ChannelsCard({
             className="max-h-[70vh]"
           >
             <div className="border-ink-200 -mx-5 overflow-hidden border-t">
-              <ChannelList channels={channels} untaggedCount={untaggedCount} />
+              <ChannelList
+                channels={channels}
+                untaggedCount={untaggedCount}
+                canCreate={canCreate}
+              />
             </div>
-            <div className="pt-4">{createButton}</div>
+            {canCreate ? <div className="pt-4">{createButton}</div> : null}
           </SheetContent>
         </Sheet>
       </>
@@ -81,7 +93,7 @@ export function ChannelsCard({
         {createButton}
       </div>
 
-      <ChannelList channels={channels} untaggedCount={untaggedCount} />
+      <ChannelList channels={channels} untaggedCount={untaggedCount} canCreate={canCreate} />
     </div>
   );
 }
@@ -89,16 +101,25 @@ export function ChannelsCard({
 function ChannelList({
   channels,
   untaggedCount,
+  canCreate,
 }: {
   channels: ShareChannel[];
   untaggedCount: number;
+  canCreate: boolean;
 }) {
   if (channels.length === 0) {
     return (
       <p className="text-ink-400 border-ink-100 border-t px-6 py-6 text-[12.5px]">
-        还没有渠道。新建一个渠道，就能在链接里带上
-        <code className="text-ink-500 font-mono">?src=</code>
-        参数，从而知道答卷是从哪里来的。
+        {canCreate ? (
+          <>
+            还没有渠道。新建一个渠道，就能在链接里带上
+            <code className="text-ink-500 font-mono">?src=</code>
+            参数，从而知道答卷是从哪里来的。
+          </>
+        ) : (
+          // 没有新建权限时不提「新建」：一个做不到的下一步比没有下一步更糟
+          '还没有渠道。'
+        )}
       </p>
     );
   }
