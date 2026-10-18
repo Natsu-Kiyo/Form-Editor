@@ -3,6 +3,7 @@ import 'server-only';
 import { cache } from 'react';
 
 import {
+  RATING_DEFAULT,
   RATING_SCALE,
   matrixColumns,
   showIfFrom,
@@ -71,13 +72,22 @@ function parseConfig(raw: unknown, type: EditableQuestionType): QuestionConfig {
   const maxLength = source.maxLength;
 
   if (type === 'RATING') {
-    // 读进来就按当前规则收敛（上限规则是后加的，库里可能残留过大的历史值）：
-    // 停在读取这一处，草稿与下次保存自然都是规范值，展示层不用各自再兜一遍
+    /*
+     * 读进来就按当前规则收敛（上限规则是后加的，库里可能残留过大的历史值）：
+     * 停在读取这一处，草稿与下次保存自然都是规范值，展示层不用各自再兜一遍。
+     *
+     * 下限用 `RATING_SCALE.MIN`（0）而不是默认值：**NPS 的 0 分必须原样留下**，
+     * 否则编辑器一打开就把 0 改成 1、存回去还会改掉统计口径（审查 #3）。
+     * 没写过 config 的老题才回落到默认的 1。
+     */
     config.min =
       typeof min === 'number'
         ? Math.min(Math.max(min, RATING_SCALE.MIN), RATING_SCALE.MAX - 1)
-        : RATING_SCALE.MIN;
-    config.max = typeof max === 'number' && max > config.min ? Math.min(max, RATING_SCALE.MAX) : 5;
+        : RATING_DEFAULT.MIN;
+    config.max =
+      typeof max === 'number' && max > config.min
+        ? Math.min(max, RATING_SCALE.MAX)
+        : RATING_DEFAULT.MAX;
   }
 
   if (type === 'SHORT_TEXT' || type === 'LONG_TEXT') {

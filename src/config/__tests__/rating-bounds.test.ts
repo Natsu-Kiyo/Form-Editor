@@ -16,8 +16,13 @@ describe('ratingBounds', () => {
     expect(ratingBounds({ min: 1, max: 17 })).toEqual({ min: 1, max: RATING_SCALE.MAX });
   });
 
-  it('把过小的最小值抬到 1（评分为 0 起没有意义）', () => {
-    expect(ratingBounds({ min: 0, max: 5 })).toEqual({ min: 1, max: 5 });
+  it('保留下限 0：NPS 的 0 分是合法刻度（审查 #3）', () => {
+    expect(ratingBounds({ min: 0, max: 5 })).toEqual({ min: 0, max: 5 });
+    expect(ratingBounds({ min: 0, max: 10 })).toEqual({ min: 0, max: 10 });
+  });
+
+  it('比下限还小的最小值抬到 0（不会出现负分刻度）', () => {
+    expect(ratingBounds({ min: -5, max: 5 })).toEqual({ min: 0, max: 5 });
   });
 
   it('两个值都越界时仍保证 min < max', () => {
@@ -42,11 +47,13 @@ describe('ratingBounds', () => {
       { min: -5, max: 1000 },
       { min: 9, max: 9 },
       { min: 0, max: 0 },
+      { min: 0, max: 10 },
     ];
 
     for (const config of samples) {
       const { min, max } = ratingBounds(config);
-      expect(max - min + 1).toBeLessThanOrEqual(RATING_SCALE.MAX);
+      // 0–10 是 11 格（NPS），所以上限按「最大值 - 最小值 + 1」算，不是 MAX 本身
+      expect(max - min + 1).toBeLessThanOrEqual(RATING_SCALE.MAX - RATING_SCALE.MIN + 1);
     }
   });
 });

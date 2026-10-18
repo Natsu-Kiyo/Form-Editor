@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { AlertCircleIcon, CheckIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { RATING_SCALE } from '@/config/constants';
+import { RATING_SCALE, ratingBounds } from '@/config/constants';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 import { cn } from '@/utils/cn';
 
@@ -619,8 +619,14 @@ function AnswerControl({
       );
 
     case 'RATING': {
-      const min = question.min ?? RATING_SCALE.MIN;
-      const max = Math.min(question.max ?? 5, RATING_SCALE.MAX);
+      /*
+       * 与校验、统计**同一个收敛函数**（审查 #3）。以前这里读原始 `config.min/max`：
+       * NPS 模板（0–10）会画出 0，而服务端按 1–10 校验 —— 选 0 的必答题被判「没作答」。
+       */
+      const { min, max } = ratingBounds({
+        min: question.min ?? undefined,
+        max: question.max ?? undefined,
+      });
       const scores = Array.from({ length: Math.max(0, max - min + 1) }, (_, i) => min + i);
 
       return (

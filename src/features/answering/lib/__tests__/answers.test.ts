@@ -78,6 +78,15 @@ describe('parseAnswers', () => {
     if (result.ok) expect(result.answers[0]!.value).toBe(7);
   });
 
+  it('下限为 0 时 0 分是合法答案（NPS 模板，审查 #3）', () => {
+    const result = parseAnswers([build({ type: 'RATING', required: true, min: 0, max: 10 })], {
+      q1: 0,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.answers[0]!.value).toBe(0);
+  });
+
   it('填空超过长度上限时截断而不是丢掉（用户的输入不该因为一个上限被扔）', () => {
     const result = parseAnswers([build({ type: 'LONG_TEXT', maxLength: 5 })], {
       q1: '一二三四五六七',

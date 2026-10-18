@@ -220,23 +220,33 @@ export function matrixColumns(config: Record<string, unknown>) {
 }
 
 /**
- * 评分题的刻度上限与每行个数。
+ * 评分题的刻度范围与每行个数。
+ *
+ * **下限 0**（审查 #3）：NPS（净推荐值）的标准刻度就是 0–10，官方模板里那道题
+ * 不能砍掉 0 分。以前这里是 1，于是出现了最糟的一种不一致 ——
+ * 作答端按原始 config 画出 0–10、服务端按 1–10 校验：选 0 的必答题被判「没作答」，
+ * 选填题则静默丢分。下限只约束「能有多低」，**默认值仍是 1**（见 `RATING_DEFAULT`）。
  *
  * 上限 10：再多就会在画布上挤成一排被压扁的窄框（实测 17 个 40px 方块直接溢出卡片）。
  * 每行 5 个：6–10 分排成两行，仍然一眼看得完。
  */
-export const RATING_SCALE = { MIN: 1, MAX: 10, PER_ROW: 5 } as const;
+export const RATING_SCALE = { MIN: 0, MAX: 10, PER_ROW: 5 } as const;
+
+/** 没写过 config 的评分题按 1–5（与编辑器新建时给的一致，不会平白多出一个 0） */
+export const RATING_DEFAULT = { MIN: 1, MAX: 5 } as const;
 
 /**
  * 评分题的分值范围，**已按上限收敛**。
  *
- * 界面、题目摘要都从这里取，避免出现「摘要写 1–17、刻度只画 10 个」这种自相矛盾。
+ * 界面、题目摘要、作答端、服务端校验与统计**都从这里取** —— 五处各读一次原始
+ * `config.min/max` 就会出现「按钮画 0–10、校验按 1–10、统计只算 1–10」（审查 #3）。
+ *
  * 库里可能残留过大的历史值（上限规则是后加的），这里统一收敛而**不做数据迁移**：
  * 数据只在下次保存时按新规则落库，展示层任何时候都是对的。
  */
 export function ratingBounds(config: Record<string, unknown>) {
-  const rawMin = typeof config.min === 'number' ? config.min : RATING_SCALE.MIN;
-  const rawMax = typeof config.max === 'number' ? config.max : 5;
+  const rawMin = typeof config.min === 'number' ? config.min : RATING_DEFAULT.MIN;
+  const rawMax = typeof config.max === 'number' ? config.max : RATING_DEFAULT.MAX;
 
   const min = Math.min(Math.max(rawMin, RATING_SCALE.MIN), RATING_SCALE.MAX - 1);
   const max = Math.min(Math.max(rawMax, min + 1), RATING_SCALE.MAX);
