@@ -103,17 +103,25 @@ export function MembersPanel({
         return;
       }
 
-      // 拿到 token 之后的失败只可能是剪贴板（安全上下文）—— 与下面的 catch 同一句说明
-      await navigator.clipboard.writeText(`${window.location.origin}/invite/${result.token}`);
-      toast({ title: '邀请链接已复制', description: invitation.email, variant: 'success' });
-    } catch {
       /*
-       * 剪贴板只在安全上下文（https / localhost）可用，失败**必须说出来** ——
-       * 静默无反应的按钮和假入口没有区别（与 `CopyButton` 同一条理由）。
+       * 剪贴板单独一层 catch：它失败的原因（非安全上下文 / 权限被拒）
+       * 与「取 token 失败」（网络、会话过期）是两件事 —— 混成一句会让用户去查错的方向。
+       * 两种失败都必须**说出来**：静默无反应的按钮和假入口没有区别（与 `CopyButton` 同一条理由）。
        */
+      try {
+        await navigator.clipboard.writeText(`${window.location.origin}/invite/${result.token}`);
+        toast({ title: '邀请链接已复制', description: invitation.email, variant: 'success' });
+      } catch {
+        toast({
+          title: '复制失败',
+          description: '浏览器拒绝了剪贴板访问，请手动选中复制',
+          variant: 'error',
+        });
+      }
+    } catch {
       toast({
-        title: '复制失败',
-        description: '浏览器拒绝了剪贴板访问，请手动选中复制',
+        title: '没能取到邀请链接',
+        description: '请求失败，请检查网络后重试',
         variant: 'error',
       });
     } finally {
