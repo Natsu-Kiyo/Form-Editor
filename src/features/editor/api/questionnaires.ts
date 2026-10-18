@@ -11,6 +11,7 @@ import {
   type QuestionType,
   type ShowIf,
 } from '@/config/constants';
+import { readQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
 
 /** 编辑器可用的题型 = 全部 8 个（R62 矩阵开放后不再有补集） */
@@ -110,6 +111,9 @@ function parseConfig(raw: unknown, type: EditableQuestionType): QuestionConfig {
 /** 编辑器需要的全部数据。`cache` 让 layout 与 page 在同一请求里只查一次 */
 export const getEditorQuestionnaire = cache(
   async (questionnaireId: string): Promise<EditorQuestionnaire | null> => {
+    // 数据函数自己断言（审查 #14）：题目结构是整份问卷最敏感的一份拷贝
+    if (!(await readQuestionnaireAccess(questionnaireId))) return null;
+
     const row = await prisma.questionnaire.findUnique({
       where: { id: questionnaireId },
       select: {

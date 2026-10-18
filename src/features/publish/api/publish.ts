@@ -6,8 +6,8 @@ import {
   type IdentityMode,
   type QuestionnaireStatus,
   type QuestionType,
-  type Role,
 } from '@/config/constants';
+import { readQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
 import { formatDateTimeLocal } from '@/utils/format';
 
@@ -64,10 +64,15 @@ function stamp(date: Date | null) {
   return date ? formatDateTimeLocal(date).replace('T', ' ') : null;
 }
 
-export async function getPublishPageData(
-  questionnaireId: string,
-  viewerRole: Role,
-): Promise<PublishPageData | null> {
+export async function getPublishPageData(questionnaireId: string): Promise<PublishPageData | null> {
+  /*
+   * 数据函数自己断言（审查 #14），并**从断言里拿角色**：
+   * 口令原文只给管理员（审查 #11），这个判断不该依赖调用方传进来的角色
+   * —— 传错一个参数就会把口令发出去。
+   */
+  const access = await readQuestionnaireAccess(questionnaireId);
+  if (!access) return null;
+
   const row = await prisma.questionnaire.findUnique({
     where: { id: questionnaireId },
     select: {
@@ -112,7 +117,7 @@ export async function getPublishPageData(
     responseLimit: row.responseLimit === null ? '' : String(row.responseLimit),
     identityMode: row.identityMode as IdentityMode,
     // 口令原文只给管理员（审查 #11）；查看者拿到的是「有没有设」这个事实
-    accessPassword: hasAtLeastRole(viewerRole, 'ADMIN') ? row.accessPassword : null,
+    accessPassword: hasAtLeastRole(access.role, 'ADMIN') ? row.accessPassword : null,
     hasPassword: row.accessPassword !== null,
     publishedAtLabel: stamp(row.publishedAt),
     closedAtLabel: stamp(row.closedAt),

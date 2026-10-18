@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { matrixColumns, type QuestionType, type TrendGranularity } from '@/config/constants';
+import { readQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
 import { formatDateTimeLocal } from '@/utils/format';
 
@@ -53,6 +54,12 @@ export async function getAnalyticsData(
   questionnaireId: string,
   filter: AnalyticsFilter,
 ): Promise<AnalyticsData | null> {
+  /*
+   * 数据函数自己断言（审查 #14）。统计页与「导出 CSV」共用这条路径，
+   * 以后新增一个导出接口直接调它时，这里就是唯一的门。
+   */
+  if (!(await readQuestionnaireAccess(questionnaireId))) return null;
+
   // 渠道下拉的括号数字要跟「回收份数」同一个区间 —— 先算好边界，下面两处查询共用
   const bounds = filterBounds(filter);
 

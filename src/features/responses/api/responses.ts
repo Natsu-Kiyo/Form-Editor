@@ -7,6 +7,7 @@ import {
   type QuestionType,
   type ResponsesPageSize,
 } from '@/config/constants';
+import { readQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
 import { formatDurationMs, formatShortDateTime } from '@/utils/format';
 
@@ -66,6 +67,13 @@ export async function getResponsesPage(
   questionnaireId: string,
   query: ResponsesQuery,
 ): Promise<ResponsesPageData | null> {
+  /*
+   * 数据函数**自己断言**（审查 #14）：不依赖调用页面先查过。
+   * 以后新增一个 Route Handler 直接调它（导出、webhook）时，这里就是唯一的门。
+   * `readQuestionnaireAccess` 与页面的那次调用同键（带 `cache`），不会多查一次库。
+   */
+  if (!(await readQuestionnaireAccess(questionnaireId))) return null;
+
   const where = {
     questionnaireId,
     ...(query.channelId ? { channelId: query.channelId } : {}),
@@ -226,6 +234,8 @@ export async function getResponseDetail(
   responseId: string,
 ): Promise<ResponseDetail | null> {
   if (!responseId) return null;
+  // 同样自己断言（审查 #14）：答卷详情里有作答原文，不能只靠页面那一道
+  if (!(await readQuestionnaireAccess(questionnaireId))) return null;
 
   const response = await prisma.response.findFirst({
     where: { id: responseId, questionnaireId },

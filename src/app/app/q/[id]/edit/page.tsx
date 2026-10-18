@@ -25,14 +25,13 @@ export default async function EditQuestionnairePage({
 }) {
   const { id } = await params;
 
-  // 先取角色：发布数据里的口令原文只下发给管理员（审查 #11）
-  const { role } = await requireQuestionnaireAccess(id, 'VIEWER');
-
-  const [editor, versions, publishData] = await Promise.all([
+  const [{ role }, editor, versions, publishData] = await Promise.all([
+    requireQuestionnaireAccess(id, 'VIEWER'),
     getEditorQuestionnaire(id),
     listVersions(id),
-    // 窄屏的「发布」要开 P08-d 弹层，所以这份数据在这一页就取好
-    getPublishPageData(id, role),
+    // 窄屏的「发布」要开 P08-d 弹层，所以这份数据在这一页就取好。
+    // 口令原文的可见性与权限断言都在数据函数内部（审查 #11 / #14）
+    getPublishPageData(id),
   ]);
 
   if (!editor) {

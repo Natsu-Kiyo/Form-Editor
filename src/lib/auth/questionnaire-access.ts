@@ -44,6 +44,31 @@ export const requireQuestionnaireAccess = cache(
 );
 
 /**
+ * 数据函数用的「读守卫」（审查 #14）。
+ *
+ * 为什么需要另一个入口：`requireQuestionnaireAccess` 失败时**抛异常**（页面与 action 用），
+ * 而各数据函数的既有约定是「不存在就返回 null，让页面 `notFound()`」。
+ * 这里把两种失败都收成 null —— 不存在与无权对外是同一件事，
+ * 不该从状态码里区分出「这份问卷存在，只是你没权限」。真正的异常（数据库挂了）仍向上抛。
+ *
+ * 带 `cache` 的那份与页面调用同键（`id` + `VIEWER`），同一个请求里不会多查一次库。
+ */
+export async function readQuestionnaireAccess(questionnaireId: string, min: Role = 'VIEWER') {
+  try {
+    return await requireQuestionnaireAccess(questionnaireId, min);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === 'NOT_FOUND' || error.message === 'FORBIDDEN')
+    ) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+/**
  * 结构改动的额外前置：**只有草稿能改题目结构**。
  *
  * 这是全站最硬的一条业务规则（docs/PLAN.md §9.1 第 1 条「发布即冻结」）：

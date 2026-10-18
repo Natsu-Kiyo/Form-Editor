@@ -21,9 +21,11 @@ export default async function PublishQuestionnairePage({
 }) {
   const { id } = await params;
 
-  // 先取角色再取数据：口令原文只下发给管理员（审查 #11），查询需要知道看的人是谁
-  const { role } = await requireQuestionnaireAccess(id, 'VIEWER');
-  const data = await getPublishPageData(id, role);
+  const [{ role }, data] = await Promise.all([
+    requireQuestionnaireAccess(id, 'VIEWER'),
+    // 角色由数据函数自己断言（审查 #14），口令原文的可见性也在那里决定（审查 #11）
+    getPublishPageData(id),
+  ]);
 
   if (!data) notFound();
 

@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { CloseReason, IdentityMode, QuestionnaireStatus } from '@/config/constants';
+import { readQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
 import { daysUntil, displayDayStart, formatDateTimeLocal } from '@/utils/format';
 
@@ -55,6 +56,9 @@ function stamp(date: Date | null) {
 }
 
 export async function getSharePageData(questionnaireId: string): Promise<SharePageData | null> {
+  // 数据函数自己断言（审查 #14）：分享页里有渠道与二维码，不能只靠页面那道
+  if (!(await readQuestionnaireAccess(questionnaireId))) return null;
+
   const row = await prisma.questionnaire.findUnique({
     where: { id: questionnaireId },
     select: {
