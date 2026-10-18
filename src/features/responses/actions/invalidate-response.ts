@@ -46,7 +46,17 @@ export async function setResponseValidityAction(input: unknown): Promise<Respons
   // —— 抛出去调用侧只会卡住且不说明原因（理由同 `manage-member.ts`）
   if (!response) return { ok: false, message: '这份答卷已不存在，刷新后再试' };
 
-  const { user } = await requireQuestionnaireAccess(response.questionnaireId, 'EDITOR');
+  const access = await requireQuestionnaireAccess(response.questionnaireId, 'EDITOR');
+
+  /*
+   * 归档是「数据只读保留」（审查 #12）：归档之后不该还能把答卷标无效 / 恢复 ——
+   * 那会改变已归档问卷的统计口径，而界面早已按只读渲染。
+   */
+  if (access.questionnaire.status === 'ARCHIVED') {
+    return { ok: false, message: '已归档的问卷不能修改答卷状态，请先恢复它' };
+  }
+
+  const { user } = access;
 
   // 已经是目标状态：不写库、也不记日志
   if ((response.status === 'INVALID') === invalid) return { ok: true };

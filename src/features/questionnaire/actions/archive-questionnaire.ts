@@ -11,6 +11,9 @@ import { writeOperationLog } from '@/lib/operation-log';
 export async function archiveQuestionnaireAction(questionnaireId: string) {
   const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'ADMIN');
 
+  // 已归档就不再做一次：重复调用会把 `archivedAt` 刷新、并在审计里多记一条（审查 #12）
+  if (questionnaire.status === 'ARCHIVED') return;
+
   await setQuestionnaireStatus(questionnaireId, {
     status: 'ARCHIVED',
     archivedAt: new Date(),
@@ -38,6 +41,15 @@ export async function archiveQuestionnaireAction(questionnaireId: string) {
  */
 export async function restoreQuestionnaireAction(questionnaireId: string) {
   const { user, questionnaire } = await requireQuestionnaireAccess(questionnaireId, 'ADMIN');
+
+  /*
+   * 只有归档中的问卷才谈得上「恢复」（审查 #12）。
+   *
+   * 少了这一条，直接调这个 action（陈旧页面 / 伪造请求）会把一份**正在回收**的问卷
+   * 静默改成「已截止」：绕过截止的二次确认、丢掉 `closeReason`，日志还记成「恢复归档」。
+   * 不是归档态时直接返回 —— 界面上这个按钮也只在归档卡片上出现。
+   */
+  if (questionnaire.status !== 'ARCHIVED') return;
 
   await setQuestionnaireStatus(questionnaireId, {
     status: questionnaire.publishedAt ? 'CLOSED' : 'DRAFT',
