@@ -198,6 +198,15 @@ export function EditorDraftProvider({
   const [state, setState] = useState<SaveState>(readOnly ? 'blocked' : 'idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  /**
+   * 「草稿改过几次」的单调计数（审查 #5）。
+   *
+   * 保存是异步的：快照发出去之后输入框仍然可编辑。请求回来时若这个数变了，
+   * 说明等待期间又改了东西 —— 那几笔**不在**刚存下去的 payload 里，
+   * 这时清 dirty 就等于把它们伪装成「已保存」，离开拦截也会随之失效。
+   */
+  const revisionRef = useRef(0);
+
   // 放进 ref 是为了让 save 不必依赖整个 questions 数组 ——
   // 否则每敲一个字都会重建 save 回调（连带重建 context value、重渲染全部消费者）。
   // 同步放在 effect 里：渲染期写 ref 会触发「Cannot access refs during render」，
@@ -232,6 +241,7 @@ export function EditorDraftProvider({
        * 「界面写着有条件的，存下去是无条件」）。
        */
       setQuestions((list) => settleShowIf(updater(list)));
+      revisionRef.current += 1;
       setDirty(true);
       clearSaveError();
     },
@@ -291,14 +301,24 @@ export function EditorDraftProvider({
      * 「保存并离开」得知道存没存上才决定走不走（R91 · S4）。
      * 等待期的样子由 `state === 'saving'` 表达（顶栏读的就是它），不依赖 transition 的 pending。
      */
+    // 发请求这一刻的版本号：返回后只有「还是这一版」才配宣布已保存（审查 #5）
+    const revisionAtSave = revisionRef.current;
+
     try {
       const result = await saveEditorDraftAction(questionnaireId, payload);
 
       if (result.ok) {
-        setDirty(false);
+        /*
+         * 等待期间的修改**不在**刚存下去的 payload 里。若仍然清掉 dirty，
+         * 顶栏会显示「已保存」、离开拦截也会放行，那几笔改动静默丢失。
+         * 保持 dirty 并返回 false：弹层不关、用户可以再存一次（Ctrl+S 也一样）。
+         */
+        const unchanged = revisionRef.current === revisionAtSave;
+
+        if (unchanged) setDirty(false);
         setState('idle');
 
-        return true;
+        return unchanged;
       }
 
       setErrorMessage(result.message);
@@ -351,11 +371,13 @@ export function EditorDraftProvider({
       errorMessage,
       setTitle: (next) => {
         setTitleState(next);
+        revisionRef.current += 1;
         setDirty(true);
         clearSaveError();
       },
       setIntro: (next) => {
         setIntroState(next);
+        revisionRef.current += 1;
         setDirty(true);
         clearSaveError();
       },
