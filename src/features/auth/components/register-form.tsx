@@ -14,8 +14,10 @@ import { AuthAlert } from './auth-alert';
 import { FieldError } from './field-error';
 import { PasswordField } from './password-field';
 
-export function RegisterForm() {
+export function RegisterForm({ nextPath }: { nextPath?: string }) {
   const [state, formAction, pending] = useActionState(registerAction, EMPTY_FORM_STATE);
+  // 登录页带过来的回跳地址：注册成功后回到它（审查 #8）
+  const nextQuery = nextPath ? `?next=${encodeURIComponent(nextPath)}` : '';
 
   return (
     <div>
@@ -23,6 +25,8 @@ export function RegisterForm() {
       <p className="text-body-s text-ink-500 mt-1.5 mb-8">注册后会自动为你开一个工作区</p>
 
       <form action={formAction} className="space-y-4" noValidate>
+        {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
+
         <div>
           <Label htmlFor="name">姓名</Label>
           <Input
@@ -87,7 +91,10 @@ export function RegisterForm() {
 
       <p className="text-label text-ink-500 mt-5 text-center">
         已有账号？
-        <Link href="/login" className="text-brand-500 hover:text-brand-600 font-medium">
+        <Link
+          href={`/login${nextQuery}`}
+          className="text-brand-500 hover:text-brand-600 font-medium"
+        >
           去登录
         </Link>
       </p>

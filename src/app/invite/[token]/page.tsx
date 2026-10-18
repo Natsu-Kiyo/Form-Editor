@@ -24,7 +24,8 @@ export const metadata: Metadata = { title: '加入工作区' };
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const user = await requireUser();
+  // 显式点名回到这一页：邀请链接是「点开就要接着走完」的一条流程（审查 #8）
+  const user = await requireUser(`/invite/${token}`);
   const invitation = await getInvitationByToken(token);
 
   if (!invitation) notFound();

@@ -10,6 +10,7 @@ import { clientIp } from '@/lib/request-ip';
 import type { FormState } from '@/types/form-state';
 import { toFieldErrors } from '@/utils/zod-errors';
 
+import { safeNextPath } from '../lib/next-path';
 import { registerSchema } from '../schemas/credentials';
 
 /**
@@ -83,5 +84,10 @@ export async function registerAction(
     userAgent: (await headers()).get('user-agent') ?? undefined,
   });
 
-  redirect('/app');
+  /*
+   * 带着 `next` 走（审查 #8）：被邀请的人往往**还没有账号** ——
+   * 他从邀请链接被送到登录页、再点「注册」，如果这里固定跳 `/app`，
+   * 那条邀请链接就丢了，他得回去翻聊天记录找一遍。
+   */
+  redirect(safeNextPath(formData.get('next')));
 }

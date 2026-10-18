@@ -11,6 +11,7 @@ import { clientIp } from '@/lib/request-ip';
 import type { FormState } from '@/types/form-state';
 import { toFieldErrors } from '@/utils/zod-errors';
 
+import { safeNextPath } from '../lib/next-path';
 import { loginSchema } from '../schemas/credentials';
 
 /**
@@ -33,13 +34,6 @@ const limiter = createRateLimiter({ limit: LOGIN_LIMIT, windowMs: LOGIN_WINDOW_M
  */
 const DUMMY_HASH =
   '$argon2id$v=19$m=19456,t=2,p=1$HEHQVqFgYEvErODnekBtmQ$ezWrnnt/SEHAAFX86pUZAbVEUPU/9R2YRNEbAr4m3tA';
-
-/** 只接受站内相对路径，避免被构造成开放重定向 */
-function safeNextPath(value: FormDataEntryValue | null) {
-  if (typeof value !== 'string') return '/app';
-  if (!value.startsWith('/') || value.startsWith('//')) return '/app';
-  return value;
-}
 
 export async function loginAction(_prevState: FormState, formData: FormData): Promise<FormState> {
   const parsed = loginSchema.safeParse({

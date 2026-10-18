@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
 
@@ -53,13 +54,32 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
 });
 
 /**
- * 需要登录时用它：未登录直接跳登录页。
+ * 未登录时该回到哪里（审查 #8）。
+ *
+ * 优先用调用方点名的地址（邀请页要回到 `/invite/<token>`）；
+ * 否则用 proxy 注入的 `x-pathname` —— 那一份带着查询串，
+ * 于是「会话过期后访问深层页」登录回来仍在原页，而不是掉到列表。
+ *
+ * proxy 只覆盖 `/app` 与 `/invite`，其余入口（Route Handler / action）没有这个头，
+ * 回落到 `/app`。
+ */
+async function returnPath(explicit?: string) {
+  if (explicit) return explicit;
+
+  const headerList = await headers();
+
+  return headerList.get('x-pathname') ?? '/app';
+}
+
+/**
+ * 需要登录时用它：未登录直接跳登录页，并带上**回到这里的路径**。
  * 返回非空用户，调用方不必再判空。
  */
-export const requireUser = cache(async (): Promise<SessionUser> => {
+export const requireUser = cache(async (returnTo?: string): Promise<SessionUser> => {
   const user = await getCurrentUser();
   if (!user) {
-    redirect('/login');
+    // 只接受站内相对路径（登录 action 里还会再校验一次，那里是开放重定向的最后一道闸）
+    redirect(`/login?next=${encodeURIComponent(await returnPath(returnTo))}`);
   }
   return user;
 });

@@ -24,6 +24,28 @@ test('未登录访问管理台会被拦到登录页', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible();
 });
 
+/**
+ * 邀请链接的登录回跳（审查 #8）。
+ *
+ * 刻意用一条**不存在的 token**：这里验的是「回跳地址有没有带上」，而不是邀请本身。
+ * 真实 token 会被别的用例接受掉（接受之后就不存在了），拿它做断言会互相踩。
+ * 落地后是 404 页，但 **URL 停在 `/invite/…`** 就说明没有掉回 `/app`。
+ */
+test('未登录打开邀请链接：登录后回到邀请页而不是 /app', async ({ page }) => {
+  const token = 'e2e-redirect-probe';
+
+  await page.goto(`/invite/${token}`);
+
+  // proxy 在 Cookie 缺失时先拦，next 必须是这条邀请路径（斜杠会被编码）
+  await expect(page).toHaveURL(new RegExp(`/login\\?next=%2Finvite%2F${token}$`));
+
+  await page.getByLabel('邮箱', { exact: true }).fill(DEMO_ACCOUNTS.owner.email);
+  await page.getByLabel('密码', { exact: true }).fill(DEMO_ACCOUNTS.owner.password);
+  await page.getByRole('button', { name: '登录' }).click();
+
+  await expect(page).toHaveURL(new RegExp(`/invite/${token}$`));
+});
+
 test('演示账号可以登录并进入管理台', async ({ page }) => {
   await page.goto('/login');
 

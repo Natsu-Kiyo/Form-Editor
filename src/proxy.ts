@@ -8,7 +8,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 const SESSION_COOKIE = 'qw_session';
 
 // `/app/me` 由 `/app` 这个前缀覆盖，**不要再单独列**（列了也没有对应路由，只会误导读的人）
-const PROTECTED_PREFIXES = ['/app'];
+//
+// `/invite` 也在这里（审查 #8）：邀请链接是最需要「登录后回到原处」的一条 ——
+// 它不在这个列表里时，未登录访客会被页面的 `requireUser` 送去登录，
+// 而 proxy 不注入路径，登录回来就落到 `/app`，链接等于丢了。
+const PROTECTED_PREFIXES = ['/app', '/invite'];
 
 /**
  * 乐观鉴权（Next 16 起 Middleware 更名为 Proxy）。
@@ -41,15 +45,26 @@ export function proxy(request: NextRequest) {
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 
+  // 带上查询串：被拦下的可能是「筛到第 3 页」这种地址，回跳时不该丢掉条件
+  const pathWithSearch = `${pathname}${request.nextUrl.search}`;
+
   if (isProtected && !hasSessionCookie) {
     const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('next', pathname);
+    loginUrl.searchParams.set('next', pathWithSearch);
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  /*
+   * 把当前路径交给服务端（审查 #8）。proxy 不查库，所以「Cookie 在、会话已过期」
+   * 这一种它拦不住 —— 那一步是页面里的 `requireUser` 做最后判断，而它需要知道
+   * 用户原本想去哪。没有这个头时，登录回来只能落到 `/app`。
+   */
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', pathWithSearch);
+
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
-  matcher: ['/app/:path*'],
+  matcher: ['/app/:path*', '/invite/:path*'],
 };

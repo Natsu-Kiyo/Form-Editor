@@ -17,6 +17,8 @@ import { PasswordField } from './password-field';
 
 export function LoginForm({ nextPath }: { nextPath?: string }) {
   const [state, formAction, pending] = useActionState(loginAction, EMPTY_FORM_STATE);
+  // 「立即注册」也要把回跳带上：被邀请的人常常是先注册（审查 #8）
+  const nextQuery = nextPath ? `?next=${encodeURIComponent(nextPath)}` : '';
 
   return (
     <div>
@@ -69,7 +71,10 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
 
       <p className="text-label text-ink-500 mt-5 text-center">
         还没有账号？
-        <Link href="/register" className="text-brand-500 hover:text-brand-600 font-medium">
+        <Link
+          href={`/register${nextQuery}`}
+          className="text-brand-500 hover:text-brand-600 font-medium"
+        >
           立即注册
         </Link>
       </p>
