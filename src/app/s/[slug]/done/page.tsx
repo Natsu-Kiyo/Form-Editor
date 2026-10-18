@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { CheckCircleIcon } from '@/components/icons/ui-icons';
 import { Button } from '@/components/ui/button';
 import { getSubmittedResponse } from '@/features/answering/api/public-questionnaire';
+import { firstParam } from '@/utils/search-params';
 
 export const metadata: Metadata = { title: '提交成功' };
 
@@ -24,10 +25,12 @@ export default async function SubmittedPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ r?: string }>;
+  // `?r=a&r=b` 会把数组直接交给 findFirst（审查 #6）
+  searchParams: Promise<{ r?: string | string[] }>;
 }) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
-  const response = query.r ? await getSubmittedResponse(slug, query.r) : null;
+  const responseId = firstParam(query.r);
+  const response = responseId ? await getSubmittedResponse(slug, responseId) : null;
 
   if (!response) notFound();
 

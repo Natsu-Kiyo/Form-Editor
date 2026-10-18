@@ -9,6 +9,7 @@ import {
 import { ResponsesPanel } from '@/features/responses/components/responses-panel';
 import { hasAtLeastRole } from '@/lib/auth/permissions';
 import { requireQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
+import { firstParam } from '@/utils/search-params';
 
 export const metadata: Metadata = { title: '答卷明细' };
 
@@ -25,29 +26,36 @@ export default async function ResponsesPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
+  /*
+   * 每个值都可能是数组（`?q=a&q=b`，审查 #6）：统一过 `firstParam` 再进业务。
+   * 否则 `q.trim()` 会抛 TypeError，channel / selected 还会被直接传进 Prisma。
+   */
   searchParams: Promise<{
-    q?: string;
-    channel?: string;
-    invalid?: string;
-    page?: string;
-    size?: string;
-    selected?: string;
+    q?: string | string[];
+    channel?: string | string[];
+    invalid?: string | string[];
+    page?: string | string[];
+    size?: string | string[];
+    selected?: string | string[];
   }>;
 }) {
   const [{ id }, query] = await Promise.all([params, searchParams]);
 
-  const channelId = query.channel && query.channel.length <= 40 ? query.channel : null;
-  const search = query.q && query.q.trim() ? query.q.trim().slice(0, 60) : null;
+  const channel = firstParam(query.channel);
+  const q = firstParam(query.q);
+
+  const channelId = channel && channel.length <= 40 ? channel : null;
+  const search = q?.trim() ? q.trim().slice(0, 60) : null;
   // 默认**显示**无效答卷（勾选框默认勾上）：刚标完无效的那份还留在表里，
   // 人才不会以为它被删了。`?invalid=hide` 才收起它们
-  const includeInvalid = query.invalid !== 'hide';
-  const page = Math.max(1, Number.parseInt(query.page ?? '1', 10) || 1);
-  const pageSize = parseResponsesPageSize(query.size);
+  const includeInvalid = firstParam(query.invalid) !== 'hide';
+  const page = Math.max(1, Number.parseInt(firstParam(query.page) ?? '1', 10) || 1);
+  const pageSize = parseResponsesPageSize(firstParam(query.size));
 
   const [{ role }, data, detail] = await Promise.all([
     requireQuestionnaireAccess(id, 'VIEWER'),
     getResponsesPage(id, { channelId, search, includeInvalid, page, pageSize }),
-    getResponseDetail(id, query.selected ?? ''),
+    getResponseDetail(id, firstParam(query.selected) ?? ''),
   ]);
 
   if (!data) notFound();

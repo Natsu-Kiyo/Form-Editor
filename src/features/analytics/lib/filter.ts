@@ -1,4 +1,5 @@
 import { parseDisplayDate } from '@/utils/format';
+import { firstParam } from '@/utils/search-params';
 
 /**
  * 统计页的筛选条件。
@@ -18,20 +19,28 @@ export type AnalyticsFilter = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * 值可能是数组（`?from=a&from=b`，审查 #6）：解析入口统一过 `firstParam`，
+ * 于是「重复参数」在最外层就被收敛成一个值，不会传进 SQL。
+ */
 export type AnalyticsFilterQuery = {
-  channel?: string;
-  from?: string;
-  to?: string;
+  channel?: string | string[];
+  from?: string | string[];
+  to?: string | string[];
 };
 
 export function parseAnalyticsFilter(query: AnalyticsFilterQuery): AnalyticsFilter {
+  const channel = firstParam(query.channel);
+  const from = firstParam(query.from);
+  const to = firstParam(query.to);
+
   return {
     // 渠道 id 是 cuid，40 这个上限只是为了让手改的参数进不了查询
-    channelId: query.channel && query.channel.length <= 40 ? query.channel : null,
+    channelId: channel && channel.length <= 40 ? channel : null,
     // 解析不出来（`2026-02-31`、`乱写`）就当没传：静默回落到「不限」，
     // 而不是把非法值传进 SQL 或让整页报错
-    from: query.from ? parseDisplayDate(query.from) : null,
-    to: query.to ? parseDisplayDate(query.to) : null,
+    from: from ? parseDisplayDate(from) : null,
+    to: to ? parseDisplayDate(to) : null,
   };
 }
 

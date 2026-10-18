@@ -18,7 +18,12 @@ export const metadata: Metadata = { title: '操作日志' };
 export default async function LogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ actor?: string; group?: string; days?: string }>;
+  // 值可能是数组（`?actor=a&actor=b`）；解析函数里统一收敛（审查 #6）
+  searchParams: Promise<{
+    actor?: string | string[];
+    group?: string | string[];
+    days?: string | string[];
+  }>;
 }) {
   const [{ workspace }, query] = await Promise.all([
     // 不在工作区里的人根本进不来

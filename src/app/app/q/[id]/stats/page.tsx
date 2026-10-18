@@ -21,7 +21,12 @@ export default async function StatsPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ channel?: string; from?: string; to?: string }>;
+  // 值可能是数组（`?from=a&from=b`）；解析函数里统一收敛（审查 #6）
+  searchParams: Promise<{
+    channel?: string | string[];
+    from?: string | string[];
+    to?: string | string[];
+  }>;
 }) {
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const filter = parseAnalyticsFilter(query);

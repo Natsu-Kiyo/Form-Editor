@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 
 import { Button } from '@/components/ui/button';
 import { IDENTITY_MODE_LABEL } from '@/config/constants';
@@ -15,6 +15,7 @@ import { UnavailableState } from '@/features/answering/components/unavailable-st
 import { buildFingerprint } from '@/features/answering/lib/fingerprint';
 import { isUnlocked } from '@/features/answering/lib/unlock';
 import { getCurrentUser } from '@/lib/auth/dal';
+import { firstParam } from '@/utils/search-params';
 
 export const metadata: Metadata = { title: '填写问卷' };
 
@@ -34,19 +35,17 @@ export default async function PublicQuestionnairePage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ src?: string; embed?: string }>;
+  // 公开页也可能被 `?src=a&src=b` 打到（无需登录），统一收敛（审查 #6）
+  searchParams: Promise<{ src?: string | string[]; embed?: string | string[] }>;
 }) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
-  const [cookieStore, requestHeaders, user] = await Promise.all([
-    cookies(),
-    headers(),
-    getCurrentUser(),
-  ]);
+  const srcToken = firstParam(query.src) ?? null;
+  const [cookieStore, user] = await Promise.all([cookies(), getCurrentUser()]);
 
   const clientId = cookieStore.get('qw_client_id')?.value ?? null;
-  const userAgent = requestHeaders.get('user-agent');
-  // 与提交时用的是同一个函数：页面判「已提交过」与实际拦截的依据必须一致
-  const fingerprint = clientId || userAgent ? buildFingerprint(clientId, userAgent) : null;
+  // 与提交时用的是同一个函数：页面判「已提交过」与实际拦截的依据必须一致。
+  // 只认客户端 id，拿不到就返回 null（不再拿 UA 顶替，审查 #10）
+  const fingerprint = buildFingerprint(clientId);
 
   /*
    * 「要不要先解锁」的判据：口令模式的问卷必须有口令、且已被解开。
@@ -58,11 +57,11 @@ export default async function PublicQuestionnairePage({
 
   const view = await getPublicQuestionnaire(
     slug,
-    { srcToken: query.src ?? null, fingerprint, respondentId: user?.id ?? null },
+    { srcToken, fingerprint, respondentId: user?.id ?? null },
     unlocked,
   );
 
-  const embedded = query.embed === '1';
+  const embedded = firstParam(query.embed) === '1';
 
   // 可作答：表单自带版式（左侧题目 + 右侧题号导航），不套外层的居中卡片
   if (view.state === 'COLLECTING' && !view.locked && !view.needsLogin) {
@@ -84,7 +83,7 @@ export default async function PublicQuestionnairePage({
                 : IDENTITY_MODE_LABEL[view.identityMode].title
           }
           channelName={view.channelName}
-          srcToken={query.src ?? null}
+          srcToken={srcToken}
         />
       </main>
     );

@@ -1,4 +1,5 @@
 import { LOG_RANGE_DAYS, OPERATION_TYPE_GROUP, type OperationTypeGroup } from '@/config/constants';
+import { firstParam } from '@/utils/search-params';
 
 import type { LogRangeDays, LogsQuery } from '../api/logs';
 
@@ -10,18 +11,21 @@ import type { LogRangeDays, LogsQuery } from '../api/logs';
  */
 const GROUPS: string[] = Object.values(OPERATION_TYPE_GROUP);
 
+/** 值可能是数组（`?actor=a&actor=b`，审查 #6）：入口统一过 `firstParam` */
 export function parseLogsQuery(query: {
-  actor?: string;
-  group?: string;
-  days?: string;
+  actor?: string | string[];
+  group?: string | string[];
+  days?: string | string[];
 }): LogsQuery {
-  const days = Number(query.days);
+  const actor = firstParam(query.actor);
+  const group = firstParam(query.group);
+  const days = Number(firstParam(query.days));
   const range = (LOG_RANGE_DAYS as readonly number[]).includes(days) ? (days as LogRangeDays) : 7;
 
   return {
     // 成员 id 是 cuid，40 上限只是为了让手改的参数进不了查询
-    actorId: query.actor && query.actor.length <= 40 ? query.actor : null,
-    group: query.group && GROUPS.includes(query.group) ? (query.group as OperationTypeGroup) : null,
+    actorId: actor && actor.length <= 40 ? actor : null,
+    group: group && GROUPS.includes(group) ? (group as OperationTypeGroup) : null,
     days: range,
   };
 }
