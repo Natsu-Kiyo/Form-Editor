@@ -28,6 +28,22 @@ describe('safeNextPath', () => {
     expect(safeNextPath('/app\nLocation: https://evil.com')).toBe('/app');
   });
 
+  /*
+   * 用户复测（R106）：以前只挡了 `\n` 与 `\r`，**没挡制表符**。
+   * URL 解析器会在解析前把 \t 删掉，于是 `/\t/evil.com` 变成 `//evil.com` → 外站。
+   * 现在控制字符整段拒绝，兜底还有「解析后 origin 必须是我们」这一道。
+   */
+  it('制表符与控制字符一律回落', () => {
+    expect(safeNextPath('/\t/evil.com')).toBe('/app');
+    expect(safeNextPath('/\u0000/evil.com')).toBe('/app');
+    expect(safeNextPath('/app\t')).toBe('/app');
+    expect(safeNextPath('/\r\n/evil.com')).toBe('/app');
+  });
+
+  it('返回的是解析后的地址（怪写法被归一）', () => {
+    expect(safeNextPath('/app/./logs')).toBe('/app/logs');
+  });
+
   it('非字符串与空值回落到 /app', () => {
     expect(safeNextPath(null)).toBe('/app');
     expect(safeNextPath(undefined)).toBe('/app');
