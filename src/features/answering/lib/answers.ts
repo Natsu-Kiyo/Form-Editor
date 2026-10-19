@@ -1,5 +1,6 @@
 import type { QuestionType, ShowIf } from '@/config/constants';
 import { ratingBounds } from '@/config/constants';
+import { isValidDateOnly } from '@/utils/format';
 
 /**
  * 作答值的校验与归一。
@@ -82,8 +83,6 @@ function matchesAny(value: unknown, options: string[]) {
 export type ParsedAnswers =
   | { ok: true; answers: { questionId: string; value: AnswerValue }[] }
   | { ok: false; fieldErrors: Record<string, string> };
-
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /** 一道题「算不算答了」。空字符串、空数组、空对象、undefined 都算没答 */
 export function isAnswered(value: AnswerValue | undefined) {
@@ -191,7 +190,8 @@ function normalize(question: SubmittableQuestion, raw: unknown): AnswerValue | n
     case 'DATE': {
       const text = typeof raw === 'string' ? raw.trim() : '';
 
-      return DATE_PATTERN.test(text) ? text : null;
+      // 形状 + **这一天真实存在**（审查 #16）：`2026-02-31` 原先会被原样存进库
+      return isValidDateOnly(text) ? text : null;
     }
 
     case 'MATRIX': {

@@ -116,9 +116,41 @@ export function parseDateTimeLocal(value: string): Date | null {
   if (!match) return null;
 
   const [, year, month, day, hour, minute] = match.map(Number);
+
+  /*
+   * 正则只保证「形状」，不保证这个时刻存在（审查 #16）：
+   * `Date.UTC` 会把 `2026-02-31` 悄悄滚到 3 月 3 日、`25:00` 滚到次日 1 点。
+   * 这种值只可能来自手改的表单或伪造请求，静默接受等于让「什么时候开始收」变得无法解释。
+   */
+  if (!isRealDate(year, month, day) || hour > 23 || minute > 59) return null;
+
   const guess = Date.UTC(year, month - 1, day, hour, minute);
 
   return new Date(guess - zoneOffsetMinutes(new Date(guess)) * 60_000);
+}
+
+/** 这一天在日历上真实存在（`2026-02-31`、`2026-13-01` 都不算） */
+function isRealDate(year: number, month: number, day: number) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
+/**
+ * 形如 `2026-10-05` 且**这一天真实存在**。
+ *
+ * 供作答端的日期题使用（审查 #16）：那里原先只有正则，
+ * `2026-02-31` 会被原样存进库，导出与统计拿到一个不存在的日期。
+ */
+export function isValidDateOnly(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!match) return false;
+
+  const [, year, month, day] = match.map(Number);
+
+  return isRealDate(year, month, day);
 }
 
 /**
@@ -134,16 +166,11 @@ export function parseDisplayDate(value: string): Date | null {
   if (!match) return null;
 
   const [, year, month, day] = match.map(Number);
+  if (!isRealDate(year, month, day)) return null;
+
   const guess = Date.UTC(year, month - 1, day);
-  const asUtc = new Date(guess);
-  const exists =
-    asUtc.getUTCFullYear() === year &&
-    asUtc.getUTCMonth() === month - 1 &&
-    asUtc.getUTCDate() === day;
 
-  if (!exists) return null;
-
-  return new Date(guess - zoneOffsetMinutes(asUtc) * 60_000);
+  return new Date(guess - zoneOffsetMinutes(new Date(guess)) * 60_000);
 }
 
 /** 形如 `13:42`。操作日志的每条只显示时间（日期由「今天 / 昨天 · …」分组给出） */

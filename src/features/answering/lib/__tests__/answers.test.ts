@@ -103,6 +103,16 @@ describe('parseAnswers', () => {
     expect(parseAnswers([build({ type: 'DATE' })], { q1: '2026-10-20' }).ok).toBe(true);
   });
 
+  it('不存在的日期不算作答（2026-02-31 存不进库，审查 #16）', () => {
+    expect(parseAnswers([build({ type: 'DATE', required: true })], { q1: '2026-02-31' }).ok).toBe(
+      false,
+    );
+    // 选填题：当作没答，不进答案
+    const optional = parseAnswers([build({ type: 'DATE' })], { q1: '2026-02-31' });
+    expect(optional.ok).toBe(true);
+    if (optional.ok) expect(optional.answers).toHaveLength(0);
+  });
+
   it('不认识的问题 id 直接忽略（结构发布后被改过时，多出来的答案不该让整份提交失败）', () => {
     const result = parseAnswers([build()], { q1: '策划部', 已经删除的题: 'x' });
 
