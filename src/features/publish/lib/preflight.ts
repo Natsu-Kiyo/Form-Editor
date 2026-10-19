@@ -1,4 +1,4 @@
-import type { IdentityMode, QuestionType } from '@/config/constants';
+import { QUESTIONNAIRE_LIMITS, type IdentityMode, type QuestionType } from '@/config/constants';
 
 /** 选择题：没有选项就没人能填 */
 const CHOICE_TYPES: readonly QuestionType[] = ['SINGLE', 'MULTI', 'DROPDOWN'];
@@ -123,6 +123,43 @@ export function runPreflight(input: PreflightInput): PreflightResult {
       id: 'zero-max-length',
       tone: 'error',
       text: `有 ${zeroLength} 道填空题的长度上限小于 1，作答内容会被截成空`,
+    });
+  }
+
+  /*
+   * ---- 规模上限（审查 #15）----
+   * 写入侧（schema）已经拦住了新保存；这里兜的是**改动之前就在库里**的超大草稿 ——
+   * 一份 300 题的问卷，发布出去一样会让作答端无法使用。
+   */
+  if (questions.length > QUESTIONNAIRE_LIMITS.MAX_QUESTIONS) {
+    checks.push({
+      id: 'too-many-questions',
+      tone: 'error',
+      text: `题目数量超过上限（${QUESTIONNAIRE_LIMITS.MAX_QUESTIONS} 道）`,
+    });
+  }
+
+  const overLimitChoice = questions.filter(
+    (question) =>
+      CHOICE_TYPES.includes(question.type) &&
+      question.optionCount > QUESTIONNAIRE_LIMITS.MAX_OPTIONS_PER_CHOICE,
+  ).length;
+
+  if (overLimitChoice > 0) {
+    checks.push({
+      id: 'too-many-options',
+      tone: 'error',
+      text: `有 ${overLimitChoice} 道选择题的选项超过 ${QUESTIONNAIRE_LIMITS.MAX_OPTIONS_PER_CHOICE} 个`,
+    });
+  }
+
+  const totalOptions = questions.reduce((sum, question) => sum + question.optionCount, 0);
+
+  if (totalOptions > QUESTIONNAIRE_LIMITS.MAX_OPTIONS_TOTAL) {
+    checks.push({
+      id: 'too-many-options-total',
+      tone: 'error',
+      text: `选项总数 ${totalOptions} 个，超过上限 ${QUESTIONNAIRE_LIMITS.MAX_OPTIONS_TOTAL} 个`,
     });
   }
 

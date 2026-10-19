@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   MATRIX_LIMITS,
   PAYLOAD_LIMITS,
+  QUESTIONNAIRE_LIMITS,
   SHOW_IF_SOURCE_TYPES,
   showIfFrom,
   type QuestionType,
@@ -139,6 +140,18 @@ export const payloadQuestionSchema = z
       });
     }
 
+    // 选项数量上限（审查 #15）：与编辑器「添加」按钮同一个常量
+    if (
+      isChoiceQuestion(question.type) &&
+      question.options.length > QUESTIONNAIRE_LIMITS.MAX_OPTIONS_PER_CHOICE
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['options'],
+        message: `选择题最多 ${QUESTIONNAIRE_LIMITS.MAX_OPTIONS_PER_CHOICE} 个选项`,
+      });
+    }
+
     if (question.type === 'SHORT_TEXT' || question.type === 'LONG_TEXT') {
       const maxLength = question.config?.maxLength;
 
@@ -232,7 +245,9 @@ export const questionnairePayloadSchema = z
       .nullish(),
     questions: z
       .array(payloadQuestionSchema)
-      .max(200, { error: '一份问卷最多 200 道题' })
+      .max(QUESTIONNAIRE_LIMITS.MAX_QUESTIONS, {
+        error: `一份问卷最多 ${QUESTIONNAIRE_LIMITS.MAX_QUESTIONS} 道题`,
+      })
       .default([]),
   })
   /**
@@ -242,6 +257,23 @@ export const questionnairePayloadSchema = z
    * - 引用的选项必须还在（选项被删 / 改名之后，条件会指向空气）。
    */
   .superRefine((payload, ctx) => {
+    /*
+     * 总选项数上限（审查 #15）：单题的上限挡不住「200 题各 10 个选项」这种组合，
+     * 而写入规模 ≈ 题数 × 选项数 —— 跨境库 20 秒的事务里，它是真的会超时的。
+     */
+    const totalOptions = payload.questions.reduce(
+      (sum, question) => sum + question.options.length,
+      0,
+    );
+
+    if (totalOptions > QUESTIONNAIRE_LIMITS.MAX_OPTIONS_TOTAL) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['questions'],
+        message: `单份问卷的选项总数不超过 ${QUESTIONNAIRE_LIMITS.MAX_OPTIONS_TOTAL} 个（当前 ${totalOptions} 个）`,
+      });
+    }
+
     payload.questions.forEach((question, index) => {
       const raw = question.config?.showIf;
       if (raw === undefined || raw === null) return;

@@ -23,7 +23,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { CharCount } from '@/components/ui/char-count';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
-import { PAYLOAD_LIMITS } from '@/config/constants';
+import { PAYLOAD_LIMITS, QUESTIONNAIRE_LIMITS } from '@/config/constants';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 import { cn } from '@/utils/cn';
 
@@ -195,7 +195,11 @@ export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
             与 P08-b「点一个题型」的约定冲突。用 `isDesktop` 而不是 CSS 隐藏：
             隐藏的元素仍在 DOM 里，仍会被读屏与自动化匹配到
           */}
-          {isDesktop && questions.length > 0 && !readOnly ? (
+          {/* 到题数上限就收起入口（审查 #15）：留着也只会得到一句「存不上」 */}
+          {isDesktop &&
+          questions.length > 0 &&
+          questions.length < QUESTIONNAIRE_LIMITS.MAX_QUESTIONS &&
+          !readOnly ? (
             <button
               type="button"
               title="添加一道单选题（其它题型请用左侧「题型」面板）"

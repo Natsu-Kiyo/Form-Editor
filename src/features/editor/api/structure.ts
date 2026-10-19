@@ -2,8 +2,8 @@ import 'server-only';
 
 import { PAYLOAD_LIMITS } from '@/config/constants';
 import { prisma } from '@/lib/db';
-import { toJsonColumn } from '@/lib/json';
 import type { QuestionnairePayload } from '@/lib/questionnaire-structure';
+import { insertQuestionStructure } from '@/lib/question-structure-write';
 
 /**
  * 把一份结构**整份**写进问卷（题目与选项删掉重建）。
@@ -31,28 +31,7 @@ export async function replaceStructure(questionnaireId: string, payload: Questio
 
     await tx.question.deleteMany({ where: { questionnaireId } });
 
-    for (const [index, question] of payload.questions.entries()) {
-      await tx.question.create({
-        data: {
-          questionnaireId,
-          type: question.type,
-          title: question.title,
-          description: question.description ?? null,
-          required: question.required,
-          shuffleOptions: question.shuffleOptions,
-          order: index,
-          pageIndex: question.pageIndex,
-          config: toJsonColumn(question.config),
-          options: question.options.length
-            ? {
-                create: question.options.map((label, optionIndex) => ({
-                  label,
-                  order: optionIndex,
-                })),
-              }
-            : undefined,
-        },
-      });
-    }
+    // 两次往返写完（审查 #15）：题数与选项数都不再影响事务时长
+    await insertQuestionStructure(tx, questionnaireId, payload.questions);
   });
 }

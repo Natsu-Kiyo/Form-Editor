@@ -22,7 +22,7 @@ import { useState } from 'react';
 
 import { GripIcon, PlusIcon, TrashIcon } from '@/components/icons/ui-icons';
 import { CharCount } from '@/components/ui/char-count';
-import { MATRIX_LIMITS, PAYLOAD_LIMITS } from '@/config/constants';
+import { MATRIX_LIMITS, PAYLOAD_LIMITS, QUESTIONNAIRE_LIMITS } from '@/config/constants';
 import { duplicateLabels } from '@/lib/questionnaire-structure';
 import { cn } from '@/utils/cn';
 
@@ -77,8 +77,14 @@ export function OptionEditor({
    */
   const duplicated = duplicateLabels(question.options.map((option) => option.label));
 
-  // 到上限就不给加了 —— 与「删到下限不给删」同一条规矩，比加了再被 schema 拒好
-  const canAdd = !isMatrix || question.options.length < MATRIX_LIMITS.MAX_ROWS;
+  /*
+   * 到上限就不给加了 —— 与「删到下限不给删」同一条规矩，比加了再被 schema 拒好。
+   * 选择题 10 个、矩阵行 10 个（审查 #15），两个上限都来自 constants，与写入闸门同源。
+   */
+  const maxOptions = isMatrix
+    ? MATRIX_LIMITS.MAX_ROWS
+    : QUESTIONNAIRE_LIMITS.MAX_OPTIONS_PER_CHOICE;
+  const canAdd = question.options.length < maxOptions;
   const canDelete = question.options.length > (isMatrix ? MATRIX_LIMITS.MIN_ROWS : 1);
 
   const sensors = useSensors(

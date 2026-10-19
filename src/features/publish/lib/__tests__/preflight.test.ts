@@ -134,6 +134,28 @@ describe('runPreflight', () => {
     ).toContain('zero-max-length');
   });
 
+  it('题数超过 200 时拦住（兜住改动前就在库里的草稿，审查 #15）', () => {
+    const questions = Array.from({ length: 201 }, (_, index) =>
+      question({ title: `第 ${index + 1} 题` }),
+    );
+
+    expect(errorIds(build({ questions }))).toContain('too-many-questions');
+  });
+
+  it('单题选项超过 10 个时拦住', () => {
+    expect(
+      errorIds(build({ questions: [question({ type: 'SINGLE', optionCount: 11 })] })),
+    ).toContain('too-many-options');
+  });
+
+  it('选项总数超过 1000 时拦住', () => {
+    const questions = Array.from({ length: 101 }, (_, index) =>
+      question({ title: `第 ${index + 1} 题`, type: 'SINGLE', optionCount: 10 }),
+    );
+
+    expect(errorIds(build({ questions }))).toContain('too-many-options-total');
+  });
+
   it('不误伤：有选项的选择题、上限为正的填空题照常放行', () => {
     const result = runPreflight(
       build({

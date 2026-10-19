@@ -433,6 +433,72 @@ describe('结构可填性（审查 #4）', () => {
   });
 });
 
+/**
+ * 规模上限（审查 #15）：题数与选项数都不是「想填多少填多少」——
+ * 跨境库的事务时长与写入规模成正比，而作答端也放不下 30 个选项。
+ */
+describe('规模上限（审查 #15）', () => {
+  const buildPayload = (questions: unknown[]) => ({
+    formatVersion: 1 as const,
+    title: '规模检查',
+    questions,
+  });
+
+  const choice = (count: number) => ({
+    type: 'SINGLE',
+    title: '选一个',
+    options: Array.from({ length: count }, (_, index) => `选项 ${index + 1}`),
+  });
+
+  it('选择题选项超过 10 个时拒绝，并说清上限', () => {
+    const result = questionnairePayloadSchema.safeParse(buildPayload([choice(11)]));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.message.includes('最多 10 个选项'))).toBe(
+        true,
+      );
+    }
+  });
+
+  it('恰好 10 个选项照常通过（上限本身是允许的）', () => {
+    expect(questionnairePayloadSchema.safeParse(buildPayload([choice(10)])).success).toBe(true);
+  });
+
+  it('题数超过 200 时拒绝', () => {
+    const questions = Array.from({ length: 201 }, (_, index) => ({
+      type: 'SHORT_TEXT',
+      title: `第 ${index + 1} 题`,
+    }));
+
+    const result = questionnairePayloadSchema.safeParse(buildPayload(questions));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.message.includes('最多 200 道题'))).toBe(
+        true,
+      );
+    }
+  });
+
+  it('选项总数超过 1000 时拒绝（单题上限挡不住这种组合）', () => {
+    // 101 题 × 10 选项 = 1010 个
+    const questions = Array.from({ length: 101 }, (_, index) => ({
+      ...choice(10),
+      title: `第 ${index + 1} 题`,
+    }));
+
+    const result = questionnairePayloadSchema.safeParse(buildPayload(questions));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) => issue.message.includes('选项总数不超过 1000 个')),
+      ).toBe(true);
+    }
+  });
+});
+
 describe('payloadFileName', () => {
   it('把标题里对文件名不友好的字符换成连字符', () => {
     expect(payloadFileName('2026 秋季/社团:招新')).toBe('2026-秋季-社团-招新.json');

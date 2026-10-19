@@ -2,7 +2,7 @@
 
 import { QUESTION_TYPE_ICON } from '@/components/icons/question-type-icons';
 import { PlusIcon } from '@/components/icons/ui-icons';
-import { QUESTION_TYPE_LABEL, type QuestionType } from '@/config/constants';
+import { QUESTIONNAIRE_LIMITS, QUESTION_TYPE_LABEL, type QuestionType } from '@/config/constants';
 import { cn } from '@/utils/cn';
 
 import type { DraftQuestion } from './editor-draft';
@@ -42,13 +42,20 @@ export function EditorLeftPanel({
   const canAddPageBreak =
     !readOnly && questions.length >= 2 && anchor != null && selectedIndex < questions.length - 1;
 
+  /*
+   * 到题数上限就不给加（审查 #15）：以前这条路没有任何拦截，
+   * 编辑器能构建出一份「存不上」的问卷 —— 用户只有在点保存时才知道。
+   * 按钮 disabled 并把原因写在 title 上（与「保存失败」那套反馈同一个口径）。
+   */
+  const atQuestionLimit = questions.length >= QUESTIONNAIRE_LIMITS.MAX_QUESTIONS;
+
   return (
     <aside className="border-ink-200 w-[236px] shrink-0 overflow-y-auto border-r bg-white p-4">
       <div className="text-ink-400 mb-3 text-[11px] font-semibold tracking-wide">题型</div>
 
       <div className="grid grid-cols-2 gap-2">
         {TYPE_ORDER.map((type) => {
-          const disabled = readOnly;
+          const disabled = readOnly || atQuestionLimit;
           const Icon = QUESTION_TYPE_ICON[type];
 
           return (
@@ -56,7 +63,13 @@ export function EditorLeftPanel({
               key={type}
               type="button"
               disabled={disabled}
-              title={readOnly ? '只读状态不能添加题目' : `添加${QUESTION_TYPE_LABEL[type]}题`}
+              title={
+                readOnly
+                  ? '只读状态不能添加题目'
+                  : atQuestionLimit
+                    ? `一份问卷最多 ${QUESTIONNAIRE_LIMITS.MAX_QUESTIONS} 道题`
+                    : `添加${QUESTION_TYPE_LABEL[type]}题`
+              }
               onClick={() => {
                 // 加完立刻选中：用户接着就要改题目文本，不该还要自己去找。
                 // 插在**当前选中那道题之后**（没选中才追加到末尾）

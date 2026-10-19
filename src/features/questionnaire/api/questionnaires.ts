@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 
 import type { QuestionnaireStatus } from '@/config/constants';
 import { prisma } from '@/lib/db';
-import { toJsonColumn } from '@/lib/json';
+import { insertQuestionStructure } from '@/lib/question-structure-write';
 
 import type { QuestionnairePayload } from '@/lib/questionnaire-structure';
 
@@ -169,29 +169,8 @@ export async function createQuestionnaireWithPayload(input: {
       },
     });
 
-    for (const [index, question] of payload.questions.entries()) {
-      await tx.question.create({
-        data: {
-          questionnaireId: questionnaire.id,
-          type: question.type,
-          title: question.title,
-          description: question.description ?? null,
-          required: question.required,
-          shuffleOptions: question.shuffleOptions,
-          order: index,
-          pageIndex: question.pageIndex,
-          config: toJsonColumn(question.config),
-          options: question.options.length
-            ? {
-                create: question.options.map((label, optionIndex) => ({
-                  label,
-                  order: optionIndex,
-                })),
-              }
-            : undefined,
-        },
-      });
-    }
+    // 两次往返写完（审查 #15），不再逐题 create
+    await insertQuestionStructure(tx, questionnaire.id, payload.questions);
 
     if (input.templateId) {
       await tx.template.update({
@@ -226,29 +205,8 @@ export async function replaceQuestionnaireStructure(input: {
       data: { title, intro },
     });
 
-    for (const [index, question] of payload.questions.entries()) {
-      await tx.question.create({
-        data: {
-          questionnaireId,
-          type: question.type,
-          title: question.title,
-          description: question.description ?? null,
-          required: question.required,
-          shuffleOptions: question.shuffleOptions,
-          order: index,
-          pageIndex: question.pageIndex,
-          config: toJsonColumn(question.config),
-          options: question.options.length
-            ? {
-                create: question.options.map((label, optionIndex) => ({
-                  label,
-                  order: optionIndex,
-                })),
-              }
-            : undefined,
-        },
-      });
-    }
+    // 同样两次往返（审查 #15）
+    await insertQuestionStructure(tx, questionnaireId, payload.questions);
 
     return tx.questionnaire.findUnique({ where: { id: questionnaireId } });
   });
