@@ -79,7 +79,8 @@ export function EditorWorkspace({ readOnly }: { readOnly: boolean }) {
 
     const next = [...order];
     next.splice(to, 0, ...next.splice(from, 1));
-    reorderQuestions(next);
+    // 把「被拖动的那道题」一起传下去：它的分页要跟着落点重算（用户复测 #5）
+    reorderQuestions(next, String(active.id));
   };
 
   const selected = questions.find((question) => question.key === selectedKey) ?? null;

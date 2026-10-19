@@ -15,6 +15,7 @@ import { hasOptionList } from '@/lib/questionnaire-structure';
 
 import { saveEditorDraftAction } from '../actions/save-draft';
 import type { EditorQuestion, EditableQuestionType, QuestionConfig } from '../api/questionnaires';
+import { reorderQuestionsWithPages } from '../lib/draft-pages';
 import { optionUnit } from '../lib/draft-options';
 import {
   renameShowIfReferences,
@@ -151,7 +152,8 @@ type EditorDraftValue = {
   addQuestion: (type: EditableQuestionType, afterKey?: string | null) => string;
   updateQuestion: (key: string, patch: Partial<Omit<DraftQuestion, 'key' | 'options'>>) => void;
   removeQuestion: (key: string) => void;
-  reorderQuestions: (keys: string[]) => void;
+  /** 拖动排序。`movedKey` = 被拖动的那道题：它的 `pageIndex` 要跟着落点重算（用户复测 #5） */
+  reorderQuestions: (keys: string[], movedKey: string) => void;
   /** 添加一个选项 / 行。返回新项的 key —— 调用方拿它把焦点落到刚出现的那一格（R94） */
   addOption: (questionKey: string) => string;
   updateOption: (questionKey: string, optionKey: string, label: string) => void;
@@ -432,14 +434,13 @@ export function EditorDraftProvider({
       // 删题时「依赖它」的条件由 mutate 里的 settleShowIf 一并收掉（依赖题找不到 → 条件作废），
       // 这里只负责把题删掉 —— 规则只写一处，才不会出现「删题清掉了、拖走却留着」
       removeQuestion: (key) => mutate((list) => list.filter((question) => question.key !== key)),
-      reorderQuestions: (keys) =>
-        mutate((list) => {
-          const byKey = new Map(list.map((question) => [question.key, question]));
-          return keys.flatMap((key) => {
-            const question = byKey.get(key);
-            return question ? [question] : [];
-          });
-        }),
+      /*
+       * 拖动排序必须同时改 `pageIndex`（用户复测 #5）：只重排数组的话，
+       * 画布按数组顺序画、作答页按 pageIndex 分组 —— 跨页拖动后两处会看到不同的顺序。
+       * 规则（落点归属 + 页号归一）在 `lib/draft-pages.ts`，有单测。
+       */
+      reorderQuestions: (keys, movedKey) =>
+        mutate((list) => reorderQuestionsWithPages(list, keys, movedKey)),
       addOption: (questionKey) => {
         const optionKey = tempKey('o');
 
