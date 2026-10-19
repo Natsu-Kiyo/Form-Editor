@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getOperationLogs } from '@/features/logs/api/logs';
+import { LOG_EXPORT_LIMIT, buildLogsCsvRows } from '@/features/logs/lib/export-csv';
 import { parseLogsQuery } from '@/features/logs/lib/filter';
 import { requireActiveWorkspace } from '@/lib/auth/active-workspace';
 import { toCsv } from '@/lib/csv';
@@ -13,8 +14,9 @@ import { toCsv } from '@/lib/csv';
  *
  * 权限 **ADMIN**：查看日志对所有成员开放，但把整份审计记录打包带走不是。
  * 筛选解析与页面共用 `parseLogsQuery` —— 页面上筛的是谁，导出的就是谁。
+ *
+ * 条数上限与「被截断时要写在文件里」都在 `lib/export-csv.ts`（审查 #18）。
  */
-const EXPORT_LIMIT = 2000;
 
 export async function GET(request: Request) {
   const { workspace } = await requireActiveWorkspace('ADMIN');
@@ -26,21 +28,9 @@ export async function GET(request: Request) {
     days: search.get('days') ?? undefined,
   });
 
-  const data = await getOperationLogs(workspace.id, { ...filter, limit: EXPORT_LIMIT });
+  const data = await getOperationLogs(workspace.id, { ...filter, limit: LOG_EXPORT_LIMIT });
 
-  const header = ['时间', '成员', '操作', '类型', '对象', '补充'];
-  const rows = data.days.flatMap((day) =>
-    day.rows.map((row) => [
-      `${day.key} ${row.timeLabel}`,
-      row.actorName,
-      `${row.sentence.prefix}${row.sentence.target}${row.sentence.suffix}`,
-      row.groupLabel,
-      row.typeLabel,
-      row.extra ?? '',
-    ]),
-  );
-
-  return new NextResponse(toCsv([header, ...rows]), {
+  return new NextResponse(toCsv(buildLogsCsvRows(data)), {
     headers: {
       'content-type': 'text/csv; charset=utf-8',
       // 带完整审计记录的一次性下载：显式 no-store（与答卷导出同一条理由）
