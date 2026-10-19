@@ -116,6 +116,22 @@ test.describe('编辑器保存', () => {
     await expect(page.getByText('共 1 个版本')).toBeVisible();
     await page.keyboard.press('Escape');
 
+    /*
+     * 改了又改回来：dirty 是 true，但结构没变 —— 保存不该多出一条一模一样的版本
+     * （用户复测 #4）。`snapshot` 是 JSONB，读回来的键序与写入时不同，
+     * 以前用 `JSON.stringify` 比较永远不相等，这里会变成「共 2 个版本」。
+     */
+    const titleField = page.getByLabel('问卷标题');
+    const originalTitle = await titleField.inputValue();
+    await titleField.fill(`${originalTitle} 临时`);
+    await titleField.fill(originalTitle);
+    await page.getByRole('button', { name: '保存' }).click();
+    await expect(page.getByRole('banner').getByText('已保存')).toBeVisible();
+
+    await historyButton.click();
+    await expect(page.getByText('共 1 个版本')).toBeVisible();
+    await page.keyboard.press('Escape');
+
     // ---- 第二版：改标题 + 再加一道题 ----
     await page.getByLabel('问卷标题').fill(`${VERSION_TITLE} 第二版`);
     await page.getByRole('button', { name: '多选', exact: true }).click();

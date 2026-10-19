@@ -4,6 +4,7 @@ import { assertModelsForDev, prisma } from '@/lib/db';
 import { toJsonColumn } from '@/lib/json';
 import { getQuestionnairePayload } from '@/lib/questionnaire-snapshot';
 import type { QuestionnairePayload } from '@/lib/questionnaire-structure';
+import { stableJson } from '@/utils/stable-json';
 
 /**
  * 写一条题目结构的版本快照 —— **尽力而为，不抛错**。
@@ -72,9 +73,15 @@ async function insertVersion(
     select: { version: true, snapshot: true },
   });
 
-  // 结构没变就不写：否则用户点十次保存就会得到十条一模一样的版本，
-  // 抽屉变成噪音，真正的改动反而找不到
-  if (latest && JSON.stringify(latest.snapshot) === JSON.stringify(payload)) {
+  /*
+   * 结构没变就不写：否则用户点十次保存就会得到十条一模一样的版本，
+   * 抽屉变成噪音，真正的改动反而找不到。
+   *
+   * 比较必须用 `stableJson`（用户复测 #4）：`snapshot` 是 **JSONB**，Postgres 读回来时
+   * 会重排键序，而 `JSON.stringify` 是顺序敏感的 —— 直接比永远不相等，
+   * 上面那句话一直没兑现，每次保存都白写一条版本（还多一次 findFirst + 一次事务）。
+   */
+  if (latest && stableJson(latest.snapshot) === stableJson(payload)) {
     return latest.version;
   }
 
