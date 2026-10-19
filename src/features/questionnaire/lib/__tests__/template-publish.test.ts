@@ -27,6 +27,16 @@ describe('canPublishTemplate', () => {
     if (!full.ok) expect(full.reasons.join()).toContain('上限');
   });
 
+  it('已公开的那张再改描述时不占自己的额度（审查 #17）', () => {
+    const result = canPublishTemplate({
+      ...valid,
+      publicCount: TEMPLATE_PUBLIC_LIMIT,
+      isAlreadyPublic: true,
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
   it('空模板不能公开', () => {
     const result = canPublishTemplate({ ...valid, questionCount: 0 });
     expect(result.ok).toBe(false);

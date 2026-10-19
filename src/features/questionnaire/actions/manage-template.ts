@@ -208,6 +208,8 @@ export async function publishTemplateAction(
     questionCount: template.questionCount,
     category: parsed.data.category,
     publicCount,
+    // 已公开的再提交只是改描述：额度不该把它自己算进去（审查 #17）
+    isAlreadyPublic: template.isPublic,
   });
 
   if (!check.ok) return { message: check.reasons[0], values };

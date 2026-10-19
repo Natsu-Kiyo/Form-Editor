@@ -34,12 +34,20 @@ export function canPublishTemplate(input: {
   category: string;
   /** 本工作区**已公开**的模板数量（由调用方查库传进来） */
   publicCount: number;
+  /**
+   * 这次操作的对象**本身已经公开**了吗（审查 #17）。
+   *
+   * 已公开的模板再提交一次，只是改描述 / 分类，并不新增一张 ——
+   * 额度要把它自己排除掉，否则「刚好 10 张时改个描述」也会被拒。
+   */
+  isAlreadyPublic?: boolean;
 }): TemplatePublishCheck {
   const reasons: string[] = [];
-  const { description, questionCount, category, publicCount } = input;
+  const { description, questionCount, category, publicCount, isAlreadyPublic } = input;
   const descriptionLength = description.trim().length;
+  const effectiveCount = Math.max(0, publicCount - (isAlreadyPublic ? 1 : 0));
 
-  if (publicCount >= TEMPLATE_PUBLIC_LIMIT) {
+  if (effectiveCount >= TEMPLATE_PUBLIC_LIMIT) {
     reasons.push(`本工作区已公开 ${TEMPLATE_PUBLIC_LIMIT} 张（上限），先取消一些再公开`);
   }
 
