@@ -9,5 +9,6 @@ import { prisma } from '@/lib/db';
  * 只有问卷数需要单独查一次 —— 所以这里只补这一项，不把成员也再数一遍。
  */
 export function countWorkspaceQuestionnaires(workspaceId: string) {
-  return prisma.questionnaire.count({ where: { workspaceId } });
+  // 与问卷列表、成员页那张卡同一个口径：归档的不算（审查 #13）
+  return prisma.questionnaire.count({ where: { workspaceId, archivedAt: null } });
 }

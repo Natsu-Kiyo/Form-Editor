@@ -110,10 +110,15 @@ export async function listQuestionnaires(input: {
   }));
 }
 
-/** 汇总卡的数字。全部口径与列表一致：不含已归档 */
+/** 汇总卡的数字。全部口径与列表一致：不含已归档（审查 #13） */
 export async function getQuestionnaireSummary(workspaceId: string): Promise<QuestionnaireSummary> {
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
+  /*
+   * 三处都要是同一个口径（审查 #13）：`total` 一直扣掉了归档，
+   * 而「累计答卷」与「本周新增」没有 —— 归档问卷的答卷会继续算进累计，
+   * 卡片与列表于是各说一套。归档标志用 `archivedAt`（与列表查询同一个字段）。
+   */
   const [groups, validResponses, createdThisWeek] = await Promise.all([
     prisma.questionnaire.groupBy({
       by: ['status'],
@@ -121,9 +126,11 @@ export async function getQuestionnaireSummary(workspaceId: string): Promise<Ques
       _count: { _all: true },
     }),
     prisma.response.count({
-      where: { status: 'VALID', questionnaire: { workspaceId } },
+      where: { status: 'VALID', questionnaire: { workspaceId, archivedAt: null } },
     }),
-    prisma.questionnaire.count({ where: { workspaceId, createdAt: { gte: weekAgo } } }),
+    prisma.questionnaire.count({
+      where: { workspaceId, archivedAt: null, createdAt: { gte: weekAgo } },
+    }),
   ]);
 
   const countByStatus = new Map(groups.map((group) => [group.status, group._count._all]));
