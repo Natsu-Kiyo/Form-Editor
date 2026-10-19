@@ -177,4 +177,53 @@ test.describe('公开作答端', () => {
     await page.goto('/app');
     await clearLeftovers(page, TITLE);
   });
+
+  /**
+   * 回归（审查 #2 的收口遗漏）：**登录用户答匿名问卷**。
+   *
+   * 提交端早已按 `resolveRespondent` 把匿名的 respondentId 置空、只按指纹查重，
+   * 但公开页当时仍把 `user.id` 当 respondentId 传下去 —— `findExistingResponse`
+   * 见到非空账号就只按账号查，于是「提交完重开链接」仍是一张空表单，
+   * 再提交才报「已提交过」，刷新又回到表单。两边现在共用同一个判定。
+   */
+  test('登录用户答匿名问卷：提交后重开显示「已提交过」而不是表单', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', '写操作只在桌面端跑');
+    const title = 'E2E 登录匿名用例';
+
+    await signIn(page);
+    await clearLeftovers(page, title);
+
+    // ---- 造一份匿名模式的已发布问卷（发布设置默认就是匿名作答）----
+    await page.getByRole('button', { name: '新建问卷' }).first().click();
+    await page.getByRole('button', { name: '创建', exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/q\/[^/]+\/edit$/, { timeout: 90_000 });
+    await page.getByLabel('问卷标题').fill(title);
+    await page.getByRole('button', { name: '单选', exact: true }).click();
+    await page.getByRole('button', { name: '保存' }).click();
+    await expect(page.getByRole('banner').getByText('已保存')).toBeVisible();
+
+    const tabs = page.getByRole('navigation', { name: '问卷内页面' });
+    await tabs.getByRole('link', { name: '发布设置' }).click();
+    await page.getByRole('button', { name: '保存并发布' }).click();
+    await expect(page.getByRole('status')).toContainText('已发布');
+
+    await tabs.getByRole('link', { name: '分享' }).click();
+    const slug = (await page.getByText(/\/s\//).first().textContent())!.split('/s/')[1]!;
+
+    // ---- 同一个人（浏览器有登录态）作答并提交 ----
+    await page.goto(`/s/${slug}`);
+    await expect(page.getByRole('heading', { name: title })).toBeVisible();
+    await page.getByRole('button', { pressed: false }).first().click();
+    await page.getByRole('button', { name: /提交答卷/ }).click();
+    await expect(page).toHaveURL(/\/s\/[^/]+\/done\?r=/, { timeout: 60_000 });
+
+    // ---- 重开：必须是「已提交过」，而不是又一张表单（这就是回归点）----
+    await page.goto(`/s/${slug}`);
+    await expect(page.getByRole('heading', { name: '你已提交过这份问卷' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /提交答卷/ })).toHaveCount(0);
+
+    // ---- 收尾 ----
+    await page.goto('/app');
+    await clearLeftovers(page, title);
+  });
 });

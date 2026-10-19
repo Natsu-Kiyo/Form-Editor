@@ -12,7 +12,6 @@ import {
 import { LoginRequiredCard, UnlockCard } from '@/features/answering/components/access-cards';
 import { AnsweringForm } from '@/features/answering/components/answering-form';
 import { UnavailableState } from '@/features/answering/components/unavailable-state';
-import { buildFingerprint } from '@/features/answering/lib/fingerprint';
 import { isUnlocked } from '@/features/answering/lib/unlock';
 import { getCurrentUser } from '@/lib/auth/dal';
 import { firstParam } from '@/utils/search-params';
@@ -43,9 +42,6 @@ export default async function PublicQuestionnairePage({
   const [cookieStore, user] = await Promise.all([cookies(), getCurrentUser()]);
 
   const clientId = cookieStore.get('qw_client_id')?.value ?? null;
-  // 与提交时用的是同一个函数：页面判「已提交过」与实际拦截的依据必须一致。
-  // 只认客户端 id，拿不到就返回 null（不再拿 UA 顶替，审查 #10）
-  const fingerprint = buildFingerprint(clientId);
 
   /*
    * 「要不要先解锁」的判据：口令模式的问卷必须有口令、且已被解开。
@@ -57,7 +53,8 @@ export default async function PublicQuestionnairePage({
 
   const view = await getPublicQuestionnaire(
     slug,
-    { srcToken, fingerprint, respondentId: user?.id ?? null },
+    // 传**原始**身份线索：匿名还是按账号，等数据层读到 identityMode 再判（与提交端同源）
+    { srcToken, clientId, userId: user?.id ?? null },
     unlocked,
   );
 

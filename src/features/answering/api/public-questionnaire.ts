@@ -12,6 +12,7 @@ import { responseSerial } from '@/lib/response-serial';
 import { daysUntil, formatDateTimeLocal } from '@/utils/format';
 
 import type { SubmittableQuestion } from '../lib/answers';
+import { resolveRespondent } from '../lib/respondent';
 
 /**
  * 公开作答链接（`/s/{slug}`）看到的东西。
@@ -62,12 +63,20 @@ export type PublicView =
       daysLeft: number | null;
     };
 
+/**
+ * 公开页拿到的**原始**身份线索（不是已经算好的 respondentId / fingerprint）。
+ *
+ * 为什么要原始值：同一个访客在「匿名问卷」与「需登录问卷」里的身份含义完全不同，
+ * 而**只有读到问卷的 identityMode 之后**才知道该用哪一种。页面先自己算一遍
+ * （以前就是这么做的）必然与提交端分叉 —— 那正是「匿名提交后重开仍看到表单」的原因。
+ * 现在统一在这里用 `resolveRespondent` 判一次，提交端也是同一个函数。
+ */
 export type PublicViewContext = {
   srcToken: string | null;
-  /** 匿名作答的浏览器指纹（已哈希） */
-  fingerprint: string | null;
-  /** 登录作答时的用户 id */
-  respondentId: string | null;
+  /** 当前登录用户；匿名问卷会被 `resolveRespondent` 忽略 */
+  userId: string | null;
+  /** proxy 下发的浏览器 id；用来算匿名指纹 */
+  clientId: string | null;
 };
 
 function stamp(date: Date | null) {
@@ -113,6 +122,17 @@ export async function getPublicQuestionnaire(
   });
 
   if (!row) return { state: 'NOT_FOUND' };
+
+  /*
+   * 身份只在这一处判定（审查 #2 的回归）：与提交端共用 `resolveRespondent`。
+   * 匿名问卷即便访客登录着也**只能按指纹查重** —— 以前页面直接传 `user.id`，
+   * 于是匿名提交后重开链接仍看到表单，再提交却返回 ALREADY_SUBMITTED。
+   */
+  const identity = resolveRespondent({
+    identityMode: row.identityMode as IdentityMode,
+    userId: context.userId,
+    clientId: context.clientId,
+  });
 
   const now = new Date();
   const responseCount = row._count.responses;
@@ -219,7 +239,7 @@ export async function getPublicQuestionnaire(
   }
 
   // 重复提交：登录作答按账号判、匿名作答按指纹判（与表上的唯一约束一一对应）
-  const existing = await findExistingResponse(row.id, context);
+  const existing = await findExistingResponse(row.id, identity);
   if (existing) {
     return unavailable(
       'ALREADY_SUBMITTED',
@@ -244,7 +264,8 @@ export async function getPublicQuestionnaire(
     intro: row.intro,
     identityMode: row.identityMode as IdentityMode,
     locked: row.identityMode === 'PASSWORD' && !unlocked,
-    needsLogin: row.identityMode === 'LOGIN_REQUIRED' && !context.respondentId,
+    // 「要不要登录」看的是**真实登录态**：匿名问卷的身份被判成 null，但人不该被要求登录
+    needsLogin: row.identityMode === 'LOGIN_REQUIRED' && !context.userId,
     channelName: channel?.name ?? null,
     endsAtLabel,
     daysLeft: row.endsAt ? daysUntil(row.endsAt, now) : null,
