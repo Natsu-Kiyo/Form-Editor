@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { readQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
 import type { QuestionnairePayload } from '@/lib/questionnaire-structure';
 
@@ -15,6 +16,13 @@ import type { QuestionnairePayload } from '@/lib/questionnaire-structure';
 export async function getQuestionnairePayload(
   questionnaireId: string,
 ): Promise<{ title: string; intro: string | null; payload: QuestionnairePayload } | null> {
+  /*
+   * 数据函数自己断言（审查 #14 补充）：四个调用方（导出 JSON / 复制 / 另存为模板 /
+   * 发布写版本）目前都有各自的 guard，但「导出 JSON」与「复制」走的是 Route Handler
+   * 与 action，新增一个入口忘了 guard 就会把整份结构交出去。无权与不存在都返回 null。
+   */
+  if (!(await readQuestionnaireAccess(questionnaireId))) return null;
+
   const questionnaire = await prisma.questionnaire.findUnique({
     where: { id: questionnaireId },
     select: {

@@ -143,6 +143,9 @@ export async function getSharePageData(questionnaireId: string): Promise<SharePa
 
 /** 二维码路由只取这两个字段，不必走上面那次大查询 */
 export async function getQuestionnaireLink(questionnaireId: string) {
+  // 数据函数自己断言（审查 #14 补充）：二维码路由目前有 guard，这行是给它之后的新入口兜底
+  if (!(await readQuestionnaireAccess(questionnaireId))) return null;
+
   return prisma.questionnaire.findUnique({
     where: { id: questionnaireId },
     select: { slug: true, title: true },

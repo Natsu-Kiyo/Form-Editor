@@ -228,6 +228,14 @@ export async function getAnalyticsData(
 
 /** 导出用的原始行（CSV 的每一行 = 一份答卷） */
 export async function getResponsesForExport(questionnaireId: string, filter: AnalyticsFilter) {
+  /*
+   * 数据函数自己断言（审查 #14 补充）：导出是「把原始答卷整包带走」，
+   * 比统计页更敏感。调用方拿到 `questionnaire: null` 就返回 404。
+   */
+  if (!(await readQuestionnaireAccess(questionnaireId))) {
+    return { questionnaire: null, responses: [] };
+  }
+
   const bounds = filterBounds(filter);
 
   const [questionnaire, responses] = await Promise.all([

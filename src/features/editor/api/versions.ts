@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { readQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
 import { formatDateTimeLocal } from '@/utils/format';
 
@@ -20,6 +21,12 @@ export type VersionRow = {
  * 而当前版本号在问卷行上，分两次查就是两次跨区域往返。
  */
 export async function listVersions(questionnaireId: string): Promise<VersionRow[]> {
+  /*
+   * 数据函数自己断言（审查 #14 补充）。版本快照里有整份历史结构，与当前结构同样敏感。
+   * 无权 / 不存在都返回空数组：编辑器那边本来就有页面级 guard，这里只是让它不再依赖那个顺序。
+   */
+  if (!(await readQuestionnaireAccess(questionnaireId))) return [];
+
   const [versions, questionnaire] = await Promise.all([
     prisma.questionnaireVersion.findMany({
       where: { questionnaireId },
