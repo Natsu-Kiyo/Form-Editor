@@ -10,6 +10,7 @@ import { cn } from '@/utils/cn';
 
 import { rollbackVersionAction } from '../actions/rollback-version';
 import type { VersionRow } from '../api/versions';
+import { useEditorDraft } from './editor-draft';
 
 /**
  * 版本历史（设计稿 W11 的抽屉）。
@@ -35,6 +36,7 @@ export function VersionDrawer({
   /** 回滚结果横幅：**带语气** —— 失败不能长得像成功（R91 · S3） */
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
+  const { applyServerStructure, state } = useEditorDraft();
 
   const rollback = () => {
     if (!target) return;
@@ -48,7 +50,16 @@ export function VersionDrawer({
        */
       setMessage({ tone: result.ok ? 'ok' : 'error', text: result.message });
       setTarget(null);
-      if (result.ok) setOpen(false);
+
+      /*
+       * **界面上的草稿要跟着换掉**（用户复测：回滚后那道题还在，问卷看起来完全没变）。
+       * 服务端确实已经退回去了，但 `revalidatePath` 只能换页面 props，
+       * 换不掉画布读的那份 `useState`；不换的话，用户接着按保存还会把旧结构写回去。
+       */
+      if (result.ok) {
+        applyServerStructure(result.structure);
+        setOpen(false);
+      }
     });
   };
 
@@ -136,11 +147,23 @@ export function VersionDrawer({
             ，它会再写一条新版本，所以之后再回滚回来也可以。
           </p>
 
+          {/* 保存还在路上时不让回滚：那笔保存带的是回滚前的结构，落地后会把回滚结果又覆盖掉 */}
+          {state === 'saving' ? (
+            <p className="mt-2 text-[12px] leading-5 text-amber-700">
+              正在保存当前草稿 —— 等这次保存结束后再回滚，否则它会把回滚结果覆盖回去。
+            </p>
+          ) : null}
+
           <div className="mt-4 flex gap-2.5">
             <Button variant="outline" className="flex-1" onClick={() => setTarget(null)}>
               取消
             </Button>
-            <Button loading={pending} className="flex-1" disabled={pending} onClick={rollback}>
+            <Button
+              loading={pending}
+              className="flex-1"
+              disabled={pending || state === 'saving'}
+              onClick={rollback}
+            >
               {pending ? '回滚中…' : '确认回滚'}
             </Button>
           </div>

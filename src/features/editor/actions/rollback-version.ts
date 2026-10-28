@@ -9,9 +9,18 @@ import { writeOperationLog } from '@/lib/operation-log';
 import { questionnairePayloadSchema } from '@/lib/questionnaire-structure';
 import { writeQuestionnaireVersion } from '@/lib/questionnaire-version';
 
+import { editorQuestionsFromPayload, type EditorQuestion } from '../api/questionnaires';
 import { replaceStructure } from '../api/structure';
 
-export type RollbackResult = { ok: true; message: string } | { ok: false; message: string };
+/** 回滚之后**服务端现在的样子**：界面要拿它整体替换本地草稿 */
+export type RollbackStructure = {
+  title: string;
+  intro: string | null;
+  questions: EditorQuestion[];
+};
+
+export type RollbackResult =
+  { ok: true; message: string; structure: RollbackStructure } | { ok: false; message: string };
 
 /**
  * 回滚到某个版本。
@@ -62,5 +71,22 @@ export async function rollbackVersionAction(
 
   revalidatePath(`/app/q/${questionnaireId}`, 'layout');
 
-  return { ok: true, message: `已回滚到 ${formatVersion(version.version)}` };
+  /*
+   * 把**回滚后的那份结构**一起回传（用户复测：回滚后画布上还留着刚被回滚掉的那道题）。
+   *
+   * 原因不在服务端：`revalidatePath` 换掉的是页面 props，而编辑器画布读的是
+   * `EditorDraftProvider` 里那份 `useState` —— 它的初值只在挂载时算一次，
+   * 所以服务端明明已经退回去了，界面一动不动；此时再按保存，还会把旧结构又写回去。
+   * 因此回滚成功后由界面调 `applyServerStructure` 整体替换草稿。
+   * 不用「刷新一次页面」来兜：那既慢，又会在用户没有预期的时候丢掉别的界面状态。
+   */
+  return {
+    ok: true,
+    message: `已回滚到 ${formatVersion(version.version)}`,
+    structure: {
+      title: parsed.data.title,
+      intro: parsed.data.intro ?? null,
+      questions: editorQuestionsFromPayload(parsed.data),
+    },
+  };
 }

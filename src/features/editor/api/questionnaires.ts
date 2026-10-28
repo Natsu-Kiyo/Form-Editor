@@ -13,6 +13,7 @@ import {
 } from '@/config/constants';
 import { readQuestionnaireAccess } from '@/lib/auth/questionnaire-access';
 import { prisma } from '@/lib/db';
+import type { QuestionnairePayload } from '@/lib/questionnaire-structure';
 
 /** 编辑器可用的题型 = 全部 8 个（R62 矩阵开放后不再有补集） */
 export type EditableQuestionType = QuestionType;
@@ -106,6 +107,32 @@ function parseConfig(raw: unknown, type: EditableQuestionType): QuestionConfig {
   if (showIf) config.showIf = showIf;
 
   return config;
+}
+
+/**
+ * 把一份**结构快照**（版本历史里那一份）转成编辑器需要的形状 —— 回滚用。
+ *
+ * 快照里没有数据库 id：保存与回滚都是「删掉重建」，所以这里给合成的 id。
+ * 草稿只把它们当本地 key 用（React key / 拖拽 / 选中态），从不落库，合成 id 够用。
+ *
+ * `config` 必须走上面这个 `parseConfig`：读库与读快照各解析一套的话，
+ * 就会出现「回滚后评分范围还是快照里的旧值，刷新一下又变成规范值」这种只在一处可见的错位。
+ */
+export function editorQuestionsFromPayload(payload: QuestionnairePayload): EditorQuestion[] {
+  return payload.questions.map((question, index) => ({
+    id: `snapshot-q${index}`,
+    type: question.type,
+    title: question.title,
+    description: question.description ?? null,
+    required: question.required,
+    shuffleOptions: question.shuffleOptions,
+    pageIndex: question.pageIndex,
+    config: parseConfig(question.config, question.type),
+    options: question.options.map((label, optionIndex) => ({
+      id: `snapshot-q${index}-o${optionIndex}`,
+      label,
+    })),
+  }));
 }
 
 /** 编辑器需要的全部数据。`cache` 让 layout 与 page 在同一请求里只查一次 */

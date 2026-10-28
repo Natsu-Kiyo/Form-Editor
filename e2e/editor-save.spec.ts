@@ -145,11 +145,18 @@ test.describe('编辑器保存', () => {
     await page.getByRole('button', { name: '回滚' }).last().click();
     await page.getByRole('button', { name: '确认回滚' }).click();
 
-    // 等两个弹层都关上再刷新 —— 关上是「回滚已完成」的信号。
-    // 不等就会抢跑：刷新跑在写入之前，读到的还是旧数据（这是用例的问题，不是产品的）
+    // 两个弹层都关上 = 回滚已完成（写入在关闭之前就已返回）
     await expect(page.getByRole('dialog')).toHaveCount(0);
 
-    // 回滚后结构与标题都回到了第一版
+    /*
+     * **先不刷新就断言**（用户复测）：画布读的是客户端草稿，回滚后它必须当场换掉。
+     * 这里以前紧接着 `page.reload()`，正好把「回滚成功了、画布一动不动」这个 bug 盖住 ——
+     * 刷新一下当然是对的，但用户看到的是不刷新的那一屏，且此时按保存会把旧结构写回去。
+     */
+    await expect(page.getByLabel('问卷标题')).toHaveValue(VERSION_TITLE);
+    await expect(page.getByRole('group')).toHaveCount(1);
+
+    // 再刷新一次，确认服务端真的退回去了（不只是界面换了）
     await page.reload();
     await expect(page.getByLabel('问卷标题')).toHaveValue(VERSION_TITLE);
     await expect(page.getByRole('group')).toHaveCount(1);

@@ -70,6 +70,13 @@ export type DraftQuestion = {
 
 export type SaveState = 'idle' | 'saving' | 'error' | 'blocked';
 
+/** 服务端刚写回去的一份结构（回滚的结果）：用它整体替换草稿 */
+export type ServerStructure = {
+  title: string;
+  intro: string | null;
+  questions: EditorQuestion[];
+};
+
 function toDraftQuestions(questions: EditorQuestion[]): DraftQuestion[] {
   // 序号 → key 的映射表：payload 里的 `showIf.questionIndex` 在这里换成草稿题的 key
   const keyByIndex = questions.map((question) => question.id);
@@ -167,6 +174,14 @@ type EditorDraftValue = {
    */
   save: () => Promise<boolean>;
   discard: () => void;
+  /**
+   * 用服务端刚写回去的那份结构**整体替换**草稿（回滚之后用）。
+   *
+   * 必须走这里而不是等 `revalidatePath`：`initialQuestions` 是 props，回滚后它确实会变，
+   * 但 `useState` 的初值只算一次 —— 画布读的是本地草稿，于是「回滚成功了，界面一动不动」；
+   * 更糟的是本地还是回滚前那份，用户接着按保存就把刚回滚掉的结构又写了回去。
+   */
+  applyServerStructure: (next: ServerStructure) => void;
 };
 
 const EditorDraftContext = createContext<EditorDraftValue | null>(null);
@@ -346,6 +361,25 @@ export function EditorDraftProvider({
     setErrorMessage(null);
     setState(readOnly ? 'blocked' : 'idle');
   }, [initialTitle, initialIntro, initialQuestions, readOnly]);
+
+  /**
+   * 回滚之后：把草稿换成服务端刚写回去的那一份。
+   *
+   * 也走 `revisionRef + 1`：这是一次**结构变更**，若此刻还有一笔保存在路上，
+   * 它回来时不该按「没改过」去宣布已保存（那笔 payload 带的是回滚前的结构）。
+   */
+  const applyServerStructure = useCallback(
+    (next: ServerStructure) => {
+      setTitleState(next.title);
+      setIntroState(next.intro ?? '');
+      setQuestions(toDraftQuestions(next.questions));
+      revisionRef.current += 1;
+      setDirty(false);
+      setErrorMessage(null);
+      setState(readOnly ? 'blocked' : 'idle');
+    },
+    [readOnly],
+  );
 
   // Ctrl / Cmd + S 保存：编辑器里最顺手的一个快捷键，成本极低
   useEffect(() => {
@@ -531,6 +565,7 @@ export function EditorDraftProvider({
         ),
       save,
       discard,
+      applyServerStructure,
     }),
     [
       questionnaireId,
@@ -544,6 +579,7 @@ export function EditorDraftProvider({
       clearSaveError,
       save,
       discard,
+      applyServerStructure,
     ],
   );
 
