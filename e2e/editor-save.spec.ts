@@ -141,8 +141,27 @@ test.describe('编辑器保存', () => {
     await historyButton.click();
     await expect(page.getByText('共 2 个版本')).toBeVisible();
 
+    /*
+     * 抽屉自己也是一个 dialog（标题「版本历史」），而顶栏另有一个「预览」按钮 ——
+     * 不按抽屉定位的话，`getByRole('button', { name: '预览' })` 会同时命中两个。
+     */
+    const drawer = page.getByRole('dialog', { name: '版本历史' });
+
+    // ---- 预览：看到的是那一版真实的题目，而不是再猜一次文案 ----
+    await drawer.getByRole('button', { name: '预览', exact: true }).last().click();
+    const previewDialog = page.getByRole('dialog', { name: '预览 v1' });
+    await expect(previewDialog).toBeVisible();
+    await expect(previewDialog.getByText(VERSION_TITLE, { exact: true })).toBeVisible();
+    await expect(previewDialog.getByText('1 题', { exact: true })).toBeVisible();
+    /*
+     * 弹层里有两个「关闭」：右上角那个 × 的 aria-label 也叫「关闭」，页脚那个是按钮文字。
+     * 页脚在 DOM 里靠后，用 last() 取它（前者是图标按钮，点了也能关，但不是这条断言要走的出口）。
+     */
+    await previewDialog.getByRole('button', { name: '关闭', exact: true }).last().click();
+    await expect(previewDialog).toHaveCount(0);
+
     // ---- 回滚到最早那一版（列表是倒序，最后一条就是 v1）----
-    await page.getByRole('button', { name: '回滚' }).last().click();
+    await drawer.getByRole('button', { name: '回滚', exact: true }).last().click();
     await page.getByRole('button', { name: '确认回滚' }).click();
 
     // 两个弹层都关上 = 回滚已完成（写入在关闭之前就已返回）
@@ -161,15 +180,42 @@ test.describe('编辑器保存', () => {
     await expect(page.getByLabel('问卷标题')).toHaveValue(VERSION_TITLE);
     await expect(page.getByRole('group')).toHaveCount(1);
 
-    // **回滚不删除历史**：现在是 3 条（两次保存 + 一条「回滚自 v1」）
+    /*
+     * **回滚不新增记录**（用户复测 #2）：仍是最初那两条。
+     * 「当前」徽标挪到 v1 那一行，抽屉顶部的横幅说明现在的状态。
+     */
+    await historyButton.click();
+    await expect(page.getByText('共 2 个版本')).toBeVisible();
+
+    const firstVersionRow = page.getByRole('listitem').filter({ hasText: '初始版本' });
+    await expect(firstVersionRow.getByText('当前', { exact: true })).toBeVisible();
+    // 横幅只留一句「已回滚到 v1」（用户复测：不要多余的说明）
+    await expect(page.getByText('已回滚到 v1', { exact: true })).toBeVisible();
+
+    await page.keyboard.press('Escape');
+
+    /*
+     * ---- 再编辑并保存：横幅必须消失、版本才 +1 ----
+     * 横幅是「指针落后于最新编号」推出来的状态，不是一次性回执 ——
+     * 保存出 v3 之后指针追上最新编号，它就该自己消失。
+     */
+    await page.getByLabel('问卷标题').fill(`${VERSION_TITLE} 第三版`);
+    await page.getByRole('button', { name: '保存' }).click();
+    await expect(page.getByRole('banner').getByText('已保存')).toBeVisible();
+
     await historyButton.click();
     await expect(page.getByText('共 3 个版本')).toBeVisible();
-    await expect(page.getByText('回滚自 v1')).toBeVisible();
+    // 指针追上最新编号，横幅整条消失
+    await expect(page.getByText('已回滚到', { exact: false })).toHaveCount(0);
+    // 新版本记得住「基于哪一版改的」（用户复测 #3）
+    const thirdVersionRow = page.getByRole('listitem').filter({ hasText: '修改自 v1' });
+    await expect(thirdVersionRow.getByText('当前', { exact: true })).toBeVisible();
 
     // ---- 收尾 ----
     await page.goto('/app');
     await clearLeftovers(page, VERSION_TITLE);
     await clearLeftovers(page, `${VERSION_TITLE} 第二版`);
+    await clearLeftovers(page, `${VERSION_TITLE} 第三版`);
   });
 
   test('评分题：上限最多 10 分，刻度每行五个', async ({ page }, testInfo) => {

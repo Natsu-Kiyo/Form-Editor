@@ -18,7 +18,16 @@ import { insertQuestionStructure } from '@/lib/question-structure-write';
  *   （发布即冻结，`requireDraftQuestionnaire` 会把关），草稿态不该有答卷，
  *   所以级联删掉作答值不会丢数据。
  */
-export async function replaceStructure(questionnaireId: string, payload: QuestionnairePayload) {
+export async function replaceStructure(
+  questionnaireId: string,
+  payload: QuestionnairePayload,
+  /**
+   * 回滚时把「当前版本」指针一起移到目标版本。
+   * 放进同一个事务里：结构换了、指针没换（或反过来）都会让界面上
+   * 「当前版本是 v6」与实际内容对不上，而且那是一次用户可见的中间态。
+   */
+  options?: { version?: number },
+) {
   await prisma.$transaction(async (tx) => {
     await tx.questionnaire.update({
       where: { id: questionnaireId },
@@ -26,6 +35,7 @@ export async function replaceStructure(questionnaireId: string, payload: Questio
       data: {
         title: payload.title.slice(0, PAYLOAD_LIMITS.QUESTIONNAIRE_TITLE),
         intro: payload.intro ?? null,
+        ...(options?.version === undefined ? {} : { version: options.version }),
       },
     });
 

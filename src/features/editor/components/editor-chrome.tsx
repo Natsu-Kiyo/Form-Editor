@@ -9,7 +9,7 @@ import { CharCount } from '@/components/ui/char-count';
 import { PAYLOAD_LIMITS } from '@/config/constants';
 import { useIsDesktop } from '@/hooks/use-is-desktop';
 
-import type { VersionRow } from '../api/versions';
+import type { VersionHistory } from '../api/versions';
 import { VersionDrawer } from './version-drawer';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalContent } from '@/components/ui/modal';
@@ -31,11 +31,12 @@ import { EditorPreviewDialog } from './editor-preview-dialog';
  */
 export function EditorChrome({
   readOnlyReason,
-  versions,
+  history,
   publishSheet,
 }: {
   readOnlyReason: EditorReadOnlyReason;
-  versions: VersionRow[];
+  /** 版本历史：列表 + 当前/最大版本号（顶部横幅靠后两者判定，见 `version-drawer`） */
+  history: VersionHistory;
   /** 窄屏「发布」弹层的内容。由页面构造（`app` 层是 feature 的组合点）；为 null 时不渲染弹层入口 */
   publishSheet: React.ReactNode | null;
 }) {
@@ -98,7 +99,7 @@ export function EditorChrome({
       {/* 版本历史按 1.0 的范围只在桌面端出现（计划书 §3 的 C 级清单）：
           窄屏用 useIsDesktop **真不渲染**，不是 CSS 藏起来 */}
       {isDesktop ? (
-        <VersionDrawer questionnaireId={questionnaireId} versions={versions} readOnly={readOnly} />
+        <VersionDrawer questionnaireId={questionnaireId} history={history} readOnly={readOnly} />
       ) : null}
 
       {/*

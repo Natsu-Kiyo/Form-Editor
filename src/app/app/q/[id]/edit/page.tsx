@@ -25,7 +25,7 @@ export default async function EditQuestionnairePage({
 }) {
   const { id } = await params;
 
-  const [{ role }, editor, versions, publishData] = await Promise.all([
+  const [{ role }, editor, history, publishData] = await Promise.all([
     requireQuestionnaireAccess(id, 'VIEWER'),
     getEditorQuestionnaire(id),
     listVersions(id),
@@ -65,7 +65,7 @@ export default async function EditQuestionnairePage({
     >
       <EditorChrome
         readOnlyReason={readOnlyReason}
-        versions={versions}
+        history={history}
         // 窄屏的发布弹层在**页面**构造：publish 是另一个 feature，编辑器那一层不跨域引用
         publishSheet={
           publishData ? (

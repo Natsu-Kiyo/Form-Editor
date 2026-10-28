@@ -354,15 +354,23 @@ model Channel {
 
 /// 题目结构的版本快照。
 ///
-/// 每次**发布**写一条，**回滚**也写一条（回滚不删除任何历史版本 —— 设计稿 W11 的原文）。
+/// **保存草稿且结构确有变化**时写一条（见 `lib/questionnaire-version.ts`）。
+/// **回滚不写记录**：只把 `Questionnaire.version` 指回去 —— 否则每次回滚都会留下一条
+/// 与目标版本内容完全相同的记录，列表很快就被这种重复淹掉（设计稿 W11 的「不删除历史」仍然成立）。
 /// `snapshot` 与「导出 JSON」是同一套 schema，所以回滚可以直接复用结构替换的逻辑。
 model QuestionnaireVersion {
   id              String   @id @default(cuid())
   questionnaireId String
   version         Int
   snapshot        Json
-  /// 这个版本是怎么来的：「发布」「回滚自 v2」
+  /// 这个版本是怎么来的：「保存草稿」「发布」。**只作审计**，界面主文案由
+  /// `sourceVersion` / `questionCount` 生成（见 `lib/version-summary.ts`）
   label           String
+  /// 基于哪一版改的（写入时 `Questionnaire.version` 指向的那一版）。
+  /// 列表里显示成「修改自 vN」；历史数据为空 —— 那时还没有这个字段，回退显示 `label`
+  sourceVersion   Int?
+  /// 这一版的题数。写入时算好，列表就不必把整份 snapshot 传回来
+  questionCount   Int      @default(0)
   createdById     String?
   createdAt       DateTime @default(now())
 

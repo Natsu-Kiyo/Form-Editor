@@ -224,6 +224,21 @@ export function EditorDraftProvider({
    */
   const revisionRef = useRef(0);
 
+  /**
+   * `dirty` 的同步副本（用户复测）。
+   *
+   * 保存按钮是 `disabled={!dirty}`，但 **Ctrl / Cmd + S 不经过那个按钮** ——
+   * 它直接调 `save()`。回滚后本地草稿刚被换成目标版本（`dirty` 为 false），
+   * 此时按一下快捷键就会把这份「没有改动」的结构再存一遍，
+   * 于是又凭空多出一条与目标版本内容相同的版本记录。
+   * 用 ref 而不是读 `dirty` 本身：`save` 是 `useCallback`，不该因为 dirty 变化而重建。
+   */
+  const dirtyRef = useRef(false);
+  const markDirty = useCallback((next: boolean) => {
+    dirtyRef.current = next;
+    setDirty(next);
+  }, []);
+
   // 放进 ref 是为了让 save 不必依赖整个 questions 数组 ——
   // 否则每敲一个字都会重建 save 回调（连带重建 context value、重渲染全部消费者）。
   // 同步放在 effect 里：渲染期写 ref 会触发「Cannot access refs during render」，
@@ -259,14 +274,22 @@ export function EditorDraftProvider({
        */
       setQuestions((list) => settleShowIf(updater(list)));
       revisionRef.current += 1;
-      setDirty(true);
+      markDirty(true);
       clearSaveError();
     },
-    [clearSaveError],
+    [clearSaveError, markDirty],
   );
 
   const save = useCallback(async (): Promise<boolean> => {
     if (readOnly) return false;
+
+    /*
+     * 没有任何改动就不必保存：保存按钮是禁用的，但 Ctrl / Cmd + S 不经过它。
+     * 回滚之后按一下快捷键，会把「刚回滚出来的这一份」再存一遍，
+     * 从而多出一条与目标版本内容相同的记录 —— 这正是回滚不再写记录要避免的事。
+     * 返回 true：「保存并离开」在这种情况下照常离开（确实没有东西要存）。
+     */
+    if (!dirtyRef.current) return true;
 
     setState('saving');
     setErrorMessage(null);
@@ -332,7 +355,7 @@ export function EditorDraftProvider({
          */
         const unchanged = revisionRef.current === revisionAtSave;
 
-        if (unchanged) setDirty(false);
+        if (unchanged) markDirty(false);
         setState('idle');
 
         return unchanged;
@@ -350,17 +373,17 @@ export function EditorDraftProvider({
 
       return false;
     }
-  }, [questionnaireId, readOnly]);
+  }, [questionnaireId, readOnly, markDirty]);
 
   /** 放弃本次修改，回到服务端那一份 */
   const discard = useCallback(() => {
     setTitleState(initialTitle);
     setIntroState(initialIntro ?? '');
     setQuestions(toDraftQuestions(initialQuestions));
-    setDirty(false);
+    markDirty(false);
     setErrorMessage(null);
     setState(readOnly ? 'blocked' : 'idle');
-  }, [initialTitle, initialIntro, initialQuestions, readOnly]);
+  }, [initialTitle, initialIntro, initialQuestions, readOnly, markDirty]);
 
   /**
    * 回滚之后：把草稿换成服务端刚写回去的那一份。
@@ -374,11 +397,11 @@ export function EditorDraftProvider({
       setIntroState(next.intro ?? '');
       setQuestions(toDraftQuestions(next.questions));
       revisionRef.current += 1;
-      setDirty(false);
+      markDirty(false);
       setErrorMessage(null);
       setState(readOnly ? 'blocked' : 'idle');
     },
-    [readOnly],
+    [readOnly, markDirty],
   );
 
   // Ctrl / Cmd + S 保存：编辑器里最顺手的一个快捷键，成本极低
@@ -408,13 +431,13 @@ export function EditorDraftProvider({
       setTitle: (next) => {
         setTitleState(next);
         revisionRef.current += 1;
-        setDirty(true);
+        markDirty(true);
         clearSaveError();
       },
       setIntro: (next) => {
         setIntroState(next);
         revisionRef.current += 1;
-        setDirty(true);
+        markDirty(true);
         clearSaveError();
       },
       addQuestion: (type, afterKey) => {
@@ -577,6 +600,7 @@ export function EditorDraftProvider({
       errorMessage,
       mutate,
       clearSaveError,
+      markDirty,
       save,
       discard,
       applyServerStructure,
